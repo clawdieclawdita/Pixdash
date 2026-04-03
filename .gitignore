@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.log
+.env
+.tmp-*
+test-screenshots/
+.learnings/
+LIVE_QA_REPORT*.md
+live-qa-*.json
+live-qa-*.mjs
+qa-live-*.js
+qa-live-*.json
+QAUDIT.md
+TRACK5_COMPLETION.md
+PROJECT_LOG.md
+packages/backend/src/.tmp-*

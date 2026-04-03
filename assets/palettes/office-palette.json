@@ -1,0 +1,22 @@
+{
+  "name": "office-warm-snes",
+  "description": "Warm office palette with brass UI accents and Chrono Trigger-inspired room tones.",
+  "colors": {
+    "woodLight": "#B98B58",
+    "woodMid": "#8B6137",
+    "woodDark": "#5E3E23",
+    "stoneLight": "#C6C2BB",
+    "stoneMid": "#9B958B",
+    "stoneDark": "#68635C",
+    "carpet": "#4E6679",
+    "carpetShadow": "#364858",
+    "wall": "#D7C9AD",
+    "wallShadow": "#B19674",
+    "plant": "#7AA35D",
+    "leafDark": "#48663B",
+    "metal": "#7A8897",
+    "accent": "#D96C3F",
+    "paper": "#EFE4CF",
+    "coffee": "#6B4228"
+  }
+}

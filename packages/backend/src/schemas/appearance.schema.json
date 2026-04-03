@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "bodyType": { "type": "string", "enum": ["male", "female", "neutral"] },
+    "hair": {
+      "type": "object",
+      "properties": {
+        "style": { "type": "string", "enum": ["short", "long", "bald", "ponytail", "spiky"] },
+        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+      },
+      "additionalProperties": false
+    },
+    "skinColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "outfit": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["casual", "formal", "hoodie", "tank-top"] },
+        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+      },
+      "additionalProperties": false
+    },
+    "accessories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "enum": ["glasses", "hat", "headphones", "watch"] },
+          "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+        },
+        "required": ["type"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

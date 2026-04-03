@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "version": { "type": "number" },
+    "width": { "type": "number" },
+    "height": { "type": "number" },
+    "tileSize": { "type": "number" },
+    "layers": {
+      "type": "object",
+      "properties": {
+        "floor": { "$ref": "#/definitions/grid" },
+        "furniture": { "$ref": "#/definitions/grid" },
+        "walls": { "$ref": "#/definitions/grid" }
+      },
+      "required": ["floor", "furniture", "walls"],
+      "additionalProperties": false
+    },
+    "spawnPoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "x": { "type": "number" },
+          "y": { "type": "number" }
+        },
+        "required": ["x", "y"],
+        "additionalProperties": false
+      }
+    },
+    "walkable": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "boolean" }
+      }
+    }
+  },
+  "required": ["width", "height", "tileSize", "layers"],
+  "additionalProperties": false,
+  "definitions": {
+    "grid": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "number" }
+      }
+    }
+  }
+}

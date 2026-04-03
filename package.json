@@ -1,0 +1,13 @@
+{
+  "name": "pixdash",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev": "pnpm --filter frontend dev",
+    "build": "pnpm --filter frontend build"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
+}

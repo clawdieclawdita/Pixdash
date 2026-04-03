@@ -1,0 +1,77 @@
+import type { Agent, AgentLog, AgentTask, AgentStatus, Appearance, Position } from './agent.js';
+import type { Tilemap } from './tilemap.js';
+
+export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task';
+export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config';
+
+export interface AgentStatusEventPayload {
+  agentId: string;
+  status: AgentStatus;
+  timestamp: string;
+}
+
+export interface AgentLogEventPayload {
+  agentId: string;
+  log: AgentLog;
+}
+
+export interface AgentTaskEventPayload {
+  agentId: string;
+  task: AgentTask;
+}
+
+export interface AgentAppearanceEventPayload {
+  agentId: string;
+  appearance: Appearance;
+}
+
+export interface AgentPositionEventPayload {
+  agentId: string;
+  position: Position;
+  direction?: Position['direction'];
+}
+
+export interface AgentConfigEventPayload {
+  agentId: string;
+  agent: Agent;
+}
+
+export type FrontendEventPayload =
+  | AgentStatusEventPayload
+  | AgentLogEventPayload
+  | AgentTaskEventPayload
+  | AgentAppearanceEventPayload
+  | AgentPositionEventPayload
+  | AgentConfigEventPayload;
+
+export interface WsConnectedMessage {
+  type: 'connected';
+  clientId: string;
+  serverVersion: string;
+}
+
+export interface WsRequestMessage {
+  type: 'req';
+  id: string;
+  method: 'sync' | 'updateAppearance' | 'moveAgent';
+  params?: Record<string, unknown>;
+}
+
+export interface WsResponseMessage {
+  type: 'res';
+  id: string;
+  ok: boolean;
+  payload?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface WsEventMessage<TPayload = FrontendEventPayload> {
+  type: 'event';
+  event: FrontendEventName;
+  payload: TPayload;
+}
+
+export interface SyncPayload {
+  agents: Agent[];
+  officeLayout: Tilemap;
+}

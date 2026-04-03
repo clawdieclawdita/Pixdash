@@ -1,0 +1,12 @@
+services:
+  pixdash:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ~/.openclaw:/root/.openclaw:ro
+    environment:
+      - NODE_ENV=production
+      - PIXDASH_HOST=0.0.0.0
+      - PIXDASH_PORT=3000
+    restart: unless-stopped

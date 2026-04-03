@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "status": { "type": "string", "enum": ["online", "idle", "offline", "busy"] },
+    "lastSeen": { "type": "string" },
+    "position": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "direction": { "type": "string", "enum": ["north", "south", "east", "west"] }
+      },
+      "required": ["x", "y"],
+      "additionalProperties": false
+    },
+    "appearance": { "$ref": "./appearance.schema.json" }
+  },
+  "required": ["id", "name", "status", "lastSeen", "position", "appearance"],
+  "additionalProperties": true
+}
