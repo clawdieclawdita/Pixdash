@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type Position } from '@pixdash/shared';
 import type { Agent } from '@/lib/api';
+import { loadCollisionMap, pickDeskPositions } from '@/lib/collisionMap';
 
 export type StoreAgent = Agent & {
   x: number;
@@ -15,23 +16,10 @@ const warnedAgentIds = new Set<string>();
 const warnMissingPosition = (agent: Agent) => {
   if (warnedAgentIds.has(agent.id)) return;
   warnedAgentIds.add(agent.id);
-  console.warn(`[PixDash] Agent "${agent.id}" is missing a valid position. Falling back to (${DEFAULT_POSITION.x}, ${DEFAULT_POSITION.y}).`);
+  console.warn(`[PixDash] Agent "${agent.id}" is missing a valid position. Falling back to desk assignment.`);
 };
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
-
-const normalizePosition = (agent: Agent): Position => {
-  if (isFiniteNumber(agent.position?.x) && isFiniteNumber(agent.position?.y)) {
-    return {
-      x: agent.position.x,
-      y: agent.position.y,
-      direction: agent.position.direction ?? DEFAULT_POSITION.direction
-    };
-  }
-
-  warnMissingPosition(agent);
-  return { ...DEFAULT_POSITION };
-};
 
 const normalizeAppearance = (appearance?: Agent['appearance']): Appearance => ({
   bodyType: appearance?.bodyType ?? DEFAULT_APPEARANCE.bodyType,
@@ -47,8 +35,25 @@ const normalizeAppearance = (appearance?: Agent['appearance']): Appearance => ({
   accessories: appearance?.accessories ?? DEFAULT_APPEARANCE.accessories
 });
 
-function normalizeAgent(agent: Agent): StoreAgent {
-  const position = normalizePosition(agent);
+const normalizePosition = (agent: Agent, assignedDesk?: { x: number; y: number }): Position => {
+  if (isFiniteNumber(agent.position?.x) && isFiniteNumber(agent.position?.y) && agent.position.x > 32 && agent.position.y > 32) {
+    return {
+      x: agent.position.x,
+      y: agent.position.y,
+      direction: agent.position.direction ?? DEFAULT_POSITION.direction
+    };
+  }
+
+  warnMissingPosition(agent);
+  return {
+    x: assignedDesk?.x ?? DEFAULT_POSITION.x,
+    y: assignedDesk?.y ?? DEFAULT_POSITION.y,
+    direction: agent.position?.direction ?? DEFAULT_POSITION.direction
+  };
+};
+
+function normalizeAgent(agent: Agent, assignedDesk?: { x: number; y: number }): StoreAgent {
+  const position = normalizePosition(agent, assignedDesk);
   const appearance = normalizeAppearance(agent.appearance);
 
   return {
@@ -63,10 +68,14 @@ function normalizeAgent(agent: Agent): StoreAgent {
   };
 }
 
+const sortAgentsForDeskAssignment = (agents: Agent[]) =>
+  [...agents].sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
+
 interface AgentsState {
   agents: StoreAgent[];
   selectedAgentId: string | null;
   setAgents: (agents: Agent[]) => void;
+  applyDeskAssignments: (agents: Agent[]) => Promise<void>;
   updateAgent: (agent: Partial<StoreAgent> & Pick<StoreAgent, 'id'>) => void;
   selectAgent: (agentId: string | null) => void;
   clearSelection: () => void;
@@ -75,14 +84,32 @@ interface AgentsState {
 export const useAgentsStore = create<AgentsState>((set) => ({
   agents: [],
   selectedAgentId: null,
-  setAgents: (agents) =>
+  setAgents: (agents) => {
+    const normalizedAgents = agents.map((agent) => normalizeAgent(agent));
     set((state) => ({
-      agents: agents.map(normalizeAgent),
+      agents: normalizedAgents,
       selectedAgentId:
         state.selectedAgentId && agents.some((agent) => agent.id === state.selectedAgentId)
           ? state.selectedAgentId
           : null
-    })),
+    }));
+
+    void useAgentsStore.getState().applyDeskAssignments(agents);
+  },
+  applyDeskAssignments: async (agents) => {
+    const collisionMap = await loadCollisionMap();
+    const desks = pickDeskPositions(collisionMap, Math.max(agents.length, 5));
+    const sortedAgents = sortAgentsForDeskAssignment(agents);
+    const deskByAgentId = new Map(sortedAgents.map((agent, index) => [agent.id, desks[index] ?? desks[desks.length - 1]]));
+
+    set((state) => ({
+      agents: agents.map((agent) => normalizeAgent(agent, deskByAgentId.get(agent.id))),
+      selectedAgentId:
+        state.selectedAgentId && agents.some((currentAgent) => currentAgent.id === state.selectedAgentId)
+          ? state.selectedAgentId
+          : null
+    }));
+  },
   updateAgent: (agentUpdate) =>
     set((state) => {
       const existing = state.agents.find((agent) => agent.id === agentUpdate.id);

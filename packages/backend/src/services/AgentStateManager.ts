@@ -13,6 +13,16 @@ function derivePosition(id: string) {
   };
 }
 
+const IDLE_THRESHOLD_MS = 300_000; // 5 minutes
+const WORKING_GRACE_MS = 2_000;  // 2 seconds — activity within this window = working
+const STATUS_REEVALUATION_INTERVAL_MS = 30_000;
+
+type AgentPresenceState = {
+  explicitOffline: boolean;
+  baselineStatus: 'online' | 'idle';
+  lastActivityAt?: number;
+};
+
 function createInitialAgent(id: string, name = id): Agent {
   return {
     id,
@@ -35,8 +45,15 @@ function createInitialAgent(id: string, name = id): Agent {
 export class AgentStateManager {
   private readonly agents = new Map<string, Agent>();
   private readonly events = new EventEmitter();
+  private readonly presence = new Map<string, AgentPresenceState>();
+  private readonly statusInterval: NodeJS.Timeout;
 
-  constructor(private readonly appearanceStore: AppearanceStore) {}
+  constructor(private readonly appearanceStore: AppearanceStore) {
+    this.statusInterval = setInterval(() => {
+      this.reevaluateStatuses();
+    }, STATUS_REEVALUATION_INTERVAL_MS);
+    this.statusInterval.unref?.();
+  }
 
   async hydrateAppearance(agentId: string): Promise<void> {
     const agent = this.ensureAgent(agentId);
@@ -49,10 +66,12 @@ export class AgentStateManager {
   }
 
   getAgents(): Agent[] {
-    return [...this.agents.values()].sort((a, b) => a.name.localeCompare(b.name));
+    this.reevaluateStatuses();
+    return [...this.agents.values()].map((agent) => structuredClone(agent)).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   getAgent(id: string): Agent | undefined {
+    this.reevaluateStatuses(id);
     const agent = this.agents.get(id);
     return agent ? structuredClone(agent) : undefined;
   }
@@ -86,12 +105,36 @@ export class AgentStateManager {
 
   applyStatusEvent(event: GatewayStatusEvent): void {
     const agent = this.ensureAgent(event.agentId);
-    agent.status = event.status;
+    const presence = this.ensurePresence(event.agentId);
+
+    presence.explicitOffline = event.status === 'offline';
+    if (!presence.explicitOffline) {
+      presence.baselineStatus = event.status === 'idle' ? 'idle' : 'online';
+    }
+
     agent.lastSeen = event.timestamp;
+    const derivedStatus = this.deriveStatus(event.agentId);
+    const previousStatus = agent.status;
+    agent.status = derivedStatus;
+
     if (agent.stats) {
       agent.stats.uptimeSeconds += 1;
     }
-    this.broadcast('agent:status', event);
+
+    if (previousStatus !== derivedStatus || event.timestamp !== agent.lastSeen) {
+      this.broadcast('agent:status', {
+        agentId: event.agentId,
+        status: derivedStatus,
+        timestamp: agent.lastSeen,
+      });
+      return;
+    }
+
+    this.broadcast('agent:status', {
+      agentId: event.agentId,
+      status: derivedStatus,
+      timestamp: agent.lastSeen,
+    });
   }
 
   applyLogEvent(event: GatewayLogEvent): void {
@@ -119,6 +162,21 @@ export class AgentStateManager {
       agent.stats.tasksCompleted += 1;
     }
     this.broadcast('agent:task', event);
+  }
+
+  recordActivity(id: string, timestamp = Date.now()): void {
+    const agent = this.ensureAgent(id);
+    const presence = this.ensurePresence(id);
+    presence.explicitOffline = false;
+    presence.baselineStatus = 'online';
+    presence.lastActivityAt = timestamp;
+    agent.status = 'working';
+    agent.lastSeen = new Date(timestamp).toISOString();
+    this.broadcast('agent:status', {
+      agentId: id,
+      status: 'working',
+      timestamp: agent.lastSeen,
+    });
   }
 
   async upsertAppearance(id: string, patch: AppearancePatch): Promise<Appearance> {
@@ -157,7 +215,65 @@ export class AgentStateManager {
     }
 
     this.agents.set(id, agent);
+    this.ensurePresence(id);
     return agent;
+  }
+
+  private ensurePresence(id: string): AgentPresenceState {
+    let state = this.presence.get(id);
+    if (!state) {
+      state = {
+        explicitOffline: false,
+        baselineStatus: 'idle',
+      };
+      this.presence.set(id, state);
+    }
+    return state;
+  }
+
+  private deriveStatus(id: string, now = Date.now()): Agent['status'] {
+    const presence = this.ensurePresence(id);
+
+    if (presence.explicitOffline) {
+      return 'offline';
+    }
+
+    if (typeof presence.lastActivityAt === 'number') {
+      const inactivityMs = Math.max(0, now - presence.lastActivityAt);
+      if (inactivityMs < WORKING_GRACE_MS) {
+        return 'working';
+      }
+      if (inactivityMs >= IDLE_THRESHOLD_MS) {
+        return 'idle';
+      }
+      return 'online';
+    }
+
+    return presence.baselineStatus;
+  }
+
+  private reevaluateStatuses(agentId?: string): void {
+    const now = Date.now();
+    const ids = agentId ? [agentId] : [...this.agents.keys()];
+
+    for (const id of ids) {
+      const agent = this.agents.get(id);
+      if (!agent) {
+        continue;
+      }
+
+      const nextStatus = this.deriveStatus(id, now);
+      if (agent.status === nextStatus) {
+        continue;
+      }
+
+      agent.status = nextStatus;
+      this.broadcast('agent:status', {
+        agentId: id,
+        status: nextStatus,
+        timestamp: agent.lastSeen,
+      });
+    }
   }
 
   private broadcast(event: FrontendEventName, payload: FrontendEventPayload): void {

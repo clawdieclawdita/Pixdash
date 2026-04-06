@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   getAgents,
   type Agent,
@@ -57,13 +57,20 @@ export function useAgents() {
     };
   }, [setAgents]);
 
+  // Use a ref for agents in the WebSocket effect to avoid re-triggering on every agents change
+  const agentsRef = useRef(agents);
+  agentsRef.current = agents;
+
   useEffect(() => {
     if (!lastEvent) {
       return;
     }
 
+    const currentAgents = agentsRef.current;
+
     switch (lastEvent.event) {
-      case 'agent.status': {
+      case 'agent.status':
+      case 'agent:status': {
         const payload = lastEvent.payload as EventPayloadMap['agent.status'];
         updateAgent({
           id: payload.agentId,
@@ -72,9 +79,10 @@ export function useAgents() {
         });
         break;
       }
-      case 'agent.log': {
+      case 'agent.log':
+      case 'agent:log': {
         const payload = lastEvent.payload as EventPayloadMap['agent.log'];
-        const currentAgent = agents.find((agent) => agent.id === payload.agentId);
+        const currentAgent = currentAgents.find((agent) => agent.id === payload.agentId);
         updateAgent({
           id: payload.agentId,
           logs: [
@@ -88,9 +96,10 @@ export function useAgents() {
         });
         break;
       }
-      case 'agent.task': {
+      case 'agent.task':
+      case 'agent:task': {
         const payload = lastEvent.payload as EventPayloadMap['agent.task'];
-        const currentAgent = agents.find((agent) => agent.id === payload.agentId);
+        const currentAgent = currentAgents.find((agent) => agent.id === payload.agentId);
         const tasks: AgentTask[] = currentAgent?.tasks ?? [];
         const nextTask: AgentTask = {
           id: payload.taskId,
@@ -114,7 +123,7 @@ export function useAgents() {
       default:
         break;
     }
-  }, [agents, lastEvent, updateAgent]);
+  }, [lastEvent, updateAgent]);
 
   const handleSelectAgent = (agentId: string | null) => {
     selectAgent(agentId);

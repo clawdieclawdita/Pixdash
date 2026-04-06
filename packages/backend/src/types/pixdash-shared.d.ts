@@ -1,5 +1,5 @@
 declare module '@pixdash/shared' {
-  export type AgentStatus = 'online' | 'idle' | 'offline' | 'busy';
+  export type AgentStatus = 'working' | 'online' | 'idle' | 'offline' | 'busy';
   export type Direction = 'north' | 'south' | 'east' | 'west';
   export type BodyType = 'male' | 'female' | 'neutral';
   export type HairStyle = 'short' | 'long' | 'bald' | 'ponytail' | 'spiky';

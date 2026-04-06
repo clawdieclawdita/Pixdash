@@ -5,21 +5,45 @@ interface AgentStatusProps {
   status: AgentStatusType;
 }
 
-const statusClasses: Record<AgentStatusType, string> = {
-  online: 'bg-emerald-500 text-emerald-300',
-  idle: 'bg-amber-400 text-amber-200',
-  busy: 'bg-rose-500 text-rose-300',
-  offline: 'bg-slate-500 text-slate-300'
+const statusConfig: Record<AgentStatusType, { dotClass: string; labelClass: string; label: string }> = {
+  working: {
+    dotClass: 'bg-[#6dbd72] animate-agent-status-working',
+    labelClass: 'text-[#6dbd72]',
+    label: 'Working'
+  },
+  online: {
+    dotClass: 'bg-[#6dbd72]',
+    labelClass: 'text-[#6dbd72]',
+    label: 'Online'
+  },
+  idle: {
+    dotClass: 'bg-amber-400',
+    labelClass: 'text-amber-200',
+    label: 'Idle'
+  },
+  busy: {
+    dotClass: 'bg-rose-500',
+    labelClass: 'text-rose-300',
+    label: 'Busy'
+  },
+  offline: {
+    dotClass: 'bg-slate-500',
+    labelClass: 'text-slate-300',
+    label: 'Offline'
+  }
 };
 
 export function AgentStatus({ status }: AgentStatusProps) {
+  const config = statusConfig[status];
+
   return (
-    <div className="flex items-center gap-2 text-sm font-medium capitalize text-slate-200">
+    <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
+      <style>{`@keyframes agent-status-working-pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } } .animate-agent-status-working { animation: agent-status-working-pulse 1.5s ease-in-out infinite; }`}</style>
       <span
-        className={cn('h-2.5 w-2.5 rounded-full', statusClasses[status].split(' ')[0])}
+        className={cn('h-2.5 w-2.5 rounded-full', config.dotClass)}
         aria-hidden="true"
       />
-      <span className={statusClasses[status].split(' ')[1]}>{status}</span>
+      <span className={config.labelClass}>{config.label}</span>
     </div>
   );
 }

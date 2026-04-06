@@ -14,7 +14,7 @@ export interface TilemapData {
 
 import type { Appearance, Direction } from '@pixdash/shared';
 
-export type AgentStatus = 'online' | 'idle' | 'busy' | 'offline';
+export type AgentStatus = 'working' | 'online' | 'idle' | 'busy' | 'offline';
 
 export interface AgentPosition {
   id: string;

@@ -1,16 +1,17 @@
 import type { CameraState } from '@/types';
+import { OFFICE_HEIGHT, OFFICE_WIDTH } from '@/lib/officeScene';
 
 export const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const DEFAULT_ZOOM = 1.6;
-const DEFAULT_X = 128;
-const DEFAULT_Y = 36;
+const DEFAULT_ZOOM = 0.5;
+const DEFAULT_X = 0;
+const DEFAULT_Y = 0;
 
 export class CameraController {
   private state: CameraState;
   private dragOrigin: { x: number; y: number } | null = null;
-  private readonly minZoom = 1;
-  private readonly maxZoom = 3;
+  private readonly minZoom = 0.3;
+  private readonly maxZoom = 2.2;
 
   constructor(initial?: Partial<CameraState>) {
     this.state = {
@@ -59,7 +60,9 @@ export class CameraController {
     this.state.y = pointerY - worldY * nextZoom;
   }
 
-  centerOnMap(mapPxWidth: number, mapPxHeight: number, vpWidth: number, vpHeight: number) {
+  centerOnMap(mapPxWidth = OFFICE_WIDTH, mapPxHeight = OFFICE_HEIGHT, vpWidth: number, vpHeight: number) {
+    const fitZoom = Math.min(vpWidth / mapPxWidth, vpHeight / mapPxHeight);
+    this.state.zoom = clamp(fitZoom * 0.92, this.minZoom, this.maxZoom);
     this.state.x = (vpWidth - mapPxWidth * this.state.zoom) / 2;
     this.state.y = (vpHeight - mapPxHeight * this.state.zoom) / 2;
   }

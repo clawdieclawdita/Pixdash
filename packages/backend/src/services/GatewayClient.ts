@@ -377,17 +377,15 @@ export class GatewayClient {
     }
 
     const msg = payload as Record<string, unknown>;
-    const sessionKey = this.pickString(msg.sessionKey);
-    if (!sessionKey) {
+    const agentId = this.resolveAgentIdFromSessionPayload(msg);
+    if (!agentId) {
+      logger.debug({ payload: JSON.stringify(payload).slice(0, 500) }, 'session.message: could not resolve agentId');
       return;
     }
 
-    const match = sessionKey.match(/^agent:([^:]+)/);
-    if (!match) {
-      return;
-    }
-    const agentId = match[1];
+    this.agentStateManager.recordActivity(agentId);
 
+    const sessionKey = this.pickString(msg.sessionKey) ?? `agent:${agentId}`;
     const message = msg.message;
     if (!message || typeof message !== 'object') {
       return;
@@ -438,17 +436,15 @@ export class GatewayClient {
     }
 
     const data = payload as Record<string, unknown>;
-    const sessionKey = this.pickString(data.sessionKey);
-    if (!sessionKey) {
+    const agentId = this.resolveAgentIdFromSessionPayload(data);
+    if (!agentId) {
+      logger.debug({ payload: JSON.stringify(payload).slice(0, 500) }, 'session.tool: could not resolve agentId');
       return;
     }
 
-    const match = sessionKey.match(/^agent:([^:]+)/);
-    if (!match) {
-      return;
-    }
-    const agentId = match[1];
+    this.agentStateManager.recordActivity(agentId);
 
+    const sessionKey = this.pickString(data.sessionKey) ?? `agent:${agentId}`;
     const toolData = data.data;
     if (!toolData || typeof toolData !== 'object') {
       return;
@@ -482,6 +478,26 @@ export class GatewayClient {
         message: `🔧 ${toolName}: ${argsPreview}`,
       },
     });
+  }
+
+  private resolveAgentIdFromSessionPayload(payload: Record<string, unknown>): string | undefined {
+    const directAgentId = this.pickString(payload.agentId, payload.agent);
+    if (directAgentId) {
+      return directAgentId;
+    }
+
+    const route = payload.route;
+    if (route && typeof route === 'object') {
+      const routeRecord = route as Record<string, unknown>;
+      const routedAgentId = this.pickString(routeRecord.agentId, routeRecord.agent);
+      if (routedAgentId) {
+        return routedAgentId;
+      }
+    }
+
+    const sessionKey = this.pickString(payload.sessionKey, payload.sessionId);
+    const match = sessionKey?.match(/^agent:([^:]+)/);
+    return match?.[1];
   }
 
   private pickString(...values: unknown[]): string | undefined {

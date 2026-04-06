@@ -109,7 +109,12 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
     onCustomize?.();
   };
 
-  const displayAgent = agentDetails ?? selectedAgent;
+  // Merge live store data (WebSocket-updated status) with fetched details
+  const displayAgent = useMemo(() => {
+    if (!agentDetails) return selectedAgent;
+    const liveAgent = agents.find((a) => a.id === agentDetails.id) ?? selectedAgent;
+    return { ...agentDetails, status: liveAgent?.status ?? agentDetails.status };
+  }, [agentDetails, selectedAgent, agents]);
 
   return (
     <aside

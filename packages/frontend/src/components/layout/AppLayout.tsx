@@ -1,19 +1,20 @@
 import { OfficeCanvas } from '@/components/canvas/OfficeCanvas';
+import { invalidateRendererSpriteCache } from '@/components/canvas/AgentRenderer';
+import { clearSpriteCache } from '@/hooks/useSprites';
 import { AgentPanel } from '@/components/ui/AgentPanel';
 import { CustomizerModal } from '@/components/ui/CustomizerModal';
+import { updateAppearance } from '@/lib/api';
 import { AgentStatus } from '@/components/ui/AgentStatus';
 import { useTimezone } from '@/hooks/useTimezone';
 import { agentsStore, useAgentsStore } from '@/store/agentsStore';
 import { uiStore, useUIStore } from '@/store/uiStore';
-import type { AgentPosition, TilemapData } from '@/types';
+import type { AgentPosition } from '@/types';
+import type { Appearance } from '@pixdash/shared';
 
 interface AppLayoutProps {
-  tilemap: TilemapData | null;
   agents: AgentPosition[];
   isAgentsLoading: boolean;
-  isLayoutLoading: boolean;
   agentsError: string | null;
-  layoutError: string | null;
   connectionState: 'connecting' | 'connected' | 'disconnected';
   socketError: string | null;
 }
@@ -25,12 +26,9 @@ const connectionLabel: Record<AppLayoutProps['connectionState'], string> = {
 };
 
 export const AppLayout = ({
-  tilemap,
   agents,
   isAgentsLoading,
-  isLayoutLoading,
   agentsError,
-  layoutError,
   connectionState,
   socketError
 }: AppLayoutProps) => {
@@ -63,9 +61,24 @@ export const AppLayout = ({
     uiStore.closeCustomizer();
   };
 
+  const handleSaveAppearance = async (appearance: Appearance) => {
+    if (!selectedAgentId) return;
+    try {
+      await updateAppearance(selectedAgentId, appearance);
+      agentsStore.updateAgent({
+        id: selectedAgentId,
+        appearance,
+        color: appearance.outfit.color
+      });
+      invalidateRendererSpriteCache();
+      clearSpriteCache();
+    } catch (err) {
+      console.error('[PixDash] Failed to save appearance:', err);
+    }
+    uiStore.closeCustomizer();
+  };
+
   const selectedAgent = storeAgents.find((agent) => agent.id === selectedAgentId) ?? null;
-  const hasCanvasData = Boolean(tilemap) && !layoutError;
-  const isInitialLoading = isAgentsLoading || isLayoutLoading;
 
   return (
     <main className="min-h-screen px-6 py-8 md:px-10">
@@ -107,34 +120,25 @@ export const AppLayout = ({
 
         <section className="grid gap-6 xl:grid-cols-[1fr_320px]">
           <div className="relative min-h-[600px]">
-            {hasCanvasData && tilemap ? (
-              <>
-                <OfficeCanvas
-                  tilemap={tilemap}
-                  agents={agents}
-                  onAgentSelect={handleAgentSelect}
-                  selectedAgentId={selectedAgentId}
-                />
-                {isInitialLoading ? (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[28px] bg-black/45 backdrop-blur-sm">
-                    <div className="rounded-2xl border border-white/10 bg-black/60 px-5 py-4 text-sm text-[#ddd4c8]">
-                      Loading live office data…
-                    </div>
+            <>
+              <OfficeCanvas
+                agents={agents}
+                onAgentSelect={handleAgentSelect}
+                selectedAgentId={selectedAgentId}
+              />
+              {isAgentsLoading ? (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[28px] bg-black/45 backdrop-blur-sm">
+                  <div className="rounded-2xl border border-white/10 bg-black/60 px-5 py-4 text-sm text-[#ddd4c8]">
+                    Loading live office data…
                   </div>
-                ) : null}
-                {!isAgentsLoading && agents.length === 0 ? (
-                  <div className="pointer-events-none absolute inset-x-6 top-6 rounded-2xl border border-dashed border-white/15 bg-black/45 px-4 py-3 text-sm text-[#ddd4c8] backdrop-blur-sm">
-                    No agents connected.
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="flex min-h-[600px] items-center justify-center rounded-[28px] border border-white/10 bg-black/30 p-8 text-center shadow-panel shadow-black/40">
-                <div className="max-w-md rounded-2xl border border-dashed border-white/15 bg-black/35 px-6 py-5 text-sm text-[#ddd4c8]">
-                  {isLayoutLoading ? 'Loading office layout…' : layoutError ?? 'Office layout unavailable.'}
                 </div>
-              </div>
-            )}
+              ) : null}
+              {!isAgentsLoading && agents.length === 0 ? (
+                <div className="pointer-events-none absolute inset-x-6 top-6 rounded-2xl border border-dashed border-white/15 bg-black/45 px-4 py-3 text-sm text-[#ddd4c8] backdrop-blur-sm">
+                  No agents connected.
+                </div>
+              ) : null}
+            </>
           </div>
 
           {panelOpen ? (
@@ -244,7 +248,7 @@ export const AppLayout = ({
         </section>
       </div>
 
-      <CustomizerModal agent={selectedAgent} isOpen={isCustomizerOpen} onClose={handleCloseCustomizer} />
+      <CustomizerModal agent={selectedAgent} isOpen={isCustomizerOpen} onClose={handleCloseCustomizer} onSave={handleSaveAppearance} />
     </main>
   );
 };

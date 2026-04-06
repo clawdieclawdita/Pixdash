@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-type SupportedEvent = 'agent.status' | 'agent.log' | 'agent.task';
+type SupportedEvent = 'agent.status' | 'agent.log' | 'agent.task' | 'agent:status' | 'agent:log' | 'agent:task' | 'agent:appearance' | 'agent:config';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 
@@ -30,10 +30,15 @@ function resolveWsUrl() {
 }
 
 const WS_URL = resolveWsUrl();
-const SUPPORTED_EVENTS = new Set<SupportedEvent>([
+const SUPPORTED_EVENTS = new Set<string>([
   'agent.status',
   'agent.log',
-  'agent.task'
+  'agent.task',
+  'agent:status',
+  'agent:log',
+  'agent:task',
+  'agent:appearance',
+  'agent:config'
 ]);
 
 export function useWebSocket() {

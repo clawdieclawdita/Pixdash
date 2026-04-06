@@ -119,6 +119,7 @@ export interface AgentStateManagerLike {
     hasMore: boolean;
   };
   getTasks(id: string): AgentTask[];
+  recordActivity(id: string, timestamp?: number): void;
   upsertAppearance(id: string, patch: AppearancePatch): Promise<Appearance>;
 }
 

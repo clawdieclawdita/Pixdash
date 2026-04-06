@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentPosition, TilemapData } from '@/types';
-import { TilemapRenderer } from './TilemapRenderer';
+import type { AgentPosition } from '@/types';
+import officeBackgroundUrl from '@assets/sprites/office.png';
 import { AgentRenderer } from './AgentRenderer';
 import { CameraController } from './CameraController';
 import { useCanvas } from '@/hooks/useCanvas';
+import { OFFICE_HEIGHT, OFFICE_WIDTH } from '@/lib/officeScene';
 
 interface OfficeCanvasProps {
-  tilemap: TilemapData;
   agents: AgentPosition[];
   onAgentSelect?: (agent: AgentPosition | null) => void;
   selectedAgentId?: string | null;
@@ -15,14 +15,22 @@ interface OfficeCanvasProps {
 const VIEWPORT = { width: 1280, height: 840 };
 const DRAG_THRESHOLD_PX = 5;
 
-export const OfficeCanvas = ({ tilemap, agents, onAgentSelect, selectedAgentId }: OfficeCanvasProps) => {
+const loadImage = (src: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Failed to load office background: ${src}`));
+    image.src = src;
+  });
+
+export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef(VIEWPORT);
   const cameraRef = useRef(new CameraController());
   const [cameraState, setCameraState] = useState(cameraRef.current.getSnapshot());
+  const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
 
-  const tilemapRenderer = useMemo(() => new TilemapRenderer(), []);
   const agentRenderer = useMemo(() => new AgentRenderer(), []);
 
   const syncCanvasSize = useCallback((recenter = false) => {
@@ -49,12 +57,25 @@ export const OfficeCanvas = ({ tilemap, agents, onAgentSelect, selectedAgentId }
     ctx.imageSmoothingEnabled = false;
 
     if (recenter) {
-      cameraRef.current.centerOnMap(tilemap.width * tilemap.tileSize, tilemap.height * tilemap.tileSize, width, height);
+      cameraRef.current.centerOnMap(OFFICE_WIDTH, OFFICE_HEIGHT, width, height);
       setCameraState(cameraRef.current.getSnapshot());
     }
-  }, [tilemap.height, tilemap.tileSize, tilemap.width]);
+  }, []);
 
-  // Size once on mount + window resize (NOT ResizeObserver — avoids reflow feedback loop)
+  useEffect(() => {
+    let mounted = true;
+
+    void loadImage(officeBackgroundUrl).then((image) => {
+      if (mounted) {
+        setBackgroundImage(image);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   useEffect(() => {
     syncCanvasSize(true);
 
@@ -99,14 +120,17 @@ export const OfficeCanvas = ({ tilemap, agents, onAgentSelect, selectedAgentId }
 
     ctx.save();
     cameraRef.current.applyTransform(ctx);
-    tilemapRenderer.renderFrame(ctx, tilemap, agents, () => agentRenderer.render(ctx, agents, selectedAgentId));
-    ctx.restore();
 
-    ctx.fillStyle = 'rgba(217, 208, 195, 0.08)';
-    for (let i = 0; i < viewportWidth; i += 48) {
-      ctx.fillRect(i, 0, 1, viewportHeight);
+    if (backgroundImage) {
+      ctx.drawImage(backgroundImage, 0, 0, OFFICE_WIDTH, OFFICE_HEIGHT);
+    } else {
+      ctx.fillStyle = '#181818';
+      ctx.fillRect(0, 0, OFFICE_WIDTH, OFFICE_HEIGHT);
     }
-  }, [agentRenderer, agents, selectedAgentId, tilemap, tilemapRenderer]);
+
+    agentRenderer.render(ctx, agents, selectedAgentId);
+    ctx.restore();
+  }, [agentRenderer, agents, backgroundImage, selectedAgentId]);
 
   useCanvas(draw);
 
@@ -132,7 +156,6 @@ export const OfficeCanvas = ({ tilemap, agents, onAgentSelect, selectedAgentId }
     };
   }, []);
 
-  // --- Native pointer events for drag + click ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -151,16 +174,16 @@ export const OfficeCanvas = ({ tilemap, agents, onAgentSelect, selectedAgentId }
       rafId = requestAnimationFrame(flushState);
     };
 
-    const onDown = (e: PointerEvent) => {
-      const point = pointerPosition(e);
+    const onDown = (event: PointerEvent) => {
+      const point = pointerPosition(event);
       pointerDownPos = { screenX: point.x, screenY: point.y };
       didDrag = false;
     };
 
-    const onMove = (e: PointerEvent) => {
+    const onMove = (event: PointerEvent) => {
       if (!pointerDownPos) return;
 
-      const point = pointerPosition(e);
+      const point = pointerPosition(event);
 
       if (!didDrag) {
         const dx = point.x - pointerDownPos.screenX;
@@ -175,17 +198,16 @@ export const OfficeCanvas = ({ tilemap, agents, onAgentSelect, selectedAgentId }
       scheduleStateUpdate();
     };
 
-    const onUp = (e: PointerEvent) => {
+    const onUp = (event: PointerEvent) => {
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
       }
 
       if (pointerDownPos && !didDrag) {
-        // This was a click, not a drag — detect agent
-        const point = pointerPosition(e);
+        const point = pointerPosition(event);
         const worldPoint = worldPosition(point.x, point.y);
-        const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agents, tilemap.tileSize);
+        const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agents);
         onAgentSelect?.(clickedAgent);
       }
 
@@ -205,7 +227,7 @@ export const OfficeCanvas = ({ tilemap, agents, onAgentSelect, selectedAgentId }
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [pointerPosition, worldPosition, agentRenderer, agents, onAgentSelect, tilemap.tileSize]);
+  }, [pointerPosition, worldPosition, agentRenderer, agents, onAgentSelect]);
 
   return (
     <div ref={hostRef} className="relative min-h-[600px] overflow-hidden rounded-[28px] border border-white/10 bg-black/30 shadow-panel shadow-black/40">
@@ -223,7 +245,7 @@ export const OfficeCanvas = ({ tilemap, agents, onAgentSelect, selectedAgentId }
       {selectedAgentId && (
         <div className="pointer-events-none absolute bottom-4 right-4 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-[#9fd28f]/90 backdrop-blur-md">
           <div className="font-semibold text-white">Selected</div>
-          <div className="text-sm text-[#9fd28f]">{agents.find((a) => a.id === selectedAgentId)?.name ?? 'Unknown'}</div>
+          <div className="text-sm text-[#9fd28f]">{agents.find((agent) => agent.id === selectedAgentId)?.name ?? 'Unknown'}</div>
         </div>
       )}
     </div>
