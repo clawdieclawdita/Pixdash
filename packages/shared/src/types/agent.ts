@@ -1,6 +1,6 @@
 export type AgentStatus = 'working' | 'online' | 'idle' | 'offline' | 'busy';
 export type Direction = 'north' | 'south' | 'east' | 'west';
-export type BodyType = 'male' | 'female' | 'neutral';
+export type BodyType = 'male' | 'female' | 'neutral' | 'michael' | 'angela' | 'phillis' | 'creed' | 'ryan' | 'pam' | 'kelly' | 'kate' | 'pites' | 'jim';
 export type HairStyle = 'short' | 'long' | 'bald' | 'ponytail' | 'spiky';
 export type OutfitType = 'casual' | 'formal' | 'hoodie' | 'tank-top';
 export type AccessoryType = 'glasses' | 'hat' | 'headphones' | 'watch';

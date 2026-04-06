@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSprites } from '@/hooks/useSprites';
+import { useAllSpritePreviews } from '@/hooks/useAllSpritePreviews';
 import {
   DEFAULT_SPRITE_APPEARANCE,
   type Appearance,
@@ -19,7 +20,7 @@ interface CustomizerModalProps {
 type CharacterPreset = {
   id: SpriteTemplate;
   label: string;
-  bodyType: 'male' | 'female';
+  bodyType: SpriteTemplate;
   description: string;
 };
 
@@ -27,18 +28,86 @@ const PRESETS: CharacterPreset[] = [
   {
     id: 'michael',
     label: 'Michael',
-    bodyType: 'male',
+    bodyType: 'michael',
     description: 'Male character template'
   },
   {
     id: 'angela',
     label: 'Angela',
-    bodyType: 'female',
+    bodyType: 'angela',
     description: 'Female character template'
+  },
+  {
+    id: 'phillis',
+    label: 'Phillis',
+    bodyType: 'phillis',
+    description: 'Female character template'
+  },
+  {
+    id: 'creed',
+    label: 'Creed',
+    bodyType: 'creed',
+    description: 'Male character template'
+  },
+  {
+    id: 'ryan',
+    label: 'Ryan',
+    bodyType: 'ryan',
+    description: 'Male character template'
+  },
+  {
+    id: 'pam',
+    label: 'Pam',
+    bodyType: 'pam',
+    description: 'Female character template'
+  },
+  {
+    id: 'kelly',
+    label: 'Kelly',
+    bodyType: 'kelly',
+    description: 'Female character template'
+  },
+  {
+    id: 'kate',
+    label: 'Kate',
+    bodyType: 'kate',
+    description: 'Female character template'
+  },
+  {
+    id: 'pites',
+    label: 'Pites',
+    bodyType: 'pites',
+    description: 'Male character template'
+  },
+  {
+    id: 'jim',
+    label: 'Jim',
+    bodyType: 'jim',
+    description: 'Male character template'
   }
 ];
 
 const previewDirections: Direction[] = ['south', 'north', 'east', 'west'];
+
+const DEFAULT_PRESET: SpriteTemplate = 'michael';
+
+const PRESET_BY_BODY_TYPE: Partial<Record<string, SpriteTemplate>> = {
+  michael: 'michael',
+  angela: 'angela',
+  phillis: 'phillis',
+  creed: 'creed',
+  ryan: 'ryan',
+  pam: 'pam',
+  kelly: 'kelly',
+  kate: 'kate',
+  pites: 'pites',
+  jim: 'jim',
+  male: 'michael',
+  female: 'angela'
+};
+
+const getPresetFromBodyType = (bodyType: Appearance['bodyType']): SpriteTemplate =>
+  PRESET_BY_BODY_TYPE[bodyType] ?? DEFAULT_PRESET;
 
 const fallbackAppearanceFromAgent = (agent: AgentProfile | null): Appearance => ({
   ...DEFAULT_SPRITE_APPEARANCE,
@@ -73,14 +142,15 @@ export const CustomizerModal = ({
 
   const [draft, setDraft] = useState<Appearance>(baseAppearance);
   const [selectedPreset, setSelectedPreset] = useState<SpriteTemplate>(
-    baseAppearance.bodyType === 'female' ? 'angela' : 'michael'
+    getPresetFromBodyType(baseAppearance.bodyType)
   );
   const { spriteSheet, isLoading } = useSprites(draft);
+  const allPreviews = useAllSpritePreviews();
   const [frame, setFrame] = useState(0);
 
   useEffect(() => {
     if (!isOpen) return;
-    const preset = baseAppearance.bodyType === 'female' ? 'angela' : 'michael';
+    const preset = getPresetFromBodyType(baseAppearance.bodyType);
     setSelectedPreset(preset);
     setDraft(baseAppearance);
   }, [baseAppearance, isOpen]);
@@ -99,7 +169,7 @@ export const CustomizerModal = ({
     setSelectedPreset(preset.id);
     setDraft((current) => ({
       ...current,
-      bodyType: preset.bodyType
+      bodyType: preset.bodyType as Appearance['bodyType']
     }));
     clearSpriteTemplateCache();
   };
@@ -114,8 +184,8 @@ export const CustomizerModal = ({
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-[#0f1014] shadow-2xl shadow-black/60">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-3xl border border-white/10 bg-[#0f1014] shadow-2xl shadow-black/60">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-[#9c907f]">Appearance editor</p>
             <h2 className="mt-2 text-2xl font-semibold text-white">{agent?.name ?? 'Agent'} customizer</h2>
@@ -129,9 +199,9 @@ export const CustomizerModal = ({
           </button>
         </div>
 
-        <div className="grid gap-6 px-6 py-6 lg:grid-cols-[240px_1fr]">
+        <div className="grid flex-1 min-h-0 gap-5 overflow-hidden px-6 py-4 lg:grid-cols-[260px_1fr]">
           {/* Live preview */}
-          <div className="rounded-2xl border border-white/10 bg-[#13151b] p-4">
+          <div className="rounded-2xl border border-white/10 bg-[#13151b] p-3 overflow-y-auto">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <div className="text-xs uppercase tracking-[0.24em] text-[#9c907f]">Live preview</div>
@@ -145,13 +215,13 @@ export const CustomizerModal = ({
                 const currentFrame = spriteSheet?.[direction]?.[frame];
                 return (
                   <div key={direction} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <div className="mb-2 text-[10px] uppercase tracking-[0.24em] text-[#9c907f]">{direction}</div>
-                    <div className="flex aspect-square items-center justify-center rounded-xl border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_65%)]">
+                    <div className="mb-1 text-[10px] uppercase tracking-[0.24em] text-[#9c907f]">{direction}</div>
+                    <div className="flex aspect-square items-center justify-center rounded-lg border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_65%)]">
                       {currentFrame ? (
                         <img
                           src={currentFrame.toDataURL()}
                           alt={`${direction} sprite preview`}
-                          className="h-24 w-24 object-contain [image-rendering:pixelated]"
+                          className="h-16 w-16 object-contain [image-rendering:pixelated]"
                         />
                       ) : (
                         <div className="text-xs text-[#7f776c]">No preview</div>
@@ -164,10 +234,10 @@ export const CustomizerModal = ({
           </div>
 
           {/* Preset selector */}
-          <div className="space-y-5">
-            <div className="rounded-2xl border border-white/10 bg-[#13151b] p-4">
-              <div className="mb-4 text-xs uppercase tracking-[0.22em] text-[#9c907f]">Character preset</div>
-              <div className="grid gap-3">
+          <div className="flex min-h-0 flex-col">
+            <div className="rounded-2xl border border-white/10 bg-[#13151b] p-3 overflow-y-auto flex-1 min-h-0">
+              <div className="mb-2 text-xs uppercase tracking-[0.22em] text-[#9c907f]">Character preset</div>
+              <div className="grid gap-2">
                 {PRESETS.map((preset) => {
                   const isSelected = selectedPreset === preset.id;
                   return (
@@ -175,22 +245,22 @@ export const CustomizerModal = ({
                       key={preset.id}
                       type="button"
                       onClick={() => handlePresetSelect(preset)}
-                      className={`flex items-center gap-4 rounded-xl border px-4 py-3 text-left transition ${
+                      className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
                         isSelected
                           ? 'border-[#d1a45a]/50 bg-[#d1a45a]/10'
                           : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'
                       }`}
                     >
                       {/* Mini preview */}
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30">
-                        <img
-                          src={spriteSheet?.south?.[0]?.toDataURL() ?? ''}
-                          alt={preset.label}
-                          className={`h-14 w-14 object-contain [image-rendering:pixelated] ${!isSelected ? 'opacity-40 grayscale' : ''}`}
-                          style={{ visibility: isSelected && spriteSheet?.south?.[0] ? 'visible' : 'hidden' }}
-                        />
-                        {!isSelected && (
-                          <div className="absolute text-lg text-[#7f776c]">{preset.label[0]}</div>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30">
+                        {allPreviews[preset.id] ? (
+                          <img
+                            src={allPreviews[preset.id]!.toDataURL()}
+                            alt={preset.label}
+                            className={`h-9 w-9 object-contain [image-rendering:pixelated] ${!isSelected ? 'opacity-40 grayscale' : ''}`}
+                          />
+                        ) : (
+                          <div className="text-xs text-[#7f776c]">{preset.label[0]}</div>
                         )}
                       </div>
                       <div>
@@ -210,7 +280,7 @@ export const CustomizerModal = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-white/10 pt-4">
+            <div className="flex items-center justify-end gap-3 border-t border-white/10 pt-3 mt-3 shrink-0">
               <button
                 type="button"
                 onClick={onClose}

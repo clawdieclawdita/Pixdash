@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "bodyType": { "type": "string", "enum": ["male", "female", "neutral"] },
+    "bodyType": { "type": "string", "enum": ["male", "female", "neutral", "michael", "angela", "phillis", "creed", "ryan", "pam", "kelly", "kate", "pites", "jim"] },
     "hair": {
       "type": "object",
       "properties": {

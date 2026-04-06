@@ -150,6 +150,60 @@ const getFrameIndex = (_direction: Direction, moving: boolean) => {
   return walkFrame;
 };
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const drawRoundedRect = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) => {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.arcTo(x + width, y, x + width, y + r, r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.arcTo(x + width, y + height, x + width - r, y + height, r);
+  ctx.lineTo(x + r, y + height);
+  ctx.arcTo(x, y + height, x, y + height - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+};
+
+const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px: number, py: number) => {
+  const label = (agent.name ?? agent.id).trim();
+  if (!label) return;
+
+  const transform = ctx.getTransform();
+  const zoom = Math.min(Math.abs(transform.a) || 1, Math.abs(transform.d) || 1);
+  const opacity = clamp(0.45 + (zoom - 0.35) * 0.9, 0.45, 1);
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.font = "24px 'Press Start 2P', monospace";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const textWidth = Math.ceil(ctx.measureText(label).width);
+  const paddingX = 10;
+  const labelWidth = textWidth + paddingX * 2;
+  const labelHeight = 32;
+  const labelX = Math.round(px - labelWidth / 2);
+  const labelY = Math.round(py + 18);
+
+  ctx.fillStyle = `rgba(12, 14, 18, ${0.62 * opacity})`;
+  drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 6);
+  ctx.fill();
+
+  ctx.fillStyle = `rgba(255, 255, 255, ${0.92 * opacity})`;
+  ctx.fillText(label, px, labelY + labelHeight / 2 + 0.5);
+  ctx.restore();
+};
+
 export class AgentRenderer {
   render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null) {
     const ordered = [...agents].sort((a, b) => a.y - b.y);
@@ -184,6 +238,7 @@ export class AgentRenderer {
       }
 
       ctx.drawImage(sprite, drawX, drawY, SPRITE_DRAW_WIDTH, SPRITE_DRAW_HEIGHT);
+      drawAgentLabel(ctx, agent, px, py);
       ctx.restore();
     });
   }

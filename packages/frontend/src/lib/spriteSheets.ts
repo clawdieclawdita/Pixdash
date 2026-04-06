@@ -2,8 +2,26 @@ import type { Appearance, Direction } from '@pixdash/shared';
 import { hashAppearance } from '@/lib/sprite-generator';
 import michaelSpriteUrl from '@assets/sprites/michael.png';
 import angelaSpriteUrl from '@assets/sprites/angela.png';
+import phillisSpriteUrl from '@assets/sprites/phillis.png';
+import creedSpriteUrl from '@assets/sprites/creed.png';
+import ryanSpriteUrl from '@assets/sprites/ryan.png';
+import pamSpriteUrl from '@assets/sprites/pam.png';
+import kellySpriteUrl from '@assets/sprites/kelly.png';
+import kateSpriteUrl from '@assets/sprites/kate.png';
+import pitesSpriteUrl from '@assets/sprites/pites.png';
+import jimSpriteUrl from '@assets/sprites/jim.png';
 
-export type SpriteTemplate = 'michael' | 'angela';
+export type SpriteTemplate =
+  | 'michael'
+  | 'angela'
+  | 'phillis'
+  | 'creed'
+  | 'ryan'
+  | 'pam'
+  | 'kelly'
+  | 'kate'
+  | 'pites'
+  | 'jim';
 export type SpriteFrameCanvas = HTMLCanvasElement;
 export type SpriteSheetFrames = Record<Direction, SpriteFrameCanvas[]>;
 
@@ -17,6 +35,32 @@ const FRAME_HEIGHT = Math.floor(SHEET_HEIGHT / SHEET_ROWS);
 const DIRECTION_BY_ROW: Direction[] = ['south', 'north', 'west', 'east'];
 
 const sheetPromiseCache = new Map<SpriteTemplate, Promise<SpriteSheetFrames>>();
+
+const SPRITE_TEMPLATES: SpriteTemplate[] = [
+  'michael',
+  'angela',
+  'phillis',
+  'creed',
+  'ryan',
+  'pam',
+  'kelly',
+  'kate',
+  'pites',
+  'jim'
+];
+
+const SPRITE_SOURCES: Record<SpriteTemplate, string> = {
+  michael: michaelSpriteUrl,
+  angela: angelaSpriteUrl,
+  phillis: phillisSpriteUrl,
+  creed: creedSpriteUrl,
+  ryan: ryanSpriteUrl,
+  pam: pamSpriteUrl,
+  kelly: kellySpriteUrl,
+  kate: kateSpriteUrl,
+  pites: pitesSpriteUrl,
+  jim: jimSpriteUrl
+};
 
 const loadImage = (src: string) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
@@ -119,7 +163,7 @@ export const loadSpriteTemplate = (template: SpriteTemplate): Promise<SpriteShee
   const cached = sheetPromiseCache.get(template);
   if (cached) return cached;
 
-  const promise = extractSheetFrames(template === 'michael' ? michaelSpriteUrl : angelaSpriteUrl);
+  const promise = extractSheetFrames(SPRITE_SOURCES[template]);
   sheetPromiseCache.set(template, promise);
   return promise;
 };
@@ -133,13 +177,29 @@ const hashString = (value: string) => {
 };
 
 export const pickSpriteTemplateFromAppearance = (appearance: Appearance): SpriteTemplate => {
-  if (appearance.bodyType === 'male') return 'michael';
-  if (appearance.bodyType === 'female') return 'angela';
-  return hashString(hashAppearance(appearance)) % 2 === 0 ? 'michael' : 'angela';
+  const bodyTypeTemplateMap: Partial<Record<string, SpriteTemplate>> = {
+    michael: 'michael',
+    angela: 'angela',
+    phillis: 'phillis',
+    creed: 'creed',
+    ryan: 'ryan',
+    pam: 'pam',
+    kelly: 'kelly',
+    kate: 'kate',
+    pites: 'pites',
+    jim: 'jim',
+    male: 'michael',
+    female: 'angela'
+  };
+
+  const mappedTemplate = bodyTypeTemplateMap[appearance.bodyType];
+  if (mappedTemplate) return mappedTemplate;
+
+  return SPRITE_TEMPLATES[hashString(hashAppearance(appearance)) % SPRITE_TEMPLATES.length];
 };
 
 export const pickSpriteTemplateFromName = (name: string): SpriteTemplate =>
-  hashString(name.trim().toLowerCase()) % 2 === 0 ? 'michael' : 'angela';
+  SPRITE_TEMPLATES[hashString(name.trim().toLowerCase()) % SPRITE_TEMPLATES.length];
 
 export const clearSpriteTemplateCache = () => {
   sheetPromiseCache.clear();
