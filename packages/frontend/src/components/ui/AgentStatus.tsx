@@ -26,6 +26,11 @@ const statusConfig: Record<AgentStatusType, { dotClass: string; labelClass: stri
     labelClass: 'text-rose-300',
     label: 'Busy'
   },
+  conference: {
+    dotClass: 'bg-sky-400 animate-agent-status-working',
+    labelClass: 'text-sky-200',
+    label: 'Conference'
+  },
   offline: {
     dotClass: 'bg-slate-500',
     labelClass: 'text-slate-300',

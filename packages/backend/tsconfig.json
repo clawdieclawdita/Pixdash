@@ -4,11 +4,7 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "noEmit": false,
-    "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@pixdash/shared": ["./src/types/pixdash-shared.d.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["src/**/*"]
 }

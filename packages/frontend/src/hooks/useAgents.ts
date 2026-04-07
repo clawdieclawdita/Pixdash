@@ -8,11 +8,13 @@ import {
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useAgentsStore } from '@/store/agentsStore';
 import { useUIStore } from '@/store/uiStore';
+import { useMovementStore, movementStore } from '@/store/movementStore';
 
 type EventPayloadMap = {
   'agent.status': { agentId: string; status: Agent['status']; timestamp?: string };
   'agent.log': { agentId: string; level: AgentLog['level']; message: string; timestamp: string };
   'agent.task': { agentId: string; taskId: string; description: string; status: string; timestamp: string };
+  'agent:conference': { agentIds: string[]; sessionKey?: string; source?: string; timestamp: string };
 };
 
 export function useAgents() {
@@ -23,6 +25,9 @@ export function useAgents() {
   const selectAgent = useAgentsStore((state) => state.selectAgent);
   const openPanel = useUIStore((state) => state.openPanel);
   const closePanel = useUIStore((state) => state.closePanel);
+  const syncAgents = useMovementStore((state) => state.syncAgents);
+  const handleStatusChange = useMovementStore((state) => state.handleStatusChange);
+  const handleConference = useMovementStore((state) => state.handleConference);
   const { lastEvent, connectionState, lastError: socketError } = useWebSocket();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +41,11 @@ export function useAgents() {
 
         if (mounted) {
           setAgents(response.agents);
+          const syncedAgents = useAgentsStore.getState().agents;
+          syncAgents(syncedAgents);
+          // Place agents directly at chairs on load (no walking from corridor)
+          // Wander timers will handle subsequent movement.
+          movementStore.placeAgentsOnLoad(syncedAgents);
           setError(null);
         }
       } catch (loadError) {
@@ -55,7 +65,7 @@ export function useAgents() {
     return () => {
       mounted = false;
     };
-  }, [setAgents]);
+  }, [setAgents, syncAgents, handleStatusChange]);
 
   // Use a ref for agents in the WebSocket effect to avoid re-triggering on every agents change
   const agentsRef = useRef(agents);
@@ -72,11 +82,18 @@ export function useAgents() {
       case 'agent.status':
       case 'agent:status': {
         const payload = lastEvent.payload as EventPayloadMap['agent.status'];
+        const currentAgent = currentAgents.find((agent) => agent.id === payload.agentId);
+        const statusChanged = currentAgent?.status !== payload.status;
+
         updateAgent({
           id: payload.agentId,
           status: payload.status,
           ...(payload.timestamp ? { lastSeen: payload.timestamp } : {})
         });
+
+        if (statusChanged) {
+          void handleStatusChange(payload.agentId, payload.status);
+        }
         break;
       }
       case 'agent.log':
@@ -120,10 +137,15 @@ export function useAgents() {
         });
         break;
       }
+      case 'agent:conference': {
+        const payload = lastEvent.payload as EventPayloadMap['agent:conference'];
+        void handleConference(payload.agentIds);
+        break;
+      }
       default:
         break;
     }
-  }, [lastEvent, updateAgent]);
+  }, [lastEvent, updateAgent, handleStatusChange, handleConference]);
 
   const handleSelectAgent = (agentId: string | null) => {
     selectAgent(agentId);

@@ -404,6 +404,19 @@ export class GatewayClient {
       return;
     }
 
+    const toolName = this.pickString(messageRecord.toolName);
+    if (role === 'assistant' && toolName === 'session_send' && messageRecord.targetAgentId) {
+      const targetAgentId = String(messageRecord.targetAgentId);
+      if (targetAgentId && targetAgentId !== agentId) {
+        this.agentStateManager.applyConferenceEvent({
+          agentIds: [agentId, targetAgentId],
+          sessionKey,
+          source: 'session_send',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
     if (role === 'user') {
       this.agentStateManager.applyLogEvent({
         agentId,

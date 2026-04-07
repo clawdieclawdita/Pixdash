@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-type SupportedEvent = 'agent.status' | 'agent.log' | 'agent.task' | 'agent:status' | 'agent:log' | 'agent:task' | 'agent:appearance' | 'agent:config';
+type SupportedEvent = 'agent.status' | 'agent.log' | 'agent.task' | 'agent:status' | 'agent:log' | 'agent:task' | 'agent:appearance' | 'agent:config' | 'agent:conference';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 
@@ -38,7 +38,8 @@ const SUPPORTED_EVENTS = new Set<string>([
   'agent:log',
   'agent:task',
   'agent:appearance',
-  'agent:config'
+  'agent:config',
+  'agent:conference'
 ]);
 
 export function useWebSocket() {

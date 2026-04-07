@@ -96,6 +96,13 @@ export interface GatewayTaskEvent {
   task: AgentTask;
 }
 
+export interface GatewayConferenceEvent {
+  agentIds: string[];
+  sessionKey?: string;
+  source?: 'session_send' | 'shared_session';
+  timestamp: string;
+}
+
 export interface AgentStateSubscriber {
   (event: { event: FrontendEventName; payload: FrontendEventPayload }): void;
 }

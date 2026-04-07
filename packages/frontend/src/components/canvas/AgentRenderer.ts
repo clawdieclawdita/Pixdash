@@ -1,5 +1,5 @@
-import type { Direction } from '@pixdash/shared';
 import type { AgentPosition } from '@/types';
+import { getWalkFrameIndex } from '@/lib/movement';
 import { loadSpriteTemplate, pickSpriteTemplateFromAppearance, clearSpriteTemplateCache, type SpriteSheetFrames } from '@/lib/spriteSheets';
 
 const SPRITE_DRAW_WIDTH = 235;
@@ -140,16 +140,6 @@ const drawSpriteGlow = (
   ctx.restore();
 };
 
-const getFrameIndex = (_direction: Direction, moving: boolean) => {
-  if (!moving) {
-    return 0;
-  }
-
-  const now = performance.now();
-  const walkFrame = Math.floor(now / 220) % 3;
-  return walkFrame;
-};
-
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const drawRoundedRect = (
@@ -217,12 +207,20 @@ export class AgentRenderer {
       const px = agent.x;
       const py = agent.y;
       const direction = agent.direction ?? 'south';
-      const sprite = frames[direction][getFrameIndex(direction, false)];
+      const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
+      const sprite = frames[direction][getWalkFrameIndex(isMoving)];
       if (!sprite) return;
 
+      // When seated, shift sprite visually to appear ON the chair
+      const isSeated = agent.movementState?.startsWith('seated');
+      const offsetPx = isSeated ? (agent.visualOffsetX ?? 0) : 0;
+      const offsetPy = isSeated ? (agent.visualOffsetY ?? 0) : 0;
+      const renderX = px + offsetPx;
+      const renderY = py + offsetPy;
+
       const isSelected = agent.id === selectedAgentId;
-      const drawX = px + SPRITE_OFFSET_X;
-      const drawY = py + SPRITE_OFFSET_Y;
+      const drawX = renderX + SPRITE_OFFSET_X;
+      const drawY = renderY + SPRITE_OFFSET_Y;
 
       ctx.save();
       ctx.imageSmoothingEnabled = false;
@@ -238,7 +236,7 @@ export class AgentRenderer {
       }
 
       ctx.drawImage(sprite, drawX, drawY, SPRITE_DRAW_WIDTH, SPRITE_DRAW_HEIGHT);
-      drawAgentLabel(ctx, agent, px, py);
+      drawAgentLabel(ctx, agent, renderX, renderY);
       ctx.restore();
     });
   }
@@ -257,8 +255,11 @@ export class AgentRenderer {
   }
 
   private getAgentBounds(agent: AgentPosition) {
-    const spriteLeft = agent.x + SPRITE_OFFSET_X;
-    const spriteTop = agent.y + SPRITE_OFFSET_Y;
+    const isSeated = agent.movementState?.startsWith('seated');
+    const offsetPx = isSeated ? (agent.visualOffsetX ?? 0) : 0;
+    const offsetPy = isSeated ? (agent.visualOffsetY ?? 0) : 0;
+    const spriteLeft = agent.x + offsetPx + SPRITE_OFFSET_X;
+    const spriteTop = agent.y + offsetPy + SPRITE_OFFSET_Y;
 
     return {
       left: spriteLeft,

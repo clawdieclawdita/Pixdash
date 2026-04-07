@@ -1,7 +1,7 @@
 declare module '@pixdash/shared' {
-  export type AgentStatus = 'working' | 'online' | 'idle' | 'offline' | 'busy';
+  export type AgentStatus = 'working' | 'online' | 'idle' | 'offline' | 'busy' | 'conference';
   export type Direction = 'north' | 'south' | 'east' | 'west';
-  export type BodyType = 'male' | 'female' | 'neutral';
+  export type BodyType = 'male' | 'female' | 'neutral' | 'michael' | 'angela' | 'phillis' | 'creed' | 'ryan' | 'pam' | 'kelly' | 'kate' | 'pites' | 'jim';
   export type HairStyle = 'short' | 'long' | 'bald' | 'ponytail' | 'spiky';
   export type OutfitType = 'casual' | 'formal' | 'hoodie' | 'tank-top';
   export type AccessoryType = 'glasses' | 'hat' | 'headphones' | 'watch';
@@ -108,12 +108,19 @@ declare module '@pixdash/shared' {
     walkable?: boolean[][];
   }
 
-  export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task';
-  export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config';
+  export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task' | 'health' | 'session.message' | 'session.tool';
+  export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference';
 
   export interface AgentStatusEventPayload {
     agentId: string;
     status: AgentStatus;
+    timestamp: string;
+  }
+
+  export interface AgentConferenceEventPayload {
+    agentIds: string[];
+    sessionKey?: string;
+    source?: 'session_send' | 'shared_session';
     timestamp: string;
   }
 
@@ -149,7 +156,8 @@ declare module '@pixdash/shared' {
     | AgentTaskEventPayload
     | AgentAppearanceEventPayload
     | AgentPositionEventPayload
-    | AgentConfigEventPayload;
+    | AgentConfigEventPayload
+    | AgentConferenceEventPayload;
 
   export interface WsConnectedMessage {
     type: 'connected';

@@ -1,14 +1,36 @@
 import { EventEmitter } from 'node:events';
 import type { Agent, AgentLog, AgentTask, Appearance, AppearancePatch, FrontendEventName, FrontendEventPayload } from '@pixdash/shared';
 import { DEFAULT_APPEARANCE, DEFAULT_POSITION } from '@pixdash/shared';
-import type { ConfigAgentSnapshot, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent } from '../types/index.js';
+import type { ConfigAgentSnapshot, GatewayConferenceEvent, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent } from '../types/index.js';
 import { AppearanceStore } from './AppearanceStore.js';
 
-function derivePosition(id: string) {
-  const seed = [...id].reduce((acc, char) => acc + char.charCodeAt(0), 0);
+const AGENT_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
+  // All positions verified walkable against blocked.png (brightness > 128)
+  // Spread across main corridor (rows 21-22)
+  { x: 3, y: 22 },
+  { x: 6, y: 22 },
+  { x: 16, y: 22 },
+  { x: 20, y: 21 },
+  { x: 23, y: 22 },
+  { x: 31, y: 22 },
+  { x: 35, y: 22 },
+  { x: 48, y: 22 },
+  { x: 52, y: 22 },
+  { x: 57, y: 22 },
+  { x: 69, y: 22 },
+  { x: 72, y: 22 },
+  { x: 3, y: 21 },
+  { x: 18, y: 21 },
+  { x: 32, y: 21 },
+  { x: 38, y: 21 },
+];
+
+function derivePosition(_id: string) {
+  const index = Math.floor(Math.random() * AGENT_SPAWN_POSITIONS.length);
+  const spawnPos = AGENT_SPAWN_POSITIONS[index];
   return {
-    x: 2 + (seed % 5) * 3,
-    y: 2 + (Math.floor(seed / 5) % 4) * 3,
+    x: spawnPos.x,
+    y: spawnPos.y,
     direction: 'south' as const,
   };
 }
@@ -164,6 +186,20 @@ export class AgentStateManager {
     this.broadcast('agent:task', event);
   }
 
+  applyConferenceEvent(event: GatewayConferenceEvent): void {
+    const validAgentIds = event.agentIds.filter((id) => this.agents.has(id));
+    if (validAgentIds.length < 2) {
+      return;
+    }
+
+    this.broadcast('agent:conference', {
+      agentIds: validAgentIds,
+      sessionKey: event.sessionKey,
+      source: event.source,
+      timestamp: event.timestamp ?? new Date().toISOString(),
+    });
+  }
+
   recordActivity(id: string, timestamp = Date.now()): void {
     const agent = this.ensureAgent(id);
     const presence = this.ensurePresence(id);
@@ -199,20 +235,18 @@ export class AgentStateManager {
       occupied.add(`${existingAgent.position.x},${existingAgent.position.y}`);
     }
 
-    let attempts = 0;
-    let posKey = `${agent.position.x},${agent.position.y}`;
-    while (occupied.has(posKey) && attempts < 18 * 13) {
-      agent.position.x += 1;
-      if (agent.position.x > 18) {
-        agent.position.x = 1;
-        agent.position.y += 1;
-      }
-      if (agent.position.y > 13) {
-        agent.position.y = 1;
-      }
-      posKey = `${agent.position.x},${agent.position.y}`;
-      attempts += 1;
+    // Find an unoccupied spawn position
+    const availableSpawns = AGENT_SPAWN_POSITIONS.filter(
+      (pos) => !occupied.has(`${pos.x},${pos.y}`)
+    );
+
+    if (availableSpawns.length > 0) {
+      const index = Math.floor(Math.random() * availableSpawns.length);
+      const spawnPos = availableSpawns[index];
+      agent.position.x = spawnPos.x;
+      agent.position.y = spawnPos.y;
     }
+    // If all spawns are occupied, keep the derivePosition result
 
     this.agents.set(id, agent);
     this.ensurePresence(id);

@@ -2,7 +2,7 @@ import type { Agent, AgentLog, AgentTask, AgentStatus, Appearance, Position } fr
 import type { Tilemap } from './tilemap.js';
 
 export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task';
-export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config';
+export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference';
 
 export interface AgentStatusEventPayload {
   agentId: string;
@@ -36,13 +36,21 @@ export interface AgentConfigEventPayload {
   agent: Agent;
 }
 
+export interface AgentConferenceEventPayload {
+  agentIds: string[];
+  sessionKey?: string;
+  source?: 'session_send' | 'shared_session';
+  timestamp: string;
+}
+
 export type FrontendEventPayload =
   | AgentStatusEventPayload
   | AgentLogEventPayload
   | AgentTaskEventPayload
   | AgentAppearanceEventPayload
   | AgentPositionEventPayload
-  | AgentConfigEventPayload;
+  | AgentConfigEventPayload
+  | AgentConferenceEventPayload;
 
 export interface WsConnectedMessage {
   type: 'connected';

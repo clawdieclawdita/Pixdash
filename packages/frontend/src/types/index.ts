@@ -14,7 +14,13 @@ export interface TilemapData {
 
 import type { Appearance, Direction } from '@pixdash/shared';
 
-export type AgentStatus = 'working' | 'online' | 'idle' | 'busy' | 'offline';
+export type AgentStatus = 'working' | 'online' | 'idle' | 'busy' | 'offline' | 'conference';
+export type MovementState = 'standing' | 'walking' | 'seated-working' | 'seated-idle' | 'seated-conference' | 'at-watercooler';
+
+export interface AgentPathNode {
+  x: number;
+  y: number;
+}
 
 export interface AgentPosition {
   id: string;
@@ -25,6 +31,13 @@ export interface AgentPosition {
   status: AgentStatus;
   direction?: Direction;
   appearance: Appearance;
+  movementState?: MovementState;
+  targetX?: number | null;
+  targetY?: number | null;
+  path?: AgentPathNode[];
+  claimedWaypointId?: string | null;
+  visualOffsetX?: number;
+  visualOffsetY?: number;
 }
 
 export interface AgentProfile extends AgentPosition {

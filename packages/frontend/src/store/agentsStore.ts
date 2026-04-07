@@ -1,7 +1,9 @@
 import { create } from 'zustand';
-import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type Position } from '@pixdash/shared';
+import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type Direction, type Position } from '@pixdash/shared';
 import type { Agent } from '@/lib/api';
-import { loadCollisionMap, pickDeskPositions } from '@/lib/collisionMap';
+import { tileToPixelCenter } from '@/lib/movement';
+import { createWaypointSet } from '@/lib/waypoints';
+import type { AgentPathNode, MovementState } from '@/types';
 
 export type StoreAgent = Agent & {
   x: number;
@@ -9,14 +11,23 @@ export type StoreAgent = Agent & {
   color: string;
   title?: string;
   notes?: string;
+  movementState: MovementState;
+  targetX: number | null;
+  targetY: number | null;
+  path: AgentPathNode[];
+  claimedWaypointId: string | null;
+  direction?: Direction;
+  visualOffsetX?: number;
+  visualOffsetY?: number;
 };
 
+const initialFallbackWaypoints = createWaypointSet().desks;
 const warnedAgentIds = new Set<string>();
 
 const warnMissingPosition = (agent: Agent) => {
   if (warnedAgentIds.has(agent.id)) return;
   warnedAgentIds.add(agent.id);
-  console.warn(`[PixDash] Agent "${agent.id}" is missing a valid position. Falling back to desk assignment.`);
+  console.warn(`[PixDash] Agent "${agent.id}" is missing a valid position. Falling back to office desk placement.`);
 };
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
@@ -25,35 +36,59 @@ const normalizeAppearance = (appearance?: Agent['appearance']): Appearance => ({
   bodyType: appearance?.bodyType ?? DEFAULT_APPEARANCE.bodyType,
   hair: {
     style: appearance?.hair?.style ?? DEFAULT_APPEARANCE.hair.style,
-    color: appearance?.hair?.color ?? DEFAULT_APPEARANCE.hair.color
+    color: appearance?.hair?.color ?? DEFAULT_APPEARANCE.hair.color,
   },
   skinColor: appearance?.skinColor ?? DEFAULT_APPEARANCE.skinColor,
   outfit: {
     type: appearance?.outfit?.type ?? DEFAULT_APPEARANCE.outfit.type,
-    color: appearance?.outfit?.color ?? DEFAULT_APPEARANCE.outfit.color
+    color: appearance?.outfit?.color ?? DEFAULT_APPEARANCE.outfit.color,
   },
-  accessories: appearance?.accessories ?? DEFAULT_APPEARANCE.accessories
+  accessories: appearance?.accessories ?? DEFAULT_APPEARANCE.accessories,
 });
 
-const normalizePosition = (agent: Agent, assignedDesk?: { x: number; y: number }): Position => {
-  if (isFiniteNumber(agent.position?.x) && isFiniteNumber(agent.position?.y) && agent.position.x > 32 && agent.position.y > 32) {
+const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
+  if (isFiniteNumber(agent.position?.x) && isFiniteNumber(agent.position?.y)) {
+    const px = agent.position.x;
+    const py = agent.position.y;
+
+    // Backend now sends collision-grid tile coords (0-75, 0-56).
+    // If values exceed the grid, treat as pixel coords.
+    if (px > 75 || py > 56 || (px > 32 && py > 32)) {
+      return {
+        x: px,
+        y: py,
+        direction: agent.position.direction ?? DEFAULT_POSITION.direction,
+      };
+    }
+
+    // Collision grid tile coords → convert to pixel center
+    const pixelPosition = tileToPixelCenter({ x: px, y: py });
     return {
-      x: agent.position.x,
-      y: agent.position.y,
-      direction: agent.position.direction ?? DEFAULT_POSITION.direction
+      x: pixelPosition.x,
+      y: pixelPosition.y,
+      direction: agent.position.direction ?? DEFAULT_POSITION.direction,
     };
   }
 
   warnMissingPosition(agent);
+  const fallbackWaypoint = initialFallbackWaypoints[fallbackIndex % initialFallbackWaypoints.length];
+  const fallbackPosition = tileToPixelCenter(fallbackWaypoint);
   return {
-    x: assignedDesk?.x ?? DEFAULT_POSITION.x,
-    y: assignedDesk?.y ?? DEFAULT_POSITION.y,
-    direction: agent.position?.direction ?? DEFAULT_POSITION.direction
+    x: fallbackPosition.x,
+    y: fallbackPosition.y,
+    direction: fallbackWaypoint.direction ?? agent.position?.direction ?? DEFAULT_POSITION.direction,
   };
 };
 
-function normalizeAgent(agent: Agent, assignedDesk?: { x: number; y: number }): StoreAgent {
-  const position = normalizePosition(agent, assignedDesk);
+const defaultMovementState = (status: Agent['status']): MovementState => {
+  if (status === 'working') return 'seated-working';
+  if (status === 'conference') return 'seated-conference';
+  if (status === 'idle' || status === 'online') return 'seated-idle';
+  return 'standing';
+};
+
+function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
+  const position = normalizePosition(agent, fallbackIndex);
   const appearance = normalizeAppearance(agent.appearance);
 
   return {
@@ -64,18 +99,21 @@ function normalizeAgent(agent: Agent, assignedDesk?: { x: number; y: number }): 
     y: position.y,
     color: appearance.outfit.color,
     title: typeof agent.config?.title === 'string' ? agent.config.title : undefined,
-    notes: typeof agent.config?.notes === 'string' ? agent.config.notes : undefined
+    notes: typeof agent.config?.notes === 'string' ? agent.config.notes : undefined,
+    movementState: defaultMovementState(agent.status),
+    targetX: null,
+    targetY: null,
+    path: [],
+    claimedWaypointId: null,
+    visualOffsetX: 0,
+    visualOffsetY: 0,
   };
 }
-
-const sortAgentsForDeskAssignment = (agents: Agent[]) =>
-  [...agents].sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
 
 interface AgentsState {
   agents: StoreAgent[];
   selectedAgentId: string | null;
   setAgents: (agents: Agent[]) => void;
-  applyDeskAssignments: (agents: Agent[]) => Promise<void>;
   updateAgent: (agent: Partial<StoreAgent> & Pick<StoreAgent, 'id'>) => void;
   selectAgent: (agentId: string | null) => void;
   clearSelection: () => void;
@@ -84,77 +122,77 @@ interface AgentsState {
 export const useAgentsStore = create<AgentsState>((set) => ({
   agents: [],
   selectedAgentId: null,
-  setAgents: (agents) => {
-    const normalizedAgents = agents.map((agent) => normalizeAgent(agent));
+  setAgents: (agents) =>
     set((state) => ({
-      agents: normalizedAgents,
+      agents: agents.map((agent, index) => {
+        const existing = state.agents.find((entry) => entry.id === agent.id);
+        const normalized = normalizeAgent(agent, index);
+        return existing
+          ? {
+              ...existing,
+              ...normalized,
+              // Preserve client-side position for agents that have been placed by
+              // the movement system (walking or have a claimed waypoint).
+              // Backend only knows corridor tile coords — don't overwrite.
+              x: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.x : normalized.x,
+              y: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.y : normalized.y,
+              movementState: existing.movementState,
+              targetX: existing.targetX,
+              targetY: existing.targetY,
+              path: existing.path,
+              claimedWaypointId: existing.claimedWaypointId,
+              visualOffsetX: existing.visualOffsetX,
+              visualOffsetY: existing.visualOffsetY,
+            }
+          : normalized;
+      }),
       selectedAgentId:
         state.selectedAgentId && agents.some((agent) => agent.id === state.selectedAgentId)
           ? state.selectedAgentId
-          : null
-    }));
-
-    void useAgentsStore.getState().applyDeskAssignments(agents);
-  },
-  applyDeskAssignments: async (agents) => {
-    const collisionMap = await loadCollisionMap();
-    const desks = pickDeskPositions(collisionMap, Math.max(agents.length, 5));
-    const sortedAgents = sortAgentsForDeskAssignment(agents);
-    const deskByAgentId = new Map(sortedAgents.map((agent, index) => [agent.id, desks[index] ?? desks[desks.length - 1]]));
-
-    set((state) => ({
-      agents: agents.map((agent) => normalizeAgent(agent, deskByAgentId.get(agent.id))),
-      selectedAgentId:
-        state.selectedAgentId && agents.some((currentAgent) => currentAgent.id === state.selectedAgentId)
-          ? state.selectedAgentId
-          : null
-    }));
-  },
+          : null,
+    })),
   updateAgent: (agentUpdate) =>
-    set((state) => {
-      const existing = state.agents.find((agent) => agent.id === agentUpdate.id);
+    set((state) => ({
+      agents: state.agents.map((agent) => {
+        if (agent.id !== agentUpdate.id) {
+          return agent;
+        }
 
-      if (!existing) {
-        return state;
-      }
+        const nextPosition = {
+          ...agent.position,
+          ...(agentUpdate.position ?? {}),
+        };
+        const nextAppearance = normalizeAppearance({
+          ...agent.appearance,
+          ...(agentUpdate.appearance ?? {}),
+          hair: {
+            ...agent.appearance.hair,
+            ...(agentUpdate.appearance?.hair ?? {}),
+          },
+          outfit: {
+            ...agent.appearance.outfit,
+            ...(agentUpdate.appearance?.outfit ?? {}),
+          },
+        });
 
-      return {
-        agents: state.agents.map((agent) => {
-          if (agent.id !== agentUpdate.id) {
-            return agent;
-          }
-
-          const nextPosition = {
-            ...agent.position,
-            ...(agentUpdate.position ?? {})
-          };
-          const nextAppearance = normalizeAppearance({
-            ...agent.appearance,
-            ...(agentUpdate.appearance ?? {}),
-            hair: {
-              ...agent.appearance.hair,
-              ...(agentUpdate.appearance?.hair ?? {})
-            },
-            outfit: {
-              ...agent.appearance.outfit,
-              ...(agentUpdate.appearance?.outfit ?? {})
-            }
-          });
-
-          return {
-            ...agent,
-            ...agentUpdate,
-            position: nextPosition,
-            x: agentUpdate.position?.x ?? agentUpdate.x ?? nextPosition.x,
-            y: agentUpdate.position?.y ?? agentUpdate.y ?? nextPosition.y,
-            color: agentUpdate.appearance?.outfit?.color ?? agentUpdate.color ?? nextAppearance.outfit.color,
-            appearance: nextAppearance
-          };
-        })
-      };
-    }),
+        return {
+          ...agent,
+          ...agentUpdate,
+          position: nextPosition,
+          x: agentUpdate.position?.x ?? agentUpdate.x ?? nextPosition.x,
+          y: agentUpdate.position?.y ?? agentUpdate.y ?? nextPosition.y,
+          color: agentUpdate.appearance?.outfit?.color ?? agentUpdate.color ?? nextAppearance.outfit.color,
+          appearance: nextAppearance,
+          movementState: agentUpdate.movementState ?? agent.movementState,
+          targetX: agentUpdate.targetX === undefined ? agent.targetX : agentUpdate.targetX,
+          targetY: agentUpdate.targetY === undefined ? agent.targetY : agentUpdate.targetY,
+          path: agentUpdate.path ?? agent.path,
+          claimedWaypointId: agentUpdate.claimedWaypointId === undefined ? agent.claimedWaypointId : agentUpdate.claimedWaypointId,
+        };
+      }),
+    })),
   selectAgent: (selectedAgentId) => set({ selectedAgentId }),
-  clearSelection: () => set({ selectedAgentId: null })
+  clearSelection: () => set({ selectedAgentId: null }),
 }));
 
 export const agentsStore = {
@@ -163,5 +201,5 @@ export const agentsStore = {
   setAgents: useAgentsStore.getState().setAgents,
   updateAgent: useAgentsStore.getState().updateAgent,
   selectAgent: useAgentsStore.getState().selectAgent,
-  clearSelection: useAgentsStore.getState().clearSelection
+  clearSelection: useAgentsStore.getState().clearSelection,
 };

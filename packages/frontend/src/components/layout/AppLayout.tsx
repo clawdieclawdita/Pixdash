@@ -119,7 +119,7 @@ export const AppLayout = ({
         </header>
 
         <section className="grid gap-6 xl:grid-cols-[1fr_320px]">
-          <div className="relative min-h-[600px]">
+          <div className="relative h-[70vh]">
             <>
               <OfficeCanvas
                 agents={agents}

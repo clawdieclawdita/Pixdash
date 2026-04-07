@@ -4,6 +4,8 @@ import officeBackgroundUrl from '@assets/sprites/office.png';
 import { AgentRenderer } from './AgentRenderer';
 import { CameraController } from './CameraController';
 import { useCanvas } from '@/hooks/useCanvas';
+import { useMovementStore } from '@/store/movementStore';
+import { agentsStore } from '@/store/agentsStore';
 import { OFFICE_HEIGHT, OFFICE_WIDTH } from '@/lib/officeScene';
 
 interface OfficeCanvasProps {
@@ -32,6 +34,11 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
 
   const agentRenderer = useMemo(() => new AgentRenderer(), []);
+  const agentsRef = useRef(agents);
+
+  useEffect(() => {
+    agentsRef.current = agents;
+  }, [agents]);
 
   const syncCanvasSize = useCallback((recenter = false) => {
     const canvas = canvasRef.current;
@@ -76,6 +83,8 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     };
   }, []);
 
+  const ensureInitialized = useMovementStore((state) => state.ensureInitialized);
+
   useEffect(() => {
     syncCanvasSize(true);
 
@@ -83,6 +92,10 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [syncCanvasSize]);
+
+  useEffect(() => {
+    void ensureInitialized();
+  }, [ensureInitialized]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -99,10 +112,13 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, []);
 
+  const tickMovement = useMovementStore((state) => state.tick);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    const currentAgents = agentsStore.getState().agents;
     const dpr = window.devicePixelRatio || 1;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -128,13 +144,16 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       ctx.fillRect(0, 0, OFFICE_WIDTH, OFFICE_HEIGHT);
     }
 
-    agentRenderer.render(ctx, agents, selectedAgentId);
+    agentRenderer.render(ctx, currentAgents, selectedAgentId);
     ctx.restore();
-  }, [agentRenderer, agents, backgroundImage, selectedAgentId]);
+  }, [agentRenderer, backgroundImage, selectedAgentId]);
 
-  useCanvas(draw);
+  useCanvas((deltaMs) => {
+    tickMovement(deltaMs);
+    draw();
+  });
 
-  const pointerPosition = useCallback((event: MouseEvent | WheelEvent) => {
+  const pointerPosition = useCallback((event: MouseEvent | PointerEvent | WheelEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
@@ -162,6 +181,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
 
     let rafId: number | null = null;
     let pointerDownPos: { screenX: number; screenY: number } | null = null;
+    let activePointerId: number | null = null;
     let didDrag = false;
 
     const flushState = () => {
@@ -175,13 +195,17 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     };
 
     const onDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+
       const point = pointerPosition(event);
       pointerDownPos = { screenX: point.x, screenY: point.y };
+      activePointerId = event.pointerId;
       didDrag = false;
+      canvas.setPointerCapture(event.pointerId);
     };
 
     const onMove = (event: PointerEvent) => {
-      if (!pointerDownPos) return;
+      if (!pointerDownPos || (activePointerId !== null && event.pointerId !== activePointerId)) return;
 
       const point = pointerPosition(event);
 
@@ -198,7 +222,9 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       scheduleStateUpdate();
     };
 
-    const onUp = (event: PointerEvent) => {
+    const endPointerInteraction = (event: PointerEvent) => {
+      if (activePointerId !== null && event.pointerId !== activePointerId) return;
+
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
@@ -207,11 +233,16 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       if (pointerDownPos && !didDrag) {
         const point = pointerPosition(event);
         const worldPoint = worldPosition(point.x, point.y);
-        const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agents);
+        const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agentsRef.current);
         onAgentSelect?.(clickedAgent);
       }
 
+      if (activePointerId !== null && canvas.hasPointerCapture(activePointerId)) {
+        canvas.releasePointerCapture(activePointerId);
+      }
+
       pointerDownPos = null;
+      activePointerId = null;
       didDrag = false;
       cameraRef.current.endDrag();
       setCameraState(cameraRef.current.getSnapshot());
@@ -219,22 +250,51 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
 
     canvas.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointerup', endPointerInteraction);
+    window.addEventListener('pointercancel', endPointerInteraction);
 
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
+      if (activePointerId !== null && canvas.hasPointerCapture(activePointerId)) {
+        canvas.releasePointerCapture(activePointerId);
+      }
       canvas.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointerup', endPointerInteraction);
+      window.removeEventListener('pointercancel', endPointerInteraction);
     };
-  }, [pointerPosition, worldPosition, agentRenderer, agents, onAgentSelect]);
+  }, [pointerPosition, worldPosition, agentRenderer, onAgentSelect]);
 
   return (
-    <div ref={hostRef} className="relative min-h-[600px] overflow-hidden rounded-[28px] border border-white/10 bg-black/30 shadow-panel shadow-black/40">
+    <div ref={hostRef} className="relative h-full overflow-hidden rounded-[28px] border border-white/10 bg-black/30 shadow-panel shadow-black/40">
       <canvas
         ref={canvasRef}
         className="block cursor-grab touch-none active:cursor-grabbing"
       />
+
+      <button
+        type="button"
+        onClick={() => {
+          const host = hostRef.current;
+          const canvas = canvasRef.current;
+          if (!host || !canvas) return;
+
+          // Force re-measure viewport
+          const rect = host.getBoundingClientRect();
+          const width = Math.max(1, Math.floor(rect.width));
+          const height = Math.max(1, Math.floor(rect.height));
+          viewportRef.current = { width, height };
+
+          cameraRef.current.centerOnMap(OFFICE_WIDTH, OFFICE_HEIGHT, width, height);
+          setCameraState(cameraRef.current.getSnapshot());
+        }}
+        className="pointer-events-auto absolute top-4 right-4 flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-xs font-medium text-white/80 backdrop-blur-md transition-colors hover:bg-black/60 hover:text-white active:scale-95"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/>
+        </svg>
+        Fit
+      </button>
 
       <div className="pointer-events-none absolute bottom-4 left-4 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
         <div className="font-semibold text-white">Camera</div>

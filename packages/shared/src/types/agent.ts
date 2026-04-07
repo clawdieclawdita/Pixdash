@@ -1,4 +1,4 @@
-export type AgentStatus = 'working' | 'online' | 'idle' | 'offline' | 'busy';
+export type AgentStatus = 'working' | 'online' | 'idle' | 'offline' | 'busy' | 'conference';
 export type Direction = 'north' | 'south' | 'east' | 'west';
 export type BodyType = 'male' | 'female' | 'neutral' | 'michael' | 'angela' | 'phillis' | 'creed' | 'ryan' | 'pam' | 'kelly' | 'kate' | 'pites' | 'jim';
 export type HairStyle = 'short' | 'long' | 'bald' | 'ponytail' | 'spiky';

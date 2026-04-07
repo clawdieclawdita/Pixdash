@@ -16,7 +16,12 @@ function App() {
         color: agent.color,
         status: agent.status,
         direction: agent.position.direction,
-        appearance: agent.appearance
+        appearance: agent.appearance,
+        movementState: agent.movementState,
+        targetX: agent.targetX,
+        targetY: agent.targetY,
+        path: agent.path,
+        claimedWaypointId: agent.claimedWaypointId,
       })),
     [agents]
   );
