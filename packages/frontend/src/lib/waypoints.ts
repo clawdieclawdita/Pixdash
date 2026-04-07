@@ -40,15 +40,29 @@ const createWaypoint = (
   visualOffsetX: visualOffsetX ?? 0, visualOffsetY: visualOffsetY ?? 0,
 });
 
-/** Create a seated waypoint with automatic visual offset (1 tile in facing direction). */
+/** Create a seated waypoint with automatic visual offset, or a custom chair offset when provided. */
 const seated = (
-  id: string, x: number, y: number, type: WaypointType, direction: Direction,
+  id: string,
+  x: number,
+  y: number,
+  type: WaypointType,
+  direction: Direction,
+  visualOffsetX?: number,
+  visualOffsetY?: number,
 ): WaypointClaim => {
   const offsets: Record<Direction, [number, number]> = {
     north: [0, -TILE], south: [0, TILE], east: [TILE, 0], west: [-TILE, 0],
   };
-  const [ox, oy] = offsets[direction];
-  return createWaypoint(id, x, y, type, direction, ox, oy);
+  const [defaultOffsetX, defaultOffsetY] = offsets[direction];
+  return createWaypoint(
+    id,
+    x,
+    y,
+    type,
+    direction,
+    visualOffsetX ?? defaultOffsetX,
+    visualOffsetY ?? defaultOffsetY,
+  );
 };
 
 /**
@@ -69,47 +83,47 @@ const seated = (
  */
 export const createWaypointSet = (): WaypointSet => ({
   desks: [
-    // ── Upper desk cluster LEFT (cols 4-17) ──
-    seated('desk-a1', 5, 18, 'desk', 'south'),
-    seated('desk-a2', 15, 18, 'desk', 'south'),
-    seated('desk-a3', 5, 25, 'desk', 'east'),
-    seated('desk-a4', 16, 25, 'desk', 'west'),
+    // ── Upper desk cluster LEFT (chair centers sampled from chairsspots.png) ──
+    seated('desk-a1', 6, 18, 'desk', 'south', 11, 30),
+    seated('desk-a2', 15, 18, 'desk', 'south', 1, 33),
+    seated('desk-a3', 7, 24, 'desk', 'south', -21, 22),
+    seated('desk-a4', 16, 25, 'desk', 'west', -35, -11),
 
-    // ── Upper desk cluster CENTER (cols 20-34) ──
-    seated('desk-b1', 23, 18, 'desk', 'south'),
-    seated('desk-b2', 31, 18, 'desk', 'south'),
-    seated('desk-b3', 22, 25, 'desk', 'east'),
-    seated('desk-b4', 31, 23, 'desk', 'south'),
+    // ── Upper desk cluster CENTER ──
+    seated('desk-b1', 23, 18, 'desk', 'south', 1, 31),
+    seated('desk-b2', 31, 18, 'desk', 'south', 12, 34),
+    seated('desk-b3', 22, 25, 'desk', 'east', 33, -10),
+    seated('desk-b4', 31, 26, 'desk', 'north', 13, -46),
 
-    // ── Upper desk cluster RIGHT (cols 36-50) ──
-    seated('desk-c1', 37, 19, 'desk', 'east'),
-    seated('desk-c2', 47, 18, 'desk', 'south'),
-    seated('desk-c3', 37, 25, 'desk', 'east'),
-    seated('desk-c4', 48, 25, 'desk', 'west'),
+    // ── Upper desk cluster RIGHT ──
+    seated('desk-c1', 38, 18, 'desk', 'south', 12, 33),
+    seated('desk-c2', 47, 18, 'desk', 'south', -9, 31),
+    seated('desk-c3', 37, 25, 'desk', 'east', 44, -12),
+    seated('desk-c4', 46, 24, 'desk', 'east', 23, 21),
 
-    // ── Lower desk island A (row 33) ──
-    seated('desk-d1', 25, 33, 'desk', 'south'),
-    seated('desk-d2', 30, 33, 'desk', 'south'),
-    seated('desk-d3', 40, 33, 'desk', 'south'),
-    seated('desk-d4', 45, 33, 'desk', 'south'),
+    // ── Lower desk island A ──
+    seated('desk-d1', 26, 34, 'desk', 'west', -43, 19),
+    seated('desk-d2', 29, 34, 'desk', 'east', 43, 19),
+    seated('desk-d3', 41, 34, 'desk', 'west', -40, 19),
+    seated('desk-d4', 44, 34, 'desk', 'east', 46, 19),
 
-    // ── Lower desk island B (row 41) ──
-    seated('desk-e1', 26, 41, 'desk', 'west'),
-    seated('desk-e2', 29, 41, 'desk', 'east'),
-    seated('desk-e3', 41, 41, 'desk', 'west'),
-    seated('desk-e4', 44, 41, 'desk', 'east'),
+    // ── Lower desk island B ──
+    seated('desk-e1', 25, 42, 'desk', 'north', -11, -41),
+    seated('desk-e2', 30, 42, 'desk', 'north', 11, -41),
+    seated('desk-e3', 41, 41, 'desk', 'west', -40, -9),
+    seated('desk-e4', 45, 42, 'desk', 'north', 14, -41),
 
-    // ── Lower desk island C (row 46) ──
-    seated('desk-f1', 26, 46, 'desk', 'west'),
-    seated('desk-f2', 29, 46, 'desk', 'east'),
-    seated('desk-f3', 41, 46, 'desk', 'west'),
-    seated('desk-f4', 43, 46, 'desk', 'east'),
+    // ── Lower desk island C ──
+    seated('desk-f1', 26, 46, 'desk', 'west', -43, -5),
+    seated('desk-f2', 29, 46, 'desk', 'east', 43, -5),
+    seated('desk-f3', 41, 46, 'desk', 'west', -40, -5),
+    seated('desk-f4', 44, 46, 'desk', 'east', 45, -5),
 
-    // ── Lower desk island D (row 52) ──
-    seated('desk-g1', 26, 52, 'desk', 'west'),
-    seated('desk-g2', 29, 52, 'desk', 'east'),
-    seated('desk-g3', 38, 52, 'desk', 'east'),
-    seated('desk-g4', 44, 52, 'desk', 'east'),
+    // ── Lower desk island D ──
+    seated('desk-g1', 25, 53, 'desk', 'north', -11, -33),
+    seated('desk-g2', 29, 52, 'desk', 'east', 43, -1),
+    seated('desk-g3', 41, 52, 'desk', 'west', -40, -1),
+    seated('desk-g4', 44, 52, 'desk', 'east', 46, -1),
   ],
 
   receptionChairs: [
@@ -138,25 +152,27 @@ export const createWaypointSet = (): WaypointSet => ({
   ],
 
   conferenceRoomChairs: [
-    // Top end of table
-    seated('conf-top', 63, 9, 'conference', 'south'),
-    // Left side of table (5 chairs, face east toward table)
-    seated('conf-l1', 61, 10, 'conference', 'east'),
-    seated('conf-l2', 61, 13, 'conference', 'east'),
-    seated('conf-l3', 59, 18, 'conference', 'east'),
-    seated('conf-l4', 61, 23, 'conference', 'east'),
-    seated('conf-l5', 61, 28, 'conference', 'east'),
-    // Right side of table (5 chairs, face west toward table)
-    seated('conf-r1', 68, 10, 'conference', 'west'),
-    seated('conf-r2', 68, 13, 'conference', 'west'),
-    seated('conf-r3', 67, 18, 'conference', 'west'),
-    seated('conf-r4', 69, 21, 'conference', 'west'),
-    seated('conf-r5', 67, 24, 'conference', 'west'),
-    // Bottom end of table
-    seated('conf-bottom', 66, 28, 'conference', 'north'),
+    // Walkable corridors: rows 6-9 (top), rows 27-30 (bottom)
+    // Table: rows 10-26. Chairs on blocked tiles around table edge.
+    // Top row (3 chairs facing table)
+    seated('conf-top-1', 58, 9, 'conference', 'south', -5, 30),
+    seated('conf-top-2', 63, 9, 'conference', 'south', 0, 30),
+    seated('conf-top-3', 68, 9, 'conference', 'south', 5, 30),
+    // Bottom row (6 chairs facing table)
+    seated('conf-bot-1', 56, 28, 'conference', 'north', 0, -30),
+    seated('conf-bot-2', 59, 28, 'conference', 'north', 0, -30),
+    seated('conf-bot-3', 62, 28, 'conference', 'north', 0, -30),
+    seated('conf-bot-4', 65, 28, 'conference', 'north', 0, -30),
+    seated('conf-bot-5', 68, 28, 'conference', 'north', 0, -30),
+    seated('conf-bot-6', 71, 28, 'conference', 'north', 0, -30),
+    // Side chairs (2 chairs on edges)
+    seated('conf-side-l', 56, 7, 'conference', 'east', 33, 0),
+    seated('conf-side-r', 72, 7, 'conference', 'west', -33, 0),
   ],
 
-  waterDispenser: [createWaypoint('watercooler-1', 63, 33, 'watercooler', 'south')],
+  // Watercooler at (63,33) is on a blocked tile (no walkable path).
+  // Removed from wander pool to prevent agents getting stuck.
+  waterDispenser: [],
 });
 
 export const getAllWaypoints = (set: WaypointSet): WaypointClaim[] => [

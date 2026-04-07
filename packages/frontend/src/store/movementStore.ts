@@ -164,7 +164,9 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     }
   }
   // Fallback: nearest from all
-  return pickNearestAvailableWaypoint(allCandidates, currentTile, agentId);
+  const wp = pickNearestAvailableWaypoint(allCandidates, currentTile, agentId);
+  console.log('[PixDash Debug] pickIdleWaypoint', JSON.stringify({ agentId, tile: currentTile, waypointId: wp?.id, type: wp?.type }));
+  return wp;
 };
 
 const scheduleHomeBaseReturn = async (agentId: string) => {
@@ -417,8 +419,23 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     clearHomeBaseReturnTimer(agentId);
 
     // Guard: only proceed if the status actually requires a change in behavior.
-    // 'online' and 'busy' are functionally identical to 'idle' — don't move.
-    if (status === 'online' || status === 'busy') {
+    // 'online' after 'idle' means the agent likely got a task.
+    // If they're seated at a non-desk location (restroom, reception, watercooler),
+    // they should walk to a desk. If already at a desk, stay put.
+    if (status === 'online') {
+      const isAtDesk = agent.claimedWaypointId
+        ? findWaypointById(waypoints, agent.claimedWaypointId)?.type === 'desk'
+        : false;
+      if (isAtDesk || agent.movementState === 'seated-working') {
+        // Already at a desk or was working — just update status, stay put
+        agentsStore.updateAgent({ id: agentId, status });
+        return;
+      }
+      // Not at a desk — fall through to walk to a desk (treat like 'working')
+    }
+
+    // 'busy' — stay where you are
+    if (status === 'busy') {
       agentsStore.updateAgent({ id: agentId, status });
       return;
     }
@@ -486,7 +503,8 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
 
     let waypoint: WaypointClaim | null = null;
 
-    if (status === 'working') {
+    if (status === 'working' || status === 'online') {
+      // Both 'working' and 'online' (when not at a desk) should target a desk
       waypoint = pickNearestAvailableWaypoint(waypoints.desks, currentTile, agentId);
       if (!waypoint && waypoints.desks.length > 0) {
         waypoint = [...waypoints.desks].sort(
@@ -495,7 +513,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       }
     } else if (status === 'conference') {
       waypoint = pickNearestAvailableWaypoint(waypoints.conferenceRoomChairs, currentTile, agentId);
-    } else if (status === 'idle' || status === 'online') {
+    } else if (status === 'idle') {
       waypoint = pickIdleWaypoint(agentId, currentTile, waypoints);
     }
 
