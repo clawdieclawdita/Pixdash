@@ -388,7 +388,16 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     }
     console.log(`[PixDash Debug] placeAgentsOnLoad: ${agents.length} agents`);
 
-    for (const agent of agents) {
+    // Sort agents so home-base agents get placed first (claim their preferred seat)
+    const sortedAgents = [...agents].sort((a, b) => {
+      const aHasHome = !!AGENT_HOME_BASES[a.id];
+      const bHasHome = !!AGENT_HOME_BASES[b.id];
+      if (aHasHome && !bHasHome) return -1;
+      if (!aHasHome && bHasHome) return 1;
+      return 0;
+    });
+
+    for (const agent of sortedAgents) {
       const agentTile = pixelToTile(agent.x, agent.y);
 
       // Ensure spawn position is on a walkable, non-blocked tile
