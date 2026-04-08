@@ -142,7 +142,7 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     const preferredHomeCandidates = waypoints.receptionChairs.filter((wp) => preferredHomeIds.has(wp.id));
 
     const weightedGroups = [
-      { weight: 0.6, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs.filter(isReservedForOther) },
+      { weight: 0.6, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs.filter((wp) => !isReservedForOther(wp)) },
       { weight: 0.15, candidates: waypoints.restRoomChairs },
       { weight: 0.15, candidates: waypoints.waterDispenser },
       { weight: 0.1, candidates: waypoints.desks },
