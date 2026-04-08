@@ -40,6 +40,11 @@ const AGENT_HOME_BASES: Record<string, { type: WaypointClaim['type']; preferredW
   main: { type: 'reception', preferredWaypointIds: ['reception-clawdie'] },
 };
 
+// Waypoint IDs reserved for specific agents — never offered to others
+const RESERVED_WAYPOINT_IDS = new Set(
+  Object.values(AGENT_HOME_BASES).flatMap((hb) => hb.preferredWaypointIds ?? []),
+);
+
 const homeBaseReturnTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const clearHomeBaseReturnTimer = (agentId: string) => {
@@ -120,6 +125,9 @@ const scheduleIdleWander = (agentId: string) => {
 const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }, waypoints: WaypointSet, excludeIds?: Set<string>) => {
   // Conference room is EXCLUSIVELY for session_send / multi-agent conversations
   // Never pick conference chairs during idle wander.
+  // Also exclude reserved home-base seats (unless this agent owns them).
+  const isReservedForOther = (wp: WaypointClaim) =>
+    RESERVED_WAYPOINT_IDS.has(wp.id) && !(AGENT_HOME_BASES[agentId]?.preferredWaypointIds?.includes(wp.id) ?? false);
   const allCandidates: WaypointClaim[] = [
     ...waypoints.receptionChairs,
     ...waypoints.restRoomChairs,
@@ -134,7 +142,7 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     const preferredHomeCandidates = waypoints.receptionChairs.filter((wp) => preferredHomeIds.has(wp.id));
 
     const weightedGroups = [
-      { weight: 0.6, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs },
+      { weight: 0.6, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs.filter(isReservedForOther) },
       { weight: 0.15, candidates: waypoints.restRoomChairs },
       { weight: 0.15, candidates: waypoints.waterDispenser },
       { weight: 0.1, candidates: waypoints.desks },
@@ -150,16 +158,18 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
         break;
       }
     }
-    // Fallback: pick from all candidates
-    return pickNearestAvailableWaypoint(allCandidates, currentTile, agentId, excludeIds);
+    // Fallback: pick from all candidates (exclude reserved)
+    return pickNearestAvailableWaypoint(allCandidates.filter(isReservedForOther), currentTile, agentId, excludeIds);
   }
 
   // No home base: pick randomly from all chair types (spread agents around)
+  // Exclude reserved home-base seats
+  const filteredReception = waypoints.receptionChairs.filter(isReservedForOther);
   const roll = Math.random();
   let threshold = 0;
   const groups = [
     { weight: 0.35, candidates: waypoints.desks },
-    { weight: 0.35, candidates: waypoints.receptionChairs },
+    { weight: 0.35, candidates: filteredReception },
     { weight: 0.20, candidates: waypoints.restRoomChairs },
     { weight: 0.10, candidates: waypoints.waterDispenser },
   ];
