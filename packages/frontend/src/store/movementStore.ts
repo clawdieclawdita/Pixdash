@@ -37,7 +37,7 @@ const getOtherWalkingTargets = (agents: StoreAgent[], excludeAgentId: string): S
 };
 
 const AGENT_HOME_BASES: Record<string, { type: WaypointClaim['type']; preferredWaypointIds?: string[] }> = {
-  main: { type: 'reception', preferredWaypointIds: ['reception-1', 'reception-2', 'reception-3'] },
+  main: { type: 'reception', preferredWaypointIds: ['reception-clawdie'] },
 };
 
 const homeBaseReturnTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -471,7 +471,14 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       const isAtDesk = agent.claimedWaypointId
         ? findWaypointById(waypoints, agent.claimedWaypointId)?.type === 'desk'
         : false;
-      if (isAtDesk || agent.movementState === 'seated-working') {
+      const homeBase = AGENT_HOME_BASES[agentId];
+      const isAtHomeBase = homeBase && agent.claimedWaypointId
+        ? (() => {
+            const wp = findWaypointById(waypoints, agent.claimedWaypointId);
+            return wp?.type === homeBase.type && (homeBase.preferredWaypointIds?.includes(wp.id) ?? false);
+          })()
+        : false;
+      if (isAtDesk || isAtHomeBase || agent.movementState === 'seated-working') {
         // Already at a desk or was working — just update status, stay put
         agentsStore.updateAgent({ id: agentId, status });
         return;
@@ -587,8 +594,22 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     let waypoint: WaypointClaim | null = null;
 
     if (status === 'working' || status === 'online') {
-      // Both 'working' and 'online' (when not at a desk) should target a desk
-      waypoint = pickNearestAvailableWaypoint(waypoints.desks, safeTile, agentId, otherTargets);
+      // Both 'working' and 'online' (when not at a desk) should target a desk.
+      // Home-base agents go to their preferred home base seat instead.
+      const homeBase = AGENT_HOME_BASES[agentId];
+      if (homeBase) {
+        const homeCandidates = waypointGroupsForType(waypoints, homeBase.type);
+        const preferredCandidates = homeBase.preferredWaypointIds?.length
+          ? homeCandidates.filter((wp) => homeBase.preferredWaypointIds!.includes(wp.id))
+          : homeCandidates;
+        waypoint = pickNearestAvailableWaypoint(preferredCandidates, safeTile, agentId, otherTargets);
+        if (!waypoint && homeCandidates.length > 0) {
+          waypoint = pickNearestAvailableWaypoint(homeCandidates, safeTile, agentId, otherTargets);
+        }
+      }
+      if (!waypoint) {
+        waypoint = pickNearestAvailableWaypoint(waypoints.desks, safeTile, agentId, otherTargets);
+      }
       if (!waypoint && waypoints.desks.length > 0) {
         waypoint = [...waypoints.desks].sort(
           (left, right) => distanceBetweenTiles(safeTile, left) - distanceBetweenTiles(safeTile, right),

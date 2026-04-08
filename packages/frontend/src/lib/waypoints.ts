@@ -130,6 +130,9 @@ export const createWaypointSet = (): WaypointSet => ({
   ],
 
   receptionChairs: [
+    // Clawdie's desk (main agent home base)
+    seated('reception-clawdie', 7, 37, 'reception', 'south'),
+    // General reception seats
     seated('reception-1', 4, 42, 'reception', 'south'),
     seated('reception-2', 7, 42, 'reception', 'north'),
     seated('reception-3', 10, 42, 'reception', 'north'),
