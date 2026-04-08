@@ -130,47 +130,49 @@ export const createWaypointSet = (): WaypointSet => ({
   ],
 
   receptionChairs: [
-    seated('reception-1', 4, 42, 'reception', 'east'),
-    seated('reception-2', 7, 42, 'reception', 'east'),
-    seated('reception-3', 10, 42, 'reception', 'west'),
+    seated('reception-1', 4, 42, 'reception', 'south'),
+    seated('reception-2', 7, 42, 'reception', 'north'),
+    seated('reception-3', 10, 42, 'reception', 'north'),
     seated('reception-4', 0, 50, 'reception', 'east'),
-    seated('reception-5', 5, 53, 'reception', 'south'),
-    seated('reception-6', 7, 53, 'reception', 'south'),
-    seated('reception-7', 8, 54, 'reception', 'east'),
+    seated('reception-5', 5, 53, 'reception', 'north'),
+    seated('reception-6', 7, 53, 'reception', 'north'),
+    seated('reception-7', 8, 54, 'reception', 'north'),
   ],
 
   restRoomChairs: [
     // Left section - upper stalls
-    seated('rest-1', 57, 47, 'restroom', 'west'),
+    seated('rest-1', 57, 47, 'restroom', 'south'),
     seated('rest-2', 55, 48, 'restroom', 'south'),
     // Left section - lower stalls
-    seated('rest-3', 57, 51, 'restroom', 'west'),
+    seated('rest-3', 57, 51, 'restroom', 'south'),
     seated('rest-4', 55, 52, 'restroom', 'south'),
     // Right section - upper stalls
-    seated('rest-5', 67, 47, 'restroom', 'east'),
+    seated('rest-5', 67, 47, 'restroom', 'south'),
     seated('rest-6', 71, 48, 'restroom', 'south'),
     // Right section - lower stalls
-    seated('rest-7', 67, 51, 'restroom', 'east'),
+    seated('rest-7', 67, 51, 'restroom', 'south'),
     seated('rest-8', 71, 52, 'restroom', 'south'),
   ],
 
   conferenceRoomChairs: [
-    // Walkable corridors: rows 6-9 (top), rows 27-30 (bottom)
-    // Table: rows 10-26. Chairs on blocked tiles around table edge.
-    // Top row (3 chairs facing table)
-    seated('conf-top-1', 58, 9, 'conference', 'south', -5, 30),
-    seated('conf-top-2', 63, 9, 'conference', 'south', 0, 30),
-    seated('conf-top-3', 68, 9, 'conference', 'south', 5, 30),
-    // Bottom row (6 chairs facing table)
-    seated('conf-bot-1', 56, 28, 'conference', 'north', 0, -30),
-    seated('conf-bot-2', 59, 28, 'conference', 'north', 0, -30),
-    seated('conf-bot-3', 62, 28, 'conference', 'north', 0, -30),
-    seated('conf-bot-4', 65, 28, 'conference', 'north', 0, -30),
-    seated('conf-bot-5', 68, 28, 'conference', 'north', 0, -30),
-    seated('conf-bot-6', 71, 28, 'conference', 'north', 0, -30),
-    // Side chairs (2 chairs on edges)
-    seated('conf-side-l', 56, 7, 'conference', 'east', 33, 0),
-    seated('conf-side-r', 72, 7, 'conference', 'west', -33, 0),
+    // Verified against blocked.png: cols 56 and 72 are walkable for rows 7-28.
+    // Table spans roughly cols 59-68 / rows 10-26, so side chairs stay on corridor tiles
+    // with horizontal visual offsets to place agents onto the actual seats.
+    // Head chairs (north/south ends)
+    seated('conf-head-n', 63, 9, 'conference', 'south', 0, 30),
+    seated('conf-head-s', 63, 28, 'conference', 'north', 0, -30),
+    // West side chairs facing east toward table
+    seated('conf-left-1', 56, 9, 'conference', 'east', 33, 0),
+    seated('conf-left-2', 56, 13, 'conference', 'east', 33, 0),
+    seated('conf-left-3', 56, 17, 'conference', 'east', 33, 0),
+    seated('conf-left-4', 56, 21, 'conference', 'east', 33, 0),
+    seated('conf-left-5', 56, 25, 'conference', 'east', 33, 0),
+    // East side chairs facing west toward table
+    seated('conf-right-1', 72, 9, 'conference', 'west', -33, 0),
+    seated('conf-right-2', 72, 13, 'conference', 'west', -33, 0),
+    seated('conf-right-3', 72, 17, 'conference', 'west', -33, 0),
+    seated('conf-right-4', 72, 21, 'conference', 'west', -33, 0),
+    seated('conf-right-5', 72, 25, 'conference', 'west', -33, 0),
   ],
 
   // Watercooler at (63,33) is on a blocked tile (no walkable path).
