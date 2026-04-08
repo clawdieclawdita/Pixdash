@@ -23,8 +23,6 @@ import {
 } from '@/lib/waypoints';
 import type { MovementState } from '@/types';
 
-const HOME_BASE_RETURN_DELAY_MS = 60_000;
-
 /** Collect waypoint IDs currently targeted by other walking agents (not this one) */
 const getOtherWalkingTargets = (agents: StoreAgent[], excludeAgentId: string): Set<string> => {
   const ids = new Set<string>();
@@ -44,57 +42,6 @@ const AGENT_HOME_BASES: Record<string, { type: WaypointClaim['type']; preferredW
 const RESERVED_WAYPOINT_IDS = new Set(
   Object.values(AGENT_HOME_BASES).flatMap((hb) => hb.preferredWaypointIds ?? []),
 );
-
-const homeBaseReturnTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-const clearHomeBaseReturnTimer = (agentId: string) => {
-  const timer = homeBaseReturnTimers.get(agentId);
-  if (timer) {
-    clearTimeout(timer);
-    homeBaseReturnTimers.delete(agentId);
-  }
-};
-
-const waypointGroupsForType = (waypoints: WaypointSet, type: WaypointClaim['type']): WaypointClaim[] => {
-  switch (type) {
-    case 'desk':
-      return waypoints.desks;
-    case 'restroom':
-      return waypoints.restRoomChairs;
-    case 'conference':
-      return waypoints.conferenceRoomChairs;
-    case 'reception':
-      return waypoints.receptionChairs;
-    case 'watercooler':
-      return waypoints.waterDispenser;
-  }
-};
-
-const pickHomeBaseWaypoint = (agentId: string, currentTile: { x: number; y: number }, waypoints: WaypointSet) => {
-  const homeBase = AGENT_HOME_BASES[agentId];
-  if (!homeBase) {
-    return null;
-  }
-
-  const homeCandidates = waypointGroupsForType(waypoints, homeBase.type);
-  const preferredCandidates = homeBase.preferredWaypointIds?.length
-    ? homeCandidates.filter((waypoint) => homeBase.preferredWaypointIds?.includes(waypoint.id))
-    : [];
-
-  return (
-    pickNearestAvailableWaypoint(preferredCandidates, currentTile, agentId) ??
-    pickNearestAvailableWaypoint(homeCandidates, currentTile, agentId)
-  );
-};
-
-const isAtHomeBaseWaypoint = (agentId: string, waypoint: WaypointClaim | null) => {
-  const homeBase = AGENT_HOME_BASES[agentId];
-  if (!homeBase || !waypoint || waypoint.type !== homeBase.type) {
-    return false;
-  }
-
-  return !homeBase.preferredWaypointIds?.length || homeBase.preferredWaypointIds.includes(waypoint.id);
-};
 
 const IDLE_WANDER_MIN_MS = 60_000;
 const IDLE_WANDER_MAX_MS = 90_000;
@@ -185,105 +132,6 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
   const wp = pickNearestAvailableWaypoint(allCandidates, currentTile, agentId, excludeIds);
   console.log('[PixDash Debug] pickIdleWaypoint', JSON.stringify({ agentId, tile: currentTile, waypointId: wp?.id, type: wp?.type }));
   return wp;
-};
-
-const scheduleHomeBaseReturn = async (agentId: string) => {
-  clearHomeBaseReturnTimer(agentId);
-
-  const timer = setTimeout(async () => {
-    homeBaseReturnTimers.delete(agentId);
-    const movementState = useMovementStore.getState();
-    await movementState.ensureInitialized();
-
-    const { collisionMap, waypoints } = movementState;
-    const agent = agentsStore.getState().agents.find((entry) => entry.id === agentId);
-    const homeBase = AGENT_HOME_BASES[agentId];
-
-    if (!collisionMap || !agent || !homeBase || agent.status !== 'idle' || agent.movementState === 'walking') {
-      return;
-    }
-
-    const currentWaypoint = findWaypointById(waypoints, agent.claimedWaypointId);
-    if (isAtHomeBaseWaypoint(agentId, currentWaypoint)) {
-      return;
-    }
-
-    releaseWaypointClaim(waypoints, agentId);
-
-    const currentTile = pixelToTile(agent.x, agent.y);
-    const waypoint = pickHomeBaseWaypoint(agentId, currentTile, waypoints);
-
-    if (!waypoint) {
-      agentsStore.updateAgent({
-        id: agentId,
-        movementState: 'standing',
-        claimedWaypointId: null,
-        path: [],
-        targetX: null,
-        targetY: null,
-      });
-      return;
-    }
-
-    claimWaypoint(waypoint, agentId);
-
-    const noGoTiles = createNoGoSet(waypoints);
-    const path = findPath(currentTile, { x: waypoint.x, y: waypoint.y }, collisionMap, noGoTiles).slice(1);
-    const destination = tileToPixelCenter(waypoint);
-
-    if (path.length === 0 && (currentTile.x !== waypoint.x || currentTile.y !== waypoint.y)) {
-      const nearestWalkable = findNearestWalkableTile(collisionMap, currentTile, noGoTiles);
-      if (nearestWalkable) {
-        const retryPath = findPath(nearestWalkable, { x: waypoint.x, y: waypoint.y }, collisionMap, noGoTiles).slice(1);
-        if (retryPath.length > 0) {
-          const snappedPixel = tileToPixelCenter(nearestWalkable);
-          agentsStore.updateAgent({
-            id: agentId,
-            status: 'idle',
-            movementState: 'walking',
-            x: snappedPixel.x,
-            y: snappedPixel.y,
-            claimedWaypointId: waypoint.id,
-            visualOffsetX: 0,
-            visualOffsetY: 0,
-            path: retryPath,
-            targetX: destination.x,
-            targetY: destination.y,
-            direction: waypoint.direction ?? agent.direction,
-          });
-          return;
-        }
-      }
-
-      waypoint.claimedBy = null;
-      agentsStore.updateAgent({
-        id: agentId,
-        movementState: 'standing',
-        claimedWaypointId: null,
-        path: [],
-        targetX: null,
-        targetY: null,
-      });
-      return;
-    }
-
-    agentsStore.updateAgent({
-      id: agentId,
-      status: 'idle',
-      movementState: path.length === 0 ? 'seated-idle' : 'walking',
-      claimedWaypointId: waypoint.id,
-      visualOffsetX: path.length === 0 ? (waypoint.visualOffsetX ?? 0) : 0,
-      visualOffsetY: path.length === 0 ? (waypoint.visualOffsetY ?? 0) : 0,
-      path,
-      targetX: path.length === 0 ? null : destination.x,
-      targetY: path.length === 0 ? null : destination.y,
-      direction: waypoint.direction ?? agent.direction,
-      x: path.length === 0 ? destination.x : agent.x,
-      y: path.length === 0 ? destination.y : agent.y,
-    });
-  }, HOME_BASE_RETURN_DELAY_MS);
-
-  homeBaseReturnTimers.set(agentId, timer);
 };
 
 const seatedStateForStatus = (status: AgentStatus, type: WaypointClaim['type'] | null): MovementState => {
@@ -456,12 +304,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       });
 
       if (agent.status === 'idle' || agent.status === 'online') {
-        const homeBase = AGENT_HOME_BASES[agent.id];
-        if (homeBase && !isAtHomeBaseWaypoint(agent.id, waypoint)) {
-          void scheduleHomeBaseReturn(agent.id);
-        } else {
-          void scheduleIdleWander(agent.id);
-        }
+        void scheduleIdleWander(agent.id);
       }
     }
   },
@@ -479,8 +322,6 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       console.log(`[PixDash Debug] missing agent`, { agentId, status });
       return;
     }
-
-    clearHomeBaseReturnTimer(agentId);
 
     // Guard: only proceed if the status actually requires a change in behavior.
     // 'online' after 'idle' means the agent likely got a task.
@@ -617,7 +458,20 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       // Home-base agents go to their preferred home base seat instead.
       const homeBase = AGENT_HOME_BASES[agentId];
       if (homeBase) {
-        const homeCandidates = waypointGroupsForType(waypoints, homeBase.type);
+        const homeCandidates = (() => {
+          switch (homeBase.type) {
+            case 'desk':
+              return waypoints.desks;
+            case 'restroom':
+              return waypoints.restRoomChairs;
+            case 'conference':
+              return waypoints.conferenceRoomChairs;
+            case 'reception':
+              return waypoints.receptionChairs;
+            case 'watercooler':
+              return waypoints.waterDispenser;
+          }
+        })();
         const preferredCandidates = homeBase.preferredWaypointIds?.length
           ? homeCandidates.filter((wp) => homeBase.preferredWaypointIds!.includes(wp.id))
           : homeCandidates;
@@ -727,11 +581,6 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       y: path.length === 0 ? destination.y : agent.y,
     });
 
-    const homeBase = AGENT_HOME_BASES[agentId];
-    const isAwayFromHome = status === 'idle' && homeBase && !isAtHomeBaseWaypoint(agentId, waypoint);
-    if (isAwayFromHome) {
-      void scheduleHomeBaseReturn(agentId);
-    }
   },
   handleConference: async (agentIds) => {
     console.log('[PixDash Debug] handleConference', JSON.stringify({ agentIds }));
@@ -740,7 +589,6 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     }
   },
   removeAgent: (agentId) => {
-    clearHomeBaseReturnTimer(agentId);
     clearWanderTimer(agentId);
     releaseWaypointClaim(get().waypoints, agentId);
   },
@@ -771,15 +619,9 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
           visualOffsetY: waypoint?.visualOffsetY ?? 0,
         });
 
-        const homeBase = AGENT_HOME_BASES[agent.id];
         if (agent.status !== 'idle') {
-          clearHomeBaseReturnTimer(agent.id);
           clearWanderTimer(agent.id);
-        } else if (homeBase && waypoint && !isAtHomeBaseWaypoint(agent.id, waypoint)) {
-          clearWanderTimer(agent.id);
-          void scheduleHomeBaseReturn(agent.id);
         } else {
-          clearHomeBaseReturnTimer(agent.id);
           void scheduleIdleWander(agent.id);
         }
         continue;
