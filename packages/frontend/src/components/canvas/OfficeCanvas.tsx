@@ -300,7 +300,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         Fit
       </button>
 
-        <div className="pointer-events-none absolute left-4 bottom-[5.5rem] rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+        <div className="pointer-events-none absolute left-4 bottom-[6.5rem] rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
           <div className="font-semibold text-white">Click</div>
           <div>Pixel {clickCoords.px}, {clickCoords.py}</div>
           <div>Tile ({clickCoords.tileX}, {clickCoords.tileY})</div>
