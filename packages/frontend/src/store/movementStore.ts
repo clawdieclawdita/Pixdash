@@ -69,12 +69,14 @@ const scheduleIdleWander = (agentId: string) => {
   wanderTimers.set(agentId, timer);
 };
 
+/** True if this waypoint is reserved for a home-base agent OTHER than the given agentId. */
+const isReservedForOther = (agentId: string, wp: WaypointClaim) =>
+  RESERVED_WAYPOINT_IDS.has(wp.id) && !(AGENT_HOME_BASES[agentId]?.preferredWaypointIds?.includes(wp.id) ?? false);
+
 const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }, waypoints: WaypointSet, excludeIds?: Set<string>) => {
   // Conference room is EXCLUSIVELY for session_send / multi-agent conversations
   // Never pick conference chairs during idle wander.
   // Also exclude reserved home-base seats (unless this agent owns them).
-  const isReservedForOther = (wp: WaypointClaim) =>
-    RESERVED_WAYPOINT_IDS.has(wp.id) && !(AGENT_HOME_BASES[agentId]?.preferredWaypointIds?.includes(wp.id) ?? false);
   const allCandidates: WaypointClaim[] = [
     ...waypoints.receptionChairs,
     ...waypoints.restRoomChairs,
@@ -89,7 +91,7 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     const preferredHomeCandidates = waypoints.receptionChairs.filter((wp) => preferredHomeIds.has(wp.id));
 
     const weightedGroups = [
-      { weight: 0.6, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs.filter((wp) => !isReservedForOther(wp)) },
+      { weight: 0.6, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp)) },
       { weight: 0.15, candidates: waypoints.restRoomChairs },
       { weight: 0.15, candidates: waypoints.waterDispenser },
       { weight: 0.1, candidates: waypoints.desks },
@@ -106,12 +108,12 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
       }
     }
     // Fallback: pick from all candidates (exclude reserved)
-    return pickNearestAvailableWaypoint(allCandidates.filter(isReservedForOther), currentTile, agentId, excludeIds);
+    return pickNearestAvailableWaypoint(allCandidates.filter((wp) => isReservedForOther(agentId, wp)), currentTile, agentId, excludeIds);
   }
 
   // No home base: pick randomly from all chair types (spread agents around)
   // Exclude reserved home-base seats
-  const filteredReception = waypoints.receptionChairs.filter(isReservedForOther);
+  const filteredReception = waypoints.receptionChairs.filter((wp) => isReservedForOther(agentId, wp));
   console.log('[PixDash Debug] filteredReception for', agentId, ':', filteredReception.map(w => w.id), '(total reception:', waypoints.receptionChairs.length, ')');
   const roll = Math.random();
   let threshold = 0;
@@ -129,8 +131,8 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
       break;
     }
   }
-  // Fallback: nearest from all
-  const wp = pickNearestAvailableWaypoint(allCandidates, currentTile, agentId, excludeIds);
+  // Fallback: nearest from all (but still exclude reserved seats)
+  const wp = pickNearestAvailableWaypoint(allCandidates.filter((w) => !isReservedForOther(agentId, w)), currentTile, agentId, excludeIds);
   console.log('[PixDash Debug] pickIdleWaypoint', JSON.stringify({ agentId, tile: currentTile, waypointId: wp?.id, type: wp?.type }));
   return wp;
 };
