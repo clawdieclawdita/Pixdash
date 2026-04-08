@@ -390,12 +390,26 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
 
     for (const agent of agents) {
       const agentTile = pixelToTile(agent.x, agent.y);
+
+      // Ensure spawn position is on a walkable, non-blocked tile
+      const noGoTiles = createNoGoSet(waypoints);
+      let safeTile = agentTile;
+      if (!isWalkableTile(collisionMap, safeTile.x, safeTile.y) || noGoTiles.has(`${safeTile.x},${safeTile.y}`)) {
+        const nearest = findNearestWalkableTile(collisionMap, safeTile, noGoTiles);
+        if (nearest) {
+          safeTile = nearest;
+        } else {
+          console.warn('[PixDash Debug] placeAgentsOnLoad: no walkable tile found near spawn for', agent.id);
+          continue;
+        }
+      }
+
       let waypoint: WaypointClaim | null = null;
 
       if (agent.status === 'idle' || agent.status === 'online') {
-        waypoint = pickIdleWaypoint(agent.id, agentTile, waypoints);
+        waypoint = pickIdleWaypoint(agent.id, safeTile, waypoints);
       } else if (agent.status === 'working') {
-        waypoint = pickNearestAvailableWaypoint(waypoints.desks, agentTile, agent.id);
+        waypoint = pickNearestAvailableWaypoint(waypoints.desks, safeTile, agent.id);
       }
 
       if (!waypoint) {
@@ -542,14 +556,31 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     }
 
     const currentTile = pixelToTile(agent.x, agent.y);
-    const agentTileWalkable = isWalkableTile(collisionMap, currentTile.x, currentTile.y);
+    const noGoTiles = createNoGoSet(waypoints);
+
+    // If agent is on a blocked or no-go tile, find nearest walkable tile first
+    let safeTile = currentTile;
+    if (!isWalkableTile(collisionMap, safeTile.x, safeTile.y) || noGoTiles.has(`${safeTile.x},${safeTile.y}`)) {
+      const nearest = findNearestWalkableTile(collisionMap, safeTile, noGoTiles);
+      if (nearest) {
+        safeTile = nearest;
+        // Teleport to safe tile immediately
+        const safePixel = tileToPixelCenter(nearest);
+        agentsStore.updateAgent({ id: agentId, x: safePixel.x, y: safePixel.y });
+      } else {
+        console.warn('[PixDash Debug] handleStatusChange: no walkable tile near agent', agentId);
+        return;
+      }
+    }
+
+    const agentTileWalkable = true; // Already validated above
     // Exclude waypoints already targeted by other walking agents to prevent stacking
     const otherTargets = getOtherWalkingTargets(agentsStore.getState().agents, agentId);
     console.log('[PixDash Debug] agent tile', JSON.stringify({
       agentId,
       status,
       position: { x: agent.x, y: agent.y },
-      tile: currentTile,
+      tile: safeTile,
       walkable: agentTileWalkable,
     }));
 
@@ -557,20 +588,20 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
 
     if (status === 'working' || status === 'online') {
       // Both 'working' and 'online' (when not at a desk) should target a desk
-      waypoint = pickNearestAvailableWaypoint(waypoints.desks, currentTile, agentId, otherTargets);
+      waypoint = pickNearestAvailableWaypoint(waypoints.desks, safeTile, agentId, otherTargets);
       if (!waypoint && waypoints.desks.length > 0) {
         waypoint = [...waypoints.desks].sort(
-          (left, right) => distanceBetweenTiles(currentTile, left) - distanceBetweenTiles(currentTile, right),
+          (left, right) => distanceBetweenTiles(safeTile, left) - distanceBetweenTiles(safeTile, right),
         )[0] ?? null;
       }
     } else if (status === 'conference') {
-      waypoint = pickNearestAvailableWaypoint(waypoints.conferenceRoomChairs, currentTile, agentId, otherTargets);
+      waypoint = pickNearestAvailableWaypoint(waypoints.conferenceRoomChairs, safeTile, agentId, otherTargets);
     } else if (status === 'idle') {
-      waypoint = pickIdleWaypoint(agentId, currentTile, waypoints, otherTargets);
+      waypoint = pickIdleWaypoint(agentId, safeTile, waypoints, otherTargets);
     }
 
     if (!waypoint) {
-      console.log('[PixDash Debug] no waypoint', JSON.stringify({ agentId, status, tile: currentTile }));
+      console.log('[PixDash Debug] no waypoint', JSON.stringify({ agentId, status, tile: safeTile }));
       agentsStore.updateAgent({
         id: agentId,
         status,
@@ -585,8 +616,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
 
     claimWaypoint(waypoint, agentId);
     const waypointWalkable = isWalkableTile(collisionMap, waypoint.x, waypoint.y);
-    const noGoTiles = createNoGoSet(waypoints);
-    const path = findPath(currentTile, { x: waypoint.x, y: waypoint.y }, collisionMap, noGoTiles).slice(1);
+    const path = findPath(safeTile, { x: waypoint.x, y: waypoint.y }, collisionMap, noGoTiles).slice(1);
     const destination = tileToPixelCenter(waypoint);
     console.log('[PixDash Debug] path result', JSON.stringify({
       agentId,
