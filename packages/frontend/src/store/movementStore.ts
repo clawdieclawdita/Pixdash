@@ -113,8 +113,10 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
 
   // No home base: pick randomly from all chair types (spread agents around)
   // Exclude reserved home-base seats
-  const filteredReception = waypoints.receptionChairs.filter((wp) => isReservedForOther(agentId, wp));
-  console.log('[PixDash Debug] filteredReception for', agentId, ':', filteredReception.map(w => w.id), '(total reception:', waypoints.receptionChairs.length, ')');
+  const filteredReception = waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp));
+  console.log('[PixDash Debug] filteredReception for', agentId, ':', filteredReception.map(w => w.id), '(blocked:', waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp)).map(w => w.id), ')');
+  console.log('[PixDash Debug] RESERVED_WAYPOINT_IDS:', [...RESERVED_WAYPOINT_IDS]);
+  console.log('[PixDash Debug] AGENT_HOME_BASES keys:', Object.keys(AGENT_HOME_BASES));
   const roll = Math.random();
   let threshold = 0;
   const groups = [

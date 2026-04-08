@@ -324,6 +324,9 @@ export const findWaypointById = (set: WaypointSet, waypointId: string | null | u
   getAllWaypoints(set).find((waypoint) => waypoint.id === waypointId) ?? null;
 
 export const claimWaypoint = (waypoint: WaypointClaim, agentId: string) => {
+  if (waypoint.id === 'reception-clawdie' && agentId !== 'main') {
+    console.error('[PixDash] 🚨 RESERVED SEAT VIOLATION: reception-clawdie claimed by', agentId, '— stack trace:', new Error().stack);
+  }
   waypoint.claimedBy = agentId;
   return waypoint;
 };
