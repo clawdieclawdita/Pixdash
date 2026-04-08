@@ -104,29 +104,29 @@ export const createWaypointSet = (): WaypointSet => ({
     seated('desk-c3', 37, 25, 'desk', 'south', 44, -12),
     seated('desk-c4', 46, 24, 'desk', 'south', 23, 21),
 
-    // ── Lower desk island A ──
-    seated('desk-d1', 26, 34, 'desk', 'west', -43, 19),
-    seated('desk-d2', 29, 34, 'desk', 'east', 43, 19),
-    seated('desk-d3', 41, 34, 'desk', 'west', -40, 19),
-    seated('desk-d4', 44, 34, 'desk', 'east', 46, 19),
+    // ── Lower desk island A (top-side chairs face south toward desks) ──
+    seated('desk-d1', 26, 34, 'desk', 'south', -43, 19),
+    seated('desk-d2', 29, 34, 'desk', 'south', 43, 19),
+    seated('desk-d3', 41, 34, 'desk', 'south', -40, 19),
+    seated('desk-d4', 44, 34, 'desk', 'south', 46, 19),
 
-    // ── Lower desk island B ──
+    // ── Lower desk island B (bottom-side chairs face north toward desks) ──
     seated('desk-e1', 25, 42, 'desk', 'north', -11, -41),
     seated('desk-e2', 30, 42, 'desk', 'north', 11, -41),
-    seated('desk-e3', 41, 41, 'desk', 'west', -40, -9),
+    seated('desk-e3', 41, 41, 'desk', 'north', -40, -9),
     seated('desk-e4', 45, 42, 'desk', 'north', 14, -41),
 
-    // ── Lower desk island C ──
-    seated('desk-f1', 26, 46, 'desk', 'west', -43, -5),
-    seated('desk-f2', 29, 46, 'desk', 'east', 43, -5),
-    seated('desk-f3', 41, 46, 'desk', 'west', -40, -5),
-    seated('desk-f4', 44, 46, 'desk', 'east', 45, -5),
+    // ── Lower desk island C (top-side chairs face south toward desks) ──
+    seated('desk-f1', 26, 46, 'desk', 'south', -43, -5),
+    seated('desk-f2', 29, 46, 'desk', 'south', 43, -5),
+    seated('desk-f3', 41, 46, 'desk', 'south', -40, -5),
+    seated('desk-f4', 44, 46, 'desk', 'south', 45, -5),
 
-    // ── Lower desk island D ──
+    // ── Lower desk island D (bottom-side chairs face north toward desks) ──
     seated('desk-g1', 25, 53, 'desk', 'north', -11, -33),
-    seated('desk-g2', 29, 52, 'desk', 'east', 43, -1),
-    seated('desk-g3', 41, 52, 'desk', 'west', -40, -1),
-    seated('desk-g4', 44, 52, 'desk', 'east', 46, -1),
+    seated('desk-g2', 29, 52, 'desk', 'north', 43, -1),
+    seated('desk-g3', 41, 52, 'desk', 'north', -40, -1),
+    seated('desk-g4', 44, 52, 'desk', 'north', 46, -1),
   ],
 
   receptionChairs: [
