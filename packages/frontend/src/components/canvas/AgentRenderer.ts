@@ -227,7 +227,7 @@ export class AgentRenderer {
 
       ctx.fillStyle = 'rgba(0,0,0,0.22)';
       ctx.beginPath();
-      ctx.ellipse(px, py - 6, 22, 8, 0, 0, Math.PI * 2);
+      ctx.ellipse(renderX, renderY - 6, 22, 8, 0, 0, Math.PI * 2);
       ctx.fill();
 
       if (isSelected) {

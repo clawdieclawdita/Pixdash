@@ -112,6 +112,7 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
   // No home base: pick randomly from all chair types (spread agents around)
   // Exclude reserved home-base seats
   const filteredReception = waypoints.receptionChairs.filter(isReservedForOther);
+  console.log('[PixDash Debug] filteredReception for', agentId, ':', filteredReception.map(w => w.id), '(total reception:', waypoints.receptionChairs.length, ')');
   const roll = Math.random();
   let threshold = 0;
   const groups = [
@@ -495,7 +496,9 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     } else if (status === 'conference') {
       waypoint = pickNearestAvailableWaypoint(waypoints.conferenceRoomChairs, safeTile, agentId, otherTargets);
     } else if (status === 'idle') {
+      console.log('[PixDash Debug] picking idle waypoint for', agentId, 'reserved seats will be excluded');
       waypoint = pickIdleWaypoint(agentId, safeTile, waypoints, otherTargets);
+      console.log('[PixDash Debug] idle waypoint result for', agentId, ':', waypoint?.id);
     }
 
     if (!waypoint) {
