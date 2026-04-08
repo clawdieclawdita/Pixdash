@@ -85,24 +85,24 @@ export const createWaypointSet = (): WaypointSet => ({
   desks: [
     // ── Upper desk cluster LEFT (chair centers sampled from chairsspots.png) ──
     // North-side chairs (row 18): face south toward desk below
-    seated('desk-a1', 6, 18, 'desk', 'south', 11, 30),
-    seated('desk-a2', 15, 18, 'desk', 'south', 1, 33),
+    seated('desk-a1', 6, 18, 'desk', 'east', 11, 30),
+    seated('desk-a2', 15, 18, 'desk', 'west', 1, 33),
     // South-side chairs (rows 24-25): face north toward desk above
-    seated('desk-a3', 7, 24, 'desk', 'north', -21, -22),
-    seated('desk-a4', 16, 25, 'desk', 'north', -35, -11),
+    seated('desk-a3', 7, 24, 'desk', 'east', -21, -22),
+    seated('desk-a4', 16, 25, 'desk', 'west', -35, -11),
 
     // ── Upper desk cluster CENTER ──
-    seated('desk-b1', 23, 18, 'desk', 'south', 1, 31),
-    seated('desk-b2', 31, 18, 'desk', 'south', 12, 34),
-    seated('desk-b3', 22, 25, 'desk', 'north', 33, -10),
-    seated('desk-b4', 31, 26, 'desk', 'north', 13, -46),
+    seated('desk-b1', 23, 18, 'desk', 'east', 1, 31),
+    seated('desk-b2', 31, 18, 'desk', 'west', 12, 34),
+    seated('desk-b3', 22, 25, 'desk', 'east', 33, -10),
+    seated('desk-b4', 31, 26, 'desk', 'west', 13, -46),
 
     // ── Upper desk cluster RIGHT ──
     // User confirmed: right cluster chairs face south
-    seated('desk-c1', 38, 18, 'desk', 'south', 12, 33),
-    seated('desk-c2', 47, 18, 'desk', 'south', -9, 31),
-    seated('desk-c3', 37, 25, 'desk', 'south', 44, -12),
-    seated('desk-c4', 46, 24, 'desk', 'south', 23, 21),
+    seated('desk-c1', 38, 18, 'desk', 'east', 12, 33),
+    seated('desk-c2', 47, 18, 'desk', 'west', -9, 31),
+    seated('desk-c3', 37, 25, 'desk', 'east', 44, -12),
+    seated('desk-c4', 46, 24, 'desk', 'west', 23, 21),
 
     // ── Lower desk island A (top-side chairs face south toward desks) ──
     seated('desk-d1', 26, 34, 'desk', 'south', -43, 19),
