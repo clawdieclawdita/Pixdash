@@ -313,6 +313,11 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
             <div>Tile ({clickCoords.tileX}, {clickCoords.tileY})</div>
           </div>
         )}
+        <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+          <div className="font-semibold text-white">Camera</div>
+          <div>Zoom {cameraState.zoom.toFixed(2)}×</div>
+          <div>Pan {Math.round(cameraState.x)}, {Math.round(cameraState.y)}</div>
+        </div>
       </div>
 
       {selectedAgentId && (
