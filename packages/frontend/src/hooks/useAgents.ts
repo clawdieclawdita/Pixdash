@@ -86,24 +86,13 @@ export function useAgents() {
         const currentAgent = currentAgents.find((agent) => agent.id === payload.agentId);
         const statusChanged = currentAgent?.status !== payload.status;
 
-        // Preserve 'working' status while agent is seated at a desk.
-        // Backend transitions working → online after 2s grace window,
-        // but the agent is still actively working at their desk.
-        const effectiveStatus = (
-          payload.status === 'online' &&
-          currentAgent?.movementState === 'seated-working'
-        ) ? 'working' : payload.status;
-
         updateAgent({
           id: payload.agentId,
-          status: effectiveStatus,
+          status: payload.status,
           ...(payload.timestamp ? { lastSeen: payload.timestamp } : {})
         });
 
-        if (statusChanged && payload.status !== effectiveStatus) {
-          // Backend tried to downgrade working → online while seated-working;
-          // don't trigger handleStatusChange (would try to walk to desk again)
-        } else if (statusChanged) {
+        if (statusChanged) {
           void handleStatusChange(payload.agentId, payload.status);
         }
         break;
