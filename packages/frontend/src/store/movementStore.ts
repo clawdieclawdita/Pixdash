@@ -25,6 +25,17 @@ import type { MovementState } from '@/types';
 
 const HOME_BASE_RETURN_DELAY_MS = 60_000;
 
+/** Collect waypoint IDs currently targeted by other walking agents (not this one) */
+const getOtherWalkingTargets = (agents: StoreAgent[], excludeAgentId: string): Set<string> => {
+  const ids = new Set<string>();
+  for (const a of agents) {
+    if (a.id !== excludeAgentId && a.movementState === 'walking' && a.claimedWaypointId) {
+      ids.add(a.claimedWaypointId);
+    }
+  }
+  return ids;
+};
+
 const AGENT_HOME_BASES: Record<string, { type: WaypointClaim['type']; preferredWaypointIds?: string[] }> = {
   main: { type: 'reception', preferredWaypointIds: ['reception-1', 'reception-2', 'reception-3'] },
 };
@@ -106,7 +117,7 @@ const scheduleIdleWander = (agentId: string) => {
   wanderTimers.set(agentId, timer);
 };
 
-const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }, waypoints: WaypointSet) => {
+const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }, waypoints: WaypointSet, excludeIds?: Set<string>) => {
   // Conference room is EXCLUSIVELY for session_send / multi-agent conversations
   // Never pick conference chairs during idle wander.
   const allCandidates: WaypointClaim[] = [
@@ -134,13 +145,13 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     for (const group of weightedGroups) {
       threshold += group.weight;
       if (roll <= threshold) {
-        const wp = pickNearestAvailableWaypoint(group.candidates, currentTile, agentId);
+        const wp = pickNearestAvailableWaypoint(group.candidates, currentTile, agentId, excludeIds);
         if (wp) return wp;
         break;
       }
     }
     // Fallback: pick from all candidates
-    return pickNearestAvailableWaypoint(allCandidates, currentTile, agentId);
+    return pickNearestAvailableWaypoint(allCandidates, currentTile, agentId, excludeIds);
   }
 
   // No home base: pick randomly from all chair types (spread agents around)
@@ -155,13 +166,13 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
   for (const group of groups) {
     threshold += group.weight;
     if (roll <= threshold) {
-      const wp = pickNearestAvailableWaypoint(group.candidates, currentTile, agentId);
+      const wp = pickNearestAvailableWaypoint(group.candidates, currentTile, agentId, excludeIds);
       if (wp) return wp;
       break;
     }
   }
   // Fallback: nearest from all
-  const wp = pickNearestAvailableWaypoint(allCandidates, currentTile, agentId);
+  const wp = pickNearestAvailableWaypoint(allCandidates, currentTile, agentId, excludeIds);
   console.log('[PixDash Debug] pickIdleWaypoint', JSON.stringify({ agentId, tile: currentTile, waypointId: wp?.id, type: wp?.type }));
   return wp;
 };
@@ -532,6 +543,8 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
 
     const currentTile = pixelToTile(agent.x, agent.y);
     const agentTileWalkable = isWalkableTile(collisionMap, currentTile.x, currentTile.y);
+    // Exclude waypoints already targeted by other walking agents to prevent stacking
+    const otherTargets = getOtherWalkingTargets(agentsStore.getState().agents, agentId);
     console.log('[PixDash Debug] agent tile', JSON.stringify({
       agentId,
       status,
@@ -544,16 +557,16 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
 
     if (status === 'working' || status === 'online') {
       // Both 'working' and 'online' (when not at a desk) should target a desk
-      waypoint = pickNearestAvailableWaypoint(waypoints.desks, currentTile, agentId);
+      waypoint = pickNearestAvailableWaypoint(waypoints.desks, currentTile, agentId, otherTargets);
       if (!waypoint && waypoints.desks.length > 0) {
         waypoint = [...waypoints.desks].sort(
           (left, right) => distanceBetweenTiles(currentTile, left) - distanceBetweenTiles(currentTile, right),
         )[0] ?? null;
       }
     } else if (status === 'conference') {
-      waypoint = pickNearestAvailableWaypoint(waypoints.conferenceRoomChairs, currentTile, agentId);
+      waypoint = pickNearestAvailableWaypoint(waypoints.conferenceRoomChairs, currentTile, agentId, otherTargets);
     } else if (status === 'idle') {
-      waypoint = pickIdleWaypoint(agentId, currentTile, waypoints);
+      waypoint = pickIdleWaypoint(agentId, currentTile, waypoints, otherTargets);
     }
 
     if (!waypoint) {

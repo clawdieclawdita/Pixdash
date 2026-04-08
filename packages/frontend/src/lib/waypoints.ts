@@ -221,8 +221,14 @@ export const pickNearestAvailableWaypoint = (
   candidates: WaypointClaim[],
   origin: TilePoint,
   agentId: string,
+  /** Set of waypoint IDs already targeted by other walking agents — exclude them */
+  excludeIds?: Set<string>,
 ): WaypointClaim | null => {
-  const available = candidates.filter((waypoint) => !waypoint.claimedBy || waypoint.claimedBy === agentId);
+  const available = candidates.filter(
+    (waypoint) =>
+      (!waypoint.claimedBy || waypoint.claimedBy === agentId) &&
+      !(excludeIds?.has(waypoint.id)),
+  );
   if (available.length === 0) {
     return null;
   }

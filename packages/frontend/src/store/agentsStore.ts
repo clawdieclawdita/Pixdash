@@ -153,6 +153,9 @@ export const useAgentsStore = create<AgentsState>((set) => ({
               claimedWaypointId: existing.claimedWaypointId,
               visualOffsetX: existing.visualOffsetX,
               visualOffsetY: existing.visualOffsetY,
+              // Preserve client-side direction when agent has been placed by movement system.
+              // Backend always sends 'south' default — would overwrite seated/walking direction.
+              direction: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.direction : normalized.direction,
             }
           : normalized;
       }),
