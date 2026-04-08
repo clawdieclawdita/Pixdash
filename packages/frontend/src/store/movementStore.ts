@@ -285,6 +285,29 @@ const seatedStateForStatus = (status: AgentStatus, type: WaypointClaim['type'] |
   return 'standing';
 };
 
+const waypointTypeMatchesStatus = (type: WaypointClaim['type'], status: AgentStatus): boolean => {
+  if (status === 'working' || status === 'online') return type === 'desk';
+  if (status === 'conference') return type === 'conference';
+  if (status === 'idle') return type !== 'conference'; // any non-conference seat is fine for idle
+  return false;
+};
+
+// Higher number = higher priority. Conference interrupts everything.
+const statusPriority = (type: WaypointClaim['type']): number => {
+  switch (type) {
+    case 'conference': return 3;
+    case 'desk': return 2;
+    default: return 1; // reception, restroom, watercooler
+  }
+};
+
+// Map a status to the waypoint type it would target, for priority comparison.
+const statusToTargetType = (status: AgentStatus): WaypointClaim['type'] => {
+  if (status === 'working' || status === 'online') return 'desk';
+  if (status === 'conference') return 'conference';
+  return 'desk'; // idle falls through to any type, use desk as baseline
+};
+
 const nextStandingDirection = (direction?: Direction) => direction ?? 'south';
 
 interface MovementStoreState {
@@ -435,6 +458,25 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     if (status === 'busy') {
       agentsStore.updateAgent({ id: agentId, status });
       return;
+    }
+
+    // If already walking toward the correct destination type for this status, skip.
+    // Prevents duplicate handleStatusChange calls (heartbeat re-broadcast every 1s)
+    // from re-routing the agent mid-walk.
+    if (agent.movementState === 'walking' && agent.claimedWaypointId) {
+      const currentWaypoint = findWaypointById(waypoints, agent.claimedWaypointId);
+      if (currentWaypoint) {
+        const matches = waypointTypeMatchesStatus(currentWaypoint.type, status);
+        const currentPriority = statusPriority(currentWaypoint.type);
+        const newPriority = statusPriority(statusToTargetType(status));
+        if (matches || newPriority < currentPriority) {
+          // Already walking to the right kind of seat, or current destination
+          // is higher priority than the new status — just update status, don't reroute
+          agentsStore.updateAgent({ id: agentId, status });
+          console.log('[PixDash Debug] skipping walk reroute', JSON.stringify({ agentId, status, waypointType: currentWaypoint.type, reason: matches ? 'match' : 'lower-priority' }));
+          return;
+        }
+      }
     }
 
     // If already in the correct seated state for this status, skip (heartbeat re-broadcast).
