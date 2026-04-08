@@ -189,8 +189,10 @@ export const useAgentsStore = create<AgentsState>((set) => ({
           ...agent,
           ...agentUpdate,
           position: nextPosition,
-          x: agentUpdate.position?.x ?? agentUpdate.x ?? nextPosition.x,
-          y: agentUpdate.position?.y ?? agentUpdate.y ?? nextPosition.y,
+          // Preserve current visual position unless explicitly updated.
+          // Use agent.x/y (current) as fallback — NOT nextPosition.x/y (stale backend spawn).
+          x: agentUpdate.position?.x ?? agentUpdate.x ?? agent.x,
+          y: agentUpdate.position?.y ?? agentUpdate.y ?? agent.y,
           color: agentUpdate.appearance?.outfit?.color ?? agentUpdate.color ?? nextAppearance.outfit.color,
           appearance: nextAppearance,
           movementState: agentUpdate.movementState ?? agent.movementState,
