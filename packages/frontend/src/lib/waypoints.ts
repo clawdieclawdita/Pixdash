@@ -198,6 +198,42 @@ export const createNoGoSet = (set: WaypointSet): Set<string> => {
     }
   }
 
+  // Permanent no-go: restroom interior tiles (prevents agents walking on tables/counters)
+  // Collected from blocked.png walkability scan.
+  const restroomTiles: [number, number][] = [
+    // Left restroom (cols 54-58, rows 45-54)
+    [55,45],[56,45],[57,45],[58,45],
+    [55,46],[56,46],[57,46],[58,46],
+    [55,47],[56,47],[57,47],[58,47],
+    [55,48],[56,48],[57,48],
+    [56,49],[57,49],
+    [56,51],[58,51],
+    [55,52],[56,52],[57,52],
+    [56,53],[57,53],
+    [57,54],
+    // Right restroom (cols 66-72, rows 45-54)
+    [66,45],[67,45],[68,45],[69,45],[70,45],
+    [66,46],[67,46],[68,46],[69,46],[70,46],
+    [66,47],[67,47],[68,47],[69,47],[70,47],[71,47],
+    [66,48],[67,48],[71,48],
+    [66,49],[67,49],[71,49],
+    [71,50],
+    [67,51],[71,51],
+    [66,52],[67,52],[71,52],
+    [66,53],[67,53],[71,53],
+    [67,54],[71,54],
+  ];
+  // Build set of restroom waypoint tiles so we don't block destinations
+  const restWaypointTiles = new Set(
+    set.restRoomChairs.map((wp) => `${wp.x},${wp.y}`)
+  );
+  for (const [x, y] of restroomTiles) {
+    const key = `${x},${y}`;
+    if (!restWaypointTiles.has(key)) {
+      noGo.add(key);
+    }
+  }
+
   return noGo;
 };
 
