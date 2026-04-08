@@ -32,6 +32,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
   const cameraRef = useRef(new CameraController());
   const [cameraState, setCameraState] = useState(cameraRef.current.getSnapshot());
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
+  const [clickCoords, setClickCoords] = useState<{ px: number; py: number; tileX: number; tileY: number } | null>(null);
 
   const agentRenderer = useMemo(() => new AgentRenderer(), []);
   const agentsRef = useRef(agents);
@@ -233,6 +234,9 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       if (pointerDownPos && !didDrag) {
         const point = pointerPosition(event);
         const worldPoint = worldPosition(point.x, point.y);
+        const tileX = Math.floor(worldPoint.x / 32);
+        const tileY = Math.floor(worldPoint.y / 32);
+        setClickCoords({ px: Math.round(worldPoint.x), py: Math.round(worldPoint.y), tileX, tileY });
         const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agentsRef.current);
         onAgentSelect?.(clickedAgent);
       }
@@ -296,10 +300,19 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         Fit
       </button>
 
-      <div className="pointer-events-none absolute bottom-4 left-4 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
-        <div className="font-semibold text-white">Camera</div>
-        <div>Zoom {cameraState.zoom.toFixed(2)}×</div>
-        <div>Pan {Math.round(cameraState.x)}, {Math.round(cameraState.y)}</div>
+      <div className="pointer-events-none absolute bottom-4 left-4 flex gap-2">
+        <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+          <div className="font-semibold text-white">Camera</div>
+          <div>Zoom {cameraState.zoom.toFixed(2)}×</div>
+          <div>Pan {Math.round(cameraState.x)}, {Math.round(cameraState.y)}</div>
+        </div>
+        {clickCoords && (
+          <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+            <div className="font-semibold text-white">Click</div>
+            <div>Pixel {clickCoords.px}, {clickCoords.py}</div>
+            <div>Tile ({clickCoords.tileX}, {clickCoords.tileY})</div>
+          </div>
+        )}
       </div>
 
       {selectedAgentId && (
