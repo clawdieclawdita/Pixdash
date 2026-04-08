@@ -84,18 +84,21 @@ const seated = (
 export const createWaypointSet = (): WaypointSet => ({
   desks: [
     // ── Upper desk cluster LEFT (chair centers sampled from chairsspots.png) ──
+    // North-side chairs (row 18): face south toward desk below
     seated('desk-a1', 6, 18, 'desk', 'south', 11, 30),
     seated('desk-a2', 15, 18, 'desk', 'south', 1, 33),
-    seated('desk-a3', 7, 24, 'desk', 'south', -21, 22),
-    seated('desk-a4', 16, 25, 'desk', 'south', -35, -11),
+    // South-side chairs (rows 24-25): face north toward desk above
+    seated('desk-a3', 7, 24, 'desk', 'north', -21, -22),
+    seated('desk-a4', 16, 25, 'desk', 'north', -35, -11),
 
     // ── Upper desk cluster CENTER ──
     seated('desk-b1', 23, 18, 'desk', 'south', 1, 31),
     seated('desk-b2', 31, 18, 'desk', 'south', 12, 34),
-    seated('desk-b3', 22, 25, 'desk', 'south', 33, -10),
-    seated('desk-b4', 31, 26, 'desk', 'south', 13, -46),
+    seated('desk-b3', 22, 25, 'desk', 'north', 33, -10),
+    seated('desk-b4', 31, 26, 'desk', 'north', 13, -46),
 
     // ── Upper desk cluster RIGHT ──
+    // User confirmed: right cluster chairs face south
     seated('desk-c1', 38, 18, 'desk', 'south', 12, 33),
     seated('desk-c2', 47, 18, 'desk', 'south', -9, 31),
     seated('desk-c3', 37, 25, 'desk', 'south', 44, -12),
@@ -224,5 +227,11 @@ export const pickNearestAvailableWaypoint = (
     return null;
   }
 
-  return [...available].sort((left, right) => distanceBetweenTiles(origin, left) - distanceBetweenTiles(origin, right))[0] ?? null;
+  // Sort by distance, then pick randomly from top-N nearest to spread agents.
+  // Pure nearest-first causes all agents to cluster at the same chair.
+  const sorted = [...available].sort(
+    (left, right) => distanceBetweenTiles(origin, left) - distanceBetweenTiles(origin, right),
+  );
+  const topN = Math.min(sorted.length, 5);
+  return sorted[Math.floor(Math.random() * topN)] ?? null;
 };
