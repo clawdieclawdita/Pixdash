@@ -567,7 +567,8 @@ export class GatewayClient {
 
     try {
       const raw = readFileSync(configPath, 'utf8');
-      const parsed = JSON.parse(raw) as OpenClawConfig;
+      const stripped = raw.replace(/\/\/.*$/gm, '').replace(/,\s*([\]}])/g, '$1');
+      const parsed = JSON.parse(stripped) as OpenClawConfig;
       return parsed.gateway?.auth?.token;
     } catch (error) {
       logger.warn({ err: error, configPath }, 'Failed to read Gateway token from OpenClaw config');

@@ -21,8 +21,18 @@ function readGatewayTokenFromConfig(configPath: string): string | undefined {
   }
 
   const raw = readFileSync(configPath, 'utf8');
-  const parsed = JSON.parse(raw) as OpenClawConfig;
-  return parsed.gateway?.auth?.token;
+  // JSONC-safe: strip comments and trailing commas, then parse
+  const stripped = raw
+    .replace(/\/\/.*$/gm, '')          // strip single-line comments
+    .replace(/,\s*([\]}])/g, '$1');     // strip trailing commas
+  try {
+    const parsed = JSON.parse(stripped) as OpenClawConfig;
+    return parsed.gateway?.auth?.token;
+  } catch {
+    // Fallback: extract token with regex in case of other JSONC features
+    const match = stripped.match(/"token"\s*:\s*"([^"]+)"/);
+    return match?.[1];
+  }
 }
 
 export function loadConfig(): BackendConfig {

@@ -79,7 +79,14 @@ export class ConfigWatcher {
       return;
     }
 
-    const parsed = JSON.parse(raw) as OpenClawConfig;
+    const stripped = raw.replace(/\/\/.*$/gm, '').replace(/,\s*([\]}])/g, '$1');
+    let parsed: OpenClawConfig;
+    try {
+      parsed = JSON.parse(stripped) as OpenClawConfig;
+    } catch (err) {
+      console.warn('[ConfigWatcher] failed to parse OpenClaw config, skipping scan:', err);
+      return;
+    }
     this.trackedFiles.clear();
 
     const agents = parsed.agents?.list ?? [];
