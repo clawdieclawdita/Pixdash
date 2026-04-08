@@ -30,6 +30,8 @@ function resolveWsUrl() {
 }
 
 const WS_URL = resolveWsUrl();
+const HEARTBEAT_SEND_INTERVAL_MS = 15_000;
+const HEARTBEAT_STALE_AFTER_MS = 30_000;
 const SUPPORTED_EVENTS = new Set<string>([
   'agent.status',
   'agent.log',
@@ -47,23 +49,54 @@ export function useWebSocket() {
   const [lastEvent, setLastEvent] = useState<WebSocketEvent | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const heartbeatIntervalRef = useRef<number | null>(null);
+  const staleCheckIntervalRef = useRef<number | null>(null);
+  const lastReceivedAtRef = useRef<number>(Date.now());
   const socketRef = useRef<WebSocket | null>(null);
   const shouldReconnectRef = useRef(true);
   const reconnectAttemptRef = useRef(0);
 
   useEffect(() => {
+    const clearHeartbeatTimers = () => {
+      if (heartbeatIntervalRef.current !== null) {
+        window.clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      if (staleCheckIntervalRef.current !== null) {
+        window.clearInterval(staleCheckIntervalRef.current);
+        staleCheckIntervalRef.current = null;
+      }
+    };
+
     const connect = () => {
       setConnectionState('connecting');
       const socket = new WebSocket(WS_URL);
       socketRef.current = socket;
+      lastReceivedAtRef.current = Date.now();
 
       socket.addEventListener('open', () => {
         reconnectAttemptRef.current = 0;
+        lastReceivedAtRef.current = Date.now();
         setLastError(null);
         setConnectionState('connected');
+
+        clearHeartbeatTimers();
+        heartbeatIntervalRef.current = window.setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, HEARTBEAT_SEND_INTERVAL_MS);
+
+        staleCheckIntervalRef.current = window.setInterval(() => {
+          if (Date.now() - lastReceivedAtRef.current > HEARTBEAT_STALE_AFTER_MS) {
+            setLastError('WebSocket heartbeat timed out. Reconnecting…');
+            socket.close();
+          }
+        }, HEARTBEAT_SEND_INTERVAL_MS);
       });
 
       socket.addEventListener('message', (messageEvent) => {
+        lastReceivedAtRef.current = Date.now();
         try {
           const parsed = JSON.parse(messageEvent.data as string) as {
             type?: string;
@@ -80,6 +113,7 @@ export function useWebSocket() {
       });
 
       socket.addEventListener('close', () => {
+        clearHeartbeatTimers();
         setConnectionState('disconnected');
         socketRef.current = null;
 
@@ -104,6 +138,13 @@ export function useWebSocket() {
 
       if (reconnectTimeoutRef.current !== null) {
         window.clearTimeout(reconnectTimeoutRef.current);
+      }
+
+      if (heartbeatIntervalRef.current !== null) {
+        window.clearInterval(heartbeatIntervalRef.current);
+      }
+      if (staleCheckIntervalRef.current !== null) {
+        window.clearInterval(staleCheckIntervalRef.current);
       }
 
       socketRef.current?.close();

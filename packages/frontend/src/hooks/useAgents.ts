@@ -40,6 +40,7 @@ export function useAgents() {
         const response = await getAgents();
 
         if (mounted) {
+          console.log('[PixDash Debug] setAgents initial load', JSON.stringify({ count: response.agents.length }));
           setAgents(response.agents);
           const syncedAgents = useAgentsStore.getState().agents;
           syncAgents(syncedAgents);
@@ -139,6 +140,7 @@ export function useAgents() {
       }
       case 'agent:conference': {
         const payload = lastEvent.payload as EventPayloadMap['agent:conference'];
+        console.log('[PixDash Debug] agent:conference event', JSON.stringify(payload));
         void handleConference(payload.agentIds);
         break;
       }

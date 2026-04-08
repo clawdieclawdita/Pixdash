@@ -100,11 +100,8 @@ const scheduleIdleWander = (agentId: string) => {
     const movementState = useMovementStore.getState();
     const agent = agentsStore.getState().agents.find((a) => a.id === agentId);
     if (!agent || agent.status !== 'idle') return;
-    // Release current waypoint so handleStatusChange picks a new one
-    releaseWaypointClaim(movementState.waypoints, agentId);
-    agentsStore.updateAgent({ id: agentId, movementState: 'standing', claimedWaypointId: null });
-    // Now handleStatusChange will find no existing seated state and assign a new destination
-    await movementState.handleStatusChange(agentId, 'idle');
+    console.log('[PixDash Debug] idle wander trigger', JSON.stringify({ agentId, movementState: agent.movementState, claimedWaypointId: agent.claimedWaypointId }));
+    await movementState.handleStatusChange(agentId, 'idle', { forceWander: true });
   }, delay);
   wanderTimers.set(agentId, timer);
 };
@@ -298,7 +295,7 @@ interface MovementStoreState {
   ensureInitialized: () => Promise<void>;
   syncAgents: (agents: StoreAgent[]) => void;
   placeAgentsOnLoad: (agents: StoreAgent[]) => Promise<void>;
-  handleStatusChange: (agentId: string, status: AgentStatus) => Promise<void>;
+  handleStatusChange: (agentId: string, status: AgentStatus, options?: { forceWander?: boolean }) => Promise<void>;
   handleConference: (agentIds: string[]) => Promise<void>;
   removeAgent: (agentId: string) => void;
   tick: (deltaMs: number) => void;
@@ -401,8 +398,8 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       }
     }
   },
-  handleStatusChange: async (agentId, status) => {
-    console.log('[PixDash Debug] handleStatusChange', JSON.stringify({ agentId, status }));
+  handleStatusChange: async (agentId, status, options) => {
+    console.log('[PixDash Debug] handleStatusChange', JSON.stringify({ agentId, status, forceWander: options?.forceWander ?? false }));
     await get().ensureInitialized();
     const { collisionMap, waypoints } = get();
     if (!collisionMap) {
@@ -442,7 +439,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
 
     // If already in the correct seated state for this status, skip (heartbeat re-broadcast).
     const expectedSeated = seatedStateForStatus(status, null);
-    if (agent.movementState === expectedSeated) {
+    if (!options?.forceWander && agent.movementState === expectedSeated) {
       console.log('[PixDash Debug] skipping seated', JSON.stringify({ agentId, status, ms: agent.movementState }));
       return;
     }
@@ -454,13 +451,13 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     // at-watercooler → idle (water break done)
     // seated-bio → idle (restroom done)
     // seated-idle → idle (heartbeat re-broadcast)
-    if (status === 'idle' && agent.movementState?.startsWith('seated')) {
+    if (!options?.forceWander && status === 'idle' && agent.movementState?.startsWith('seated')) {
       agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
       // Re-schedule wander if it was cleared (e.g., agent was working)
       void scheduleIdleWander(agentId);
       return;
     }
-    if (status === 'idle' && agent.movementState === 'at-watercooler') {
+    if (!options?.forceWander && status === 'idle' && agent.movementState === 'at-watercooler') {
       agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
       void scheduleIdleWander(agentId);
       return;
@@ -471,7 +468,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     // working: needs a desk
     // conference: needs a conference chair
     // offline: clears everything
-    const needsNewSeat = status === 'offline' || status === 'conference' || status === 'working';
+    const needsNewSeat = status === 'offline' || status === 'conference' || status === 'working' || (status === 'idle' && options?.forceWander);
 
     if (needsNewSeat) {
       releaseWaypointClaim(waypoints, agentId);
@@ -612,6 +609,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     }
   },
   handleConference: async (agentIds) => {
+    console.log('[PixDash Debug] handleConference', JSON.stringify({ agentIds }));
     for (const agentId of agentIds) {
       await get().handleStatusChange(agentId, 'conference');
     }

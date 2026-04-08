@@ -127,6 +127,16 @@ export const useAgentsStore = create<AgentsState>((set) => ({
       agents: agents.map((agent, index) => {
         const existing = state.agents.find((entry) => entry.id === agent.id);
         const normalized = normalizeAgent(agent, index);
+        if (existing && existing.x !== normalized.x && existing.y !== normalized.y && !(existing.movementState === 'walking' || existing.claimedWaypointId)) {
+          console.log('[PixDash Debug] setAgents position overwrite', JSON.stringify({
+            agentId: agent.id,
+            movementState: existing.movementState,
+            claimedWaypointId: existing.claimedWaypointId,
+            from: { x: existing.x, y: existing.y },
+            to: { x: normalized.x, y: normalized.y },
+          }));
+        }
+
         return existing
           ? {
               ...existing,

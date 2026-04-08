@@ -5,7 +5,7 @@ import { isWalkableTile } from '@/lib/pathfinding';
 import type { CollisionMapData } from '@/lib/collisionMap';
 
 export const TILE_SIZE = 32;
-export const WALK_SPEED_PX_PER_SECOND = 101; // ~84 * 1.2, rounded
+export const WALK_SPEED_PX_PER_SECOND = 131;
 export const WALK_FRAME_MS = 180;
 const WALK_FRAME_SEQUENCE = [1, 2] as const;
 
@@ -96,29 +96,55 @@ export const advanceAgentAlongPath = (agent: AgentPosition, deltaMs: number): Ag
     const target = tileToPixelCenter(nextTile);
     const deltaX = target.x - currentX;
     const deltaY = target.y - currentY;
-    const distance = Math.hypot(deltaX, deltaY);
 
-    if (distance < 0.001) {
+    if (Math.abs(deltaX) < 0.001 && Math.abs(deltaY) < 0.001) {
       currentX = target.x;
       currentY = target.y;
       nextPath.shift();
       continue;
     }
 
+    const isHorizontal = Math.abs(deltaX) >= Math.abs(deltaY);
     direction = getDirectionFromDelta(deltaX, deltaY, direction);
 
-    if (remainingDistance >= distance) {
-      currentX = target.x;
+    if (isHorizontal && Math.abs(deltaY) > 0.001) {
       currentY = target.y;
-      remainingDistance -= distance;
+      continue;
+    }
+
+    if (!isHorizontal && Math.abs(deltaX) > 0.001) {
+      currentX = target.x;
+      continue;
+    }
+
+    const axisDelta = isHorizontal ? deltaX : deltaY;
+    const axisDistance = Math.abs(axisDelta);
+
+    if (axisDistance < 0.001) {
+      if (isHorizontal) {
+        currentX = target.x;
+      } else {
+        currentY = target.y;
+      }
       nextPath.shift();
       continue;
     }
 
-    const progress = remainingDistance / distance;
-    currentX += deltaX * progress;
-    currentY += deltaY * progress;
-    remainingDistance = 0;
+    const step = Math.min(remainingDistance, axisDistance);
+    if (isHorizontal) {
+      currentX += Math.sign(axisDelta) * step;
+      currentY = target.y;
+    } else {
+      currentY += Math.sign(axisDelta) * step;
+      currentX = target.x;
+    }
+    remainingDistance -= step;
+
+    if (step >= axisDistance - 0.001) {
+      currentX = target.x;
+      currentY = target.y;
+      nextPath.shift();
+    }
   }
 
   return {
