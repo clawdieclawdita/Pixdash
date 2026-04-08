@@ -341,6 +341,10 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       if (isAtDesk || isAtHomeBase || agent.movementState === 'seated-working') {
         // Already at a desk or was working — just update status, stay put
         agentsStore.updateAgent({ id: agentId, status });
+        // Keep wander timer alive so agent can eventually roam on next idle
+        if (agent.movementState?.startsWith('seated')) {
+          void scheduleIdleWander(agentId);
+        }
         return;
       }
       // Not at a desk — fall through to walk to a desk (treat like 'working')
