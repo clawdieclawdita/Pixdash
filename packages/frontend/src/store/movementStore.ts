@@ -134,8 +134,9 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     const preferredHomeCandidates = waypoints.receptionChairs.filter((wp) => preferredHomeIds.has(wp.id));
 
     const weightedGroups = [
-      { weight: 0.7, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs },
-      { weight: 0.2, candidates: waypoints.waterDispenser },
+      { weight: 0.6, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs },
+      { weight: 0.15, candidates: waypoints.restRoomChairs },
+      { weight: 0.15, candidates: waypoints.waterDispenser },
       { weight: 0.1, candidates: waypoints.desks },
     ];
 
@@ -158,7 +159,8 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
   let threshold = 0;
   const groups = [
     { weight: 0.35, candidates: waypoints.desks },
-    { weight: 0.55, candidates: waypoints.receptionChairs },
+    { weight: 0.35, candidates: waypoints.receptionChairs },
+    { weight: 0.20, candidates: waypoints.restRoomChairs },
     { weight: 0.10, candidates: waypoints.waterDispenser },
   ];
   for (const group of groups) {
