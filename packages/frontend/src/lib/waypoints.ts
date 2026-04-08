@@ -87,19 +87,19 @@ export const createWaypointSet = (): WaypointSet => ({
     seated('desk-a1', 6, 18, 'desk', 'south', 11, 30),
     seated('desk-a2', 15, 18, 'desk', 'south', 1, 33),
     seated('desk-a3', 7, 24, 'desk', 'south', -21, 22),
-    seated('desk-a4', 16, 25, 'desk', 'west', -35, -11),
+    seated('desk-a4', 16, 25, 'desk', 'south', -35, -11),
 
     // ── Upper desk cluster CENTER ──
     seated('desk-b1', 23, 18, 'desk', 'south', 1, 31),
     seated('desk-b2', 31, 18, 'desk', 'south', 12, 34),
-    seated('desk-b3', 22, 25, 'desk', 'east', 33, -10),
-    seated('desk-b4', 31, 26, 'desk', 'north', 13, -46),
+    seated('desk-b3', 22, 25, 'desk', 'south', 33, -10),
+    seated('desk-b4', 31, 26, 'desk', 'south', 13, -46),
 
     // ── Upper desk cluster RIGHT ──
     seated('desk-c1', 38, 18, 'desk', 'south', 12, 33),
     seated('desk-c2', 47, 18, 'desk', 'south', -9, 31),
-    seated('desk-c3', 37, 25, 'desk', 'east', 44, -12),
-    seated('desk-c4', 46, 24, 'desk', 'east', 23, 21),
+    seated('desk-c3', 37, 25, 'desk', 'south', 44, -12),
+    seated('desk-c4', 46, 24, 'desk', 'south', 23, 21),
 
     // ── Lower desk island A ──
     seated('desk-d1', 26, 34, 'desk', 'west', -43, 19),
