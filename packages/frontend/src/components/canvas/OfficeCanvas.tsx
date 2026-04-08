@@ -300,19 +300,17 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         Fit
       </button>
 
-      <div className="pointer-events-none absolute bottom-4 left-4 flex gap-2">
-        {clickCoords && (
-          <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
-            <div className="font-semibold text-white">Click</div>
-            <div>Pixel {clickCoords.px}, {clickCoords.py}</div>
-            <div>Tile ({clickCoords.tileX}, {clickCoords.tileY})</div>
-          </div>
-        )}
-        <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
-          <div className="font-semibold text-white">Camera</div>
-          <div>Zoom {cameraState.zoom.toFixed(2)}×</div>
-          <div>Pan {Math.round(cameraState.x)}, {Math.round(cameraState.y)}</div>
+      {clickCoords && (
+        <div className="pointer-events-none absolute bottom-4 left-4 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+          <div className="font-semibold text-white">Click</div>
+          <div>Pixel {clickCoords.px}, {clickCoords.py}</div>
+          <div>Tile ({clickCoords.tileX}, {clickCoords.tileY})</div>
         </div>
+      )}
+      <div className="pointer-events-none absolute bottom-4 left-48 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+        <div className="font-semibold text-white">Camera</div>
+        <div>Zoom {cameraState.zoom.toFixed(2)}×</div>
+        <div>Pan {Math.round(cameraState.x)}, {Math.round(cameraState.y)}</div>
       </div>
 
       {selectedAgentId && (
