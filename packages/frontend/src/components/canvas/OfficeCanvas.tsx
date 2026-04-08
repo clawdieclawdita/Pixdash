@@ -32,7 +32,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
   const cameraRef = useRef(new CameraController());
   const [cameraState, setCameraState] = useState(cameraRef.current.getSnapshot());
   const [backgroundImage, setBackgroundImage] = useState<HTMLImageElement | null>(null);
-  const [clickCoords, setClickCoords] = useState<{ px: number; py: number; tileX: number; tileY: number } | null>(null);
+  const [clickCoords, setClickCoords] = useState({ px: 0, py: 0, tileX: 0, tileY: 0 });
 
   const agentRenderer = useMemo(() => new AgentRenderer(), []);
   const agentsRef = useRef(agents);
@@ -300,14 +300,12 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         Fit
       </button>
 
-      {clickCoords && (
-        <div className="pointer-events-none absolute bottom-4 left-4 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+        <div className="pointer-events-none absolute left-4 bottom-[4.5rem] rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
           <div className="font-semibold text-white">Click</div>
           <div>Pixel {clickCoords.px}, {clickCoords.py}</div>
           <div>Tile ({clickCoords.tileX}, {clickCoords.tileY})</div>
         </div>
-      )}
-      <div className="pointer-events-none absolute bottom-4 left-48 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+      <div className="pointer-events-none absolute bottom-4 left-4 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
         <div className="font-semibold text-white">Camera</div>
         <div>Zoom {cameraState.zoom.toFixed(2)}×</div>
         <div>Pan {Math.round(cameraState.x)}, {Math.round(cameraState.y)}</div>
