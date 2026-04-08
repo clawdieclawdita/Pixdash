@@ -301,11 +301,6 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       </button>
 
       <div className="pointer-events-none absolute bottom-4 left-4 flex gap-2">
-        <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
-          <div className="font-semibold text-white">Camera</div>
-          <div>Zoom {cameraState.zoom.toFixed(2)}×</div>
-          <div>Pan {Math.round(cameraState.x)}, {Math.round(cameraState.y)}</div>
-        </div>
         {clickCoords && (
           <div className="rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
             <div className="font-semibold text-white">Click</div>
