@@ -140,18 +140,18 @@ export const createWaypointSet = (): WaypointSet => ({
   ],
 
   restRoomChairs: [
-    // Left section - upper stalls
-    seated('rest-1', 57, 47, 'restroom', 'south'),
-    seated('rest-2', 55, 48, 'restroom', 'south'),
+    // Left section - upper stalls (face west, toward stalls)
+    seated('rest-1', 57, 47, 'restroom', 'west'),
+    seated('rest-2', 55, 48, 'restroom', 'west'),
     // Left section - lower stalls
-    seated('rest-3', 57, 51, 'restroom', 'south'),
-    seated('rest-4', 55, 52, 'restroom', 'south'),
-    // Right section - upper stalls
-    seated('rest-5', 67, 47, 'restroom', 'south'),
-    seated('rest-6', 71, 48, 'restroom', 'south'),
+    seated('rest-3', 57, 51, 'restroom', 'west'),
+    seated('rest-4', 55, 52, 'restroom', 'west'),
+    // Right section - upper stalls (face east, toward stalls)
+    seated('rest-5', 67, 47, 'restroom', 'east'),
+    seated('rest-6', 71, 48, 'restroom', 'east'),
     // Right section - lower stalls
-    seated('rest-7', 67, 51, 'restroom', 'south'),
-    seated('rest-8', 71, 52, 'restroom', 'south'),
+    seated('rest-7', 67, 51, 'restroom', 'east'),
+    seated('rest-8', 71, 52, 'restroom', 'east'),
   ],
 
   conferenceRoomChairs: [
