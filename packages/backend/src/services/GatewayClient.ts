@@ -16,6 +16,36 @@ import { AgentStateManager } from './AgentStateManager.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger(process.env.PIXDASH_LOG_LEVEL as never);
+
+/** Strip JSONC comments without breaking // inside strings (URLs, etc.) */
+function stripJsonc(json: string): string {
+  let result = '';
+  let inString = false;
+  let stringChar = '';
+  let i = 0;
+  while (i < json.length) {
+    const ch = json[i];
+    if (inString) {
+      result += ch;
+      if (ch === '\\') { i++; if (i < json.length) result += json[i]; }
+      else if (ch === stringChar) inString = false;
+    } else if (ch === '"' || ch === "'") {
+      inString = true; stringChar = ch; result += ch;
+    } else if (ch === '/' && json[i + 1] === '/') {
+      while (i < json.length && json[i] !== '\n') i++;
+      continue;
+    } else if (ch === '/' && json[i + 1] === '*') {
+      i += 2;
+      while (i < json.length && !(json[i] === '*' && json[i + 1] === '/')) i++;
+      i += 2; continue;
+    } else {
+      result += ch;
+    }
+    i++;
+  }
+  return result.replace(/,\s*([\]}])/g, '$1');
+}
+
 const DEFAULT_GATEWAY_URL = 'ws://127.0.0.1:18789';
 const DEVICE_KEY_PATH = path.join(os.homedir(), '.openclaw', 'pixdash', 'device-key.json');
 const GATEWAY_PROTOCOL_VERSION = 3;
@@ -567,7 +597,8 @@ export class GatewayClient {
 
     try {
       const raw = readFileSync(configPath, 'utf8');
-      const stripped = raw.replace(/\/\/.*$/gm, '').replace(/,\s*([\]}])/g, '$1');
+      // JSONC-safe comment stripping (preserves // inside strings like URLs)
+      const stripped = stripJsonc(raw);
       const parsed = JSON.parse(stripped) as OpenClawConfig;
       return parsed.gateway?.auth?.token;
     } catch (error) {

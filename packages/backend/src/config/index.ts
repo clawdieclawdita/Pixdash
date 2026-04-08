@@ -21,18 +21,49 @@ function readGatewayTokenFromConfig(configPath: string): string | undefined {
   }
 
   const raw = readFileSync(configPath, 'utf8');
-  // JSONC-safe: strip comments and trailing commas, then parse
-  const stripped = raw
-    .replace(/\/\/.*$/gm, '')          // strip single-line comments
-    .replace(/,\s*([\]}])/g, '$1');     // strip trailing commas
+  // JSONC-safe: strip single-line comments but not // inside strings
+  const stripped = stripJsoncComments(raw);
   try {
     const parsed = JSON.parse(stripped) as OpenClawConfig;
     return parsed.gateway?.auth?.token;
   } catch {
-    // Fallback: extract token with regex in case of other JSONC features
-    const match = stripped.match(/"token"\s*:\s*"([^"]+)"/);
+    // Fallback: extract gateway.auth.token with regex
+    const match = stripped.match(/"gateway"[\s\S]*?"auth"[\s\S]*?"token"\s*:\s*"([^"]+)"/);
     return match?.[1];
   }
+}
+
+function stripJsoncComments(json: string): string {
+  let result = '';
+  let inString = false;
+  let stringChar = '';
+  let i = 0;
+  while (i < json.length) {
+    const ch = json[i];
+    if (inString) {
+      result += ch;
+      if (ch === '\\') { i++; if (i < json.length) result += json[i]; }
+      else if (ch === stringChar) inString = false;
+    } else if (ch === '"' || ch === "'") {
+      inString = true;
+      stringChar = ch;
+      result += ch;
+    } else if (ch === '/' && json[i + 1] === '/') {
+      // Skip to end of line
+      while (i < json.length && json[i] !== '\n') i++;
+      continue;
+    } else if (ch === '/' && json[i + 1] === '*') {
+      // Skip block comments
+      i += 2;
+      while (i < json.length && !(json[i] === '*' && json[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    } else {
+      result += ch;
+    }
+    i++;
+  }
+  return result.replace(/,\s*([\]}])/g, '$1');
 }
 
 export function loadConfig(): BackendConfig {

@@ -5,6 +5,35 @@ import type { Agent } from '@pixdash/shared';
 import type { BackendConfig, ConfigAgentSnapshot, OpenClawBinding, OpenClawConfig } from '../types/index.js';
 import { AgentStateManager } from './AgentStateManager.js';
 
+/** Strip JSONC comments without breaking // inside strings (URLs, etc.) */
+function stripJsonc(json: string): string {
+  let result = '';
+  let inString = false;
+  let stringChar = '';
+  let i = 0;
+  while (i < json.length) {
+    const ch = json[i];
+    if (inString) {
+      result += ch;
+      if (ch === '\\') { i++; if (i < json.length) result += json[i]; }
+      else if (ch === stringChar) inString = false;
+    } else if (ch === '"' || ch === "'") {
+      inString = true; stringChar = ch; result += ch;
+    } else if (ch === '/' && json[i + 1] === '/') {
+      while (i < json.length && json[i] !== '\n') i++;
+      continue;
+    } else if (ch === '/' && json[i + 1] === '*') {
+      i += 2;
+      while (i < json.length && !(json[i] === '*' && json[i + 1] === '/')) i++;
+      i += 2; continue;
+    } else {
+      result += ch;
+    }
+    i++;
+  }
+  return result.replace(/,\s*([\]}])/g, '$1');
+}
+
 function firstStringLine(match: RegExpMatchArray | null): string | undefined {
   return match?.[1]?.trim();
 }
@@ -79,7 +108,7 @@ export class ConfigWatcher {
       return;
     }
 
-    const stripped = raw.replace(/\/\/.*$/gm, '').replace(/,\s*([\]}])/g, '$1');
+    const stripped = stripJsonc(raw);
     let parsed: OpenClawConfig;
     try {
       parsed = JSON.parse(stripped) as OpenClawConfig;
