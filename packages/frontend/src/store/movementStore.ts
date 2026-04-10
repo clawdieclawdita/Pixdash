@@ -393,9 +393,11 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     }
 
     // If already in the correct seated state for this status, skip (heartbeat re-broadcast).
+    // For idle/online seated states, still make sure an idle wander timer exists so
+    // reception/home-base agents do not get stranded if the timer was lost on load.
     const expectedSeated = seatedStateForStatus(status, null);
     if (!options?.forceWander && agent.movementState === expectedSeated) {
-      if ((status === 'idle' || status === 'online') && currentWaypointType === 'dining') {
+      if ((status === 'idle' || status === 'online') && agent.movementState === 'seated-idle') {
         agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
         void scheduleIdleWander(agentId);
         return;
