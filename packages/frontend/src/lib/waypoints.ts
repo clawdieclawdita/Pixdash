@@ -1,6 +1,6 @@
 import type { Direction } from '@pixdash/shared';
 
-export type WaypointType = 'desk' | 'restroom' | 'conference' | 'reception' | 'watercooler';
+export type WaypointType = 'desk' | 'restroom' | 'conference' | 'reception' | 'watercooler' | 'dining';
 
 export interface TilePoint {
   x: number;
@@ -28,6 +28,7 @@ export interface WaypointSet {
   restRoomChairs: WaypointClaim[];
   conferenceRoomChairs: WaypointClaim[];
   waterDispenser: WaypointClaim[];
+  dining: WaypointClaim[];
 }
 
 const TILE = 32;
@@ -79,6 +80,7 @@ const seated = (
  *   Restroom:    8 — stall corridors, left & right sections
  *   Conference: 12 — around conference table (left/right columns, top/bottom)
  *   Water:       1 — water cooler
+ *   Dining:      1 — dining room center
  *
  */
 export const createWaypointSet = (): WaypointSet => ({
@@ -181,6 +183,12 @@ export const createWaypointSet = (): WaypointSet => ({
   // Watercooler at (63,33) is on a blocked tile (no walkable path).
   // Removed from wander pool to prevent agents getting stuck.
   waterDispenser: [],
+
+  // Breakroom/dining room center (tables area) — walkable tile
+  dining: [
+    // Center of the dining room area (tile ~64,46)
+    createWaypoint('dining-center', 64, 46, 'dining', undefined),
+  ],
 });
 
 export const getAllWaypoints = (set: WaypointSet): WaypointClaim[] => [
@@ -189,6 +197,7 @@ export const getAllWaypoints = (set: WaypointSet): WaypointClaim[] => [
   ...set.restRoomChairs,
   ...set.conferenceRoomChairs,
   ...set.waterDispenser,
+  ...set.dining,
 ];
 
 export const createNoGoSet = (set: WaypointSet): Set<string> => {

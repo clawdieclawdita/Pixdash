@@ -86,6 +86,7 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     ...waypoints.restRoomChairs,
     ...waypoints.desks,
     ...waypoints.waterDispenser,
+    ...waypoints.dining,
   ];
 
   // Home base agents get weighted selection
@@ -95,10 +96,11 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     const preferredHomeCandidates = waypoints.receptionChairs.filter((wp) => preferredHomeIds.has(wp.id));
 
     const weightedGroups = [
-      { weight: 0.6, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp)) },
+      { weight: 0.5, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp)) },
       { weight: 0.15, candidates: waypoints.restRoomChairs },
       { weight: 0.15, candidates: waypoints.waterDispenser },
       { weight: 0.1, candidates: waypoints.desks },
+      { weight: 0.1, candidates: waypoints.dining },
     ];
 
     const roll = Math.random();
@@ -124,10 +126,11 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
   const roll = Math.random();
   let threshold = 0;
   const groups = [
-    { weight: 0.35, candidates: waypoints.desks },
-    { weight: 0.35, candidates: filteredReception },
+    { weight: 0.30, candidates: waypoints.desks },
+    { weight: 0.30, candidates: filteredReception },
     { weight: 0.20, candidates: waypoints.restRoomChairs },
     { weight: 0.10, candidates: waypoints.waterDispenser },
+    { weight: 0.10, candidates: waypoints.dining },
   ];
   for (const group of groups) {
     threshold += group.weight;
@@ -483,6 +486,8 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
               return waypoints.receptionChairs;
             case 'watercooler':
               return waypoints.waterDispenser;
+            case 'dining':
+              return waypoints.dining;
           }
         })();
         const preferredCandidates = homeBase.preferredWaypointIds?.length

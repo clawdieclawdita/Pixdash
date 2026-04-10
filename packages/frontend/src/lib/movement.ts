@@ -40,7 +40,7 @@ export const getDirectionFromDelta = (deltaX: number, deltaY: number, fallback: 
   return fallback;
 };
 
-export const getArrivalStateForMovementType = (type: 'desk' | 'restroom' | 'reception' | 'conference' | 'watercooler'): MovementState => {
+export const getArrivalStateForMovementType = (type: 'desk' | 'restroom' | 'reception' | 'conference' | 'watercooler' | 'dining'): MovementState => {
   switch (type) {
     case 'desk':
       return 'seated-working';
@@ -52,6 +52,8 @@ export const getArrivalStateForMovementType = (type: 'desk' | 'restroom' | 'rece
       return 'seated-conference';
     case 'watercooler':
       return 'at-watercooler';
+    case 'dining':
+      return 'standing';
   }
 };
 

@@ -32,9 +32,9 @@ COPY packages/frontend/package.json ./packages/frontend/
 
 RUN pnpm install --frozen-lockfile --prod
 
-COPY packages/shared/dist ./packages/shared/dist/
-COPY packages/backend/dist ./packages/backend/dist/
-COPY packages/frontend/dist ./packages/frontend/dist/
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist/
+COPY --from=builder /app/packages/backend/dist ./packages/backend/dist/
+COPY --from=builder /app/packages/frontend/dist ./packages/frontend/dist/
 
 EXPOSE 3000
 
