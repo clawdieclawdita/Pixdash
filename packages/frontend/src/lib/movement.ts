@@ -53,7 +53,7 @@ export const getArrivalStateForMovementType = (type: 'desk' | 'restroom' | 'rece
     case 'watercooler':
       return 'at-watercooler';
     case 'dining':
-      return 'standing';
+      return 'seated-idle';
   }
 };
 

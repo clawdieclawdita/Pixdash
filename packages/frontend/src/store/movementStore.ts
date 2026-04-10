@@ -48,6 +48,7 @@ const IDLE_WANDER_MAX_MS = 90_000;
 const wanderTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const clearWanderTimer = (agentId: string) => {
+  console.log('[Wander Timer] CLEARED', agentId);
   const timer = wanderTimers.get(agentId);
   if (timer) {
     clearTimeout(timer);
@@ -58,9 +59,15 @@ const clearWanderTimer = (agentId: string) => {
 const scheduleIdleWander = (agentId: string) => {
   // Don't reset if a wander timer is already running — prevents heartbeat
   // from indefinitely pushing back the wander time.
-  if (wanderTimers.has(agentId)) return;
+  if (wanderTimers.has(agentId)) {
+    console.log('[Wander Timer] already scheduled, skipping', agentId);
+    return;
+  }
+  console.log('[Wander Timer] scheduling', agentId, 'delay will be 60-90s');
   const delay = IDLE_WANDER_MIN_MS + Math.random() * (IDLE_WANDER_MAX_MS - IDLE_WANDER_MIN_MS);
+  console.log('[Wander Timer] firing for', agentId, 'after', Math.round(delay/1000), 's');
   const timer = setTimeout(async () => {
+    console.log('[Wander Timer] FIRED for', agentId);
     wanderTimers.delete(agentId);
     const movementState = useMovementStore.getState();
     const agent = agentsStore.getState().agents.find((a) => a.id === agentId);
@@ -141,7 +148,9 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     }
   }
   // Fallback: nearest from all (but still exclude reserved seats)
-  const wp = pickNearestAvailableWaypoint(allCandidates.filter((w) => !isReservedForOther(agentId, w)), currentTile, agentId, excludeIds);
+  const fallbackCandidates = allCandidates.filter((w) => !isReservedForOther(agentId, w));
+  console.log('[PixDash Debug] fallback candidates for', agentId, ':', fallbackCandidates.length, 'of', allCandidates.length, '— claimed:', fallbackCandidates.filter(w => w.claimedBy && w.claimedBy !== agentId).map(w => w.id));
+  const wp = pickNearestAvailableWaypoint(fallbackCandidates, currentTile, agentId, excludeIds);
   console.log('[PixDash Debug] pickIdleWaypoint', JSON.stringify({ agentId, tile: currentTile, waypointId: wp?.id, type: wp?.type }));
   return wp;
 };
@@ -392,6 +401,16 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     if (!options?.forceWander && agent.movementState === expectedSeated) {
       console.log('[PixDash Debug] skipping seated', JSON.stringify({ agentId, status, ms: agent.movementState }));
       return;
+    }
+
+    // Home-base agent already at their home seat? Just update status, don't reroute or clear wander timer.
+    if (!options?.forceWander && (status === 'working' || status === 'online')) {
+      const homeBase = AGENT_HOME_BASES[agentId];
+      if (homeBase && agent.claimedWaypointId && homeBase.preferredWaypointIds?.includes(agent.claimedWaypointId) && agent.movementState?.startsWith('seated')) {
+        agentsStore.updateAgent({ id: agentId, status, movementState: expectedSeated });
+        console.log('[PixDash Debug] skipping home-base reroute', JSON.stringify({ agentId, status, seat: agent.claimedWaypointId }));
+        return;
+      }
     }
 
     // Any seated state → idle: agent stays where they are, no teleport.

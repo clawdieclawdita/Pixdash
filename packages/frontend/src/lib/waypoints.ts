@@ -184,10 +184,9 @@ export const createWaypointSet = (): WaypointSet => ({
   // Removed from wander pool to prevent agents getting stuck.
   waterDispenser: [],
 
-  // Breakroom/dining room center (tables area) — walkable tile
+  // Dining room — walkable corridor tile with visual offset toward tables
   dining: [
-    // Center of the dining room area (tile ~64,46)
-    createWaypoint('dining-center', 64, 46, 'dining', undefined),
+    createWaypoint('dining-center', 60, 46, 'dining', 'east', 64, 0),
   ],
 });
 
