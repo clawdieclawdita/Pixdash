@@ -48,7 +48,6 @@ const IDLE_WANDER_MAX_MS = 90_000;
 const wanderTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const clearWanderTimer = (agentId: string) => {
-  console.log('[Wander Timer] CLEARED', agentId);
   const timer = wanderTimers.get(agentId);
   if (timer) {
     clearTimeout(timer);
@@ -57,24 +56,19 @@ const clearWanderTimer = (agentId: string) => {
 };
 
 const scheduleIdleWander = (agentId: string) => {
-  // Don't reset if a wander timer is already running — prevents heartbeat
+  // Don't reset if a wander timer is already running, prevents heartbeat
   // from indefinitely pushing back the wander time.
   if (wanderTimers.has(agentId)) {
-    console.log('[Wander Timer] already scheduled, skipping', agentId);
     return;
   }
-  console.log('[Wander Timer] scheduling', agentId, 'delay will be 60-90s');
   const delay = IDLE_WANDER_MIN_MS + Math.random() * (IDLE_WANDER_MAX_MS - IDLE_WANDER_MIN_MS);
-  console.log('[Wander Timer] firing for', agentId, 'after', Math.round(delay/1000), 's');
   const timer = setTimeout(async () => {
-    console.log('[Wander Timer] FIRED for', agentId);
     wanderTimers.delete(agentId);
     const movementState = useMovementStore.getState();
     const agent = agentsStore.getState().agents.find((a) => a.id === agentId);
     if (!agent || (agent.status !== 'idle' && agent.status !== 'online')) return;
     // If agent is no longer seated (e.g. started walking from a status change), skip
     if (!agent.movementState?.startsWith('seated')) return;
-    console.log('[PixDash Debug] idle wander trigger', JSON.stringify({ agentId, status: agent.status, movementState: agent.movementState, claimedWaypointId: agent.claimedWaypointId }));
     await movementState.handleStatusChange(agentId, 'idle', { forceWander: true });
   }, delay);
   wanderTimers.set(agentId, timer);
@@ -96,18 +90,22 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
     ...waypoints.dining,
   ];
 
-  // Home base agents get weighted selection
+  // Home base agents get weighted selection, but idle behavior should still
+  // roam across the office instead of snapping back home most of the time.
   const homeBase = AGENT_HOME_BASES[agentId];
   if (homeBase) {
     const preferredHomeIds = new Set(homeBase.preferredWaypointIds ?? []);
-    const preferredHomeCandidates = waypoints.receptionChairs.filter((wp) => preferredHomeIds.has(wp.id));
+    const receptionCandidates = waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp));
+    const preferredHomeCandidates = receptionCandidates.filter((wp) => preferredHomeIds.has(wp.id));
+    const secondaryReceptionCandidates = receptionCandidates.filter((wp) => !preferredHomeIds.has(wp.id));
 
     const weightedGroups = [
-      { weight: 0.5, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp)) },
+      { weight: 0.18, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : receptionCandidates },
+      { weight: 0.27, candidates: waypoints.desks },
+      { weight: 0.20, candidates: secondaryReceptionCandidates.length > 0 ? secondaryReceptionCandidates : receptionCandidates },
       { weight: 0.15, candidates: waypoints.restRoomChairs },
-      { weight: 0.15, candidates: waypoints.waterDispenser },
-      { weight: 0.1, candidates: waypoints.desks },
-      { weight: 0.1, candidates: waypoints.dining },
+      { weight: 0.10, candidates: waypoints.waterDispenser },
+      { weight: 0.10, candidates: waypoints.dining },
     ];
 
     const roll = Math.random();
@@ -120,16 +118,13 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
         break;
       }
     }
-    // Fallback: pick from all candidates (exclude reserved)
-    return pickNearestAvailableWaypoint(allCandidates.filter((wp) => isReservedForOther(agentId, wp)), currentTile, agentId, excludeIds);
+    // Fallback: pick from all candidates, excluding seats reserved for others.
+    return pickNearestAvailableWaypoint(allCandidates.filter((wp) => !isReservedForOther(agentId, wp)), currentTile, agentId, excludeIds);
   }
 
   // No home base: pick randomly from all chair types (spread agents around)
   // Exclude reserved home-base seats
   const filteredReception = waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp));
-  console.log('[PixDash Debug] filteredReception for', agentId, ':', filteredReception.map(w => w.id), '(blocked:', waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp)).map(w => w.id), ')');
-  console.log('[PixDash Debug] RESERVED_WAYPOINT_IDS:', [...RESERVED_WAYPOINT_IDS]);
-  console.log('[PixDash Debug] AGENT_HOME_BASES keys:', Object.keys(AGENT_HOME_BASES));
   const roll = Math.random();
   let threshold = 0;
   const groups = [
@@ -149,10 +144,7 @@ const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }
   }
   // Fallback: nearest from all (but still exclude reserved seats)
   const fallbackCandidates = allCandidates.filter((w) => !isReservedForOther(agentId, w));
-  console.log('[PixDash Debug] fallback candidates for', agentId, ':', fallbackCandidates.length, 'of', allCandidates.length, '— claimed:', fallbackCandidates.filter(w => w.claimedBy && w.claimedBy !== agentId).map(w => w.id));
-  const wp = pickNearestAvailableWaypoint(fallbackCandidates, currentTile, agentId, excludeIds);
-  console.log('[PixDash Debug] pickIdleWaypoint', JSON.stringify({ agentId, tile: currentTile, waypointId: wp?.id, type: wp?.type }));
-  return wp;
+  return pickNearestAvailableWaypoint(fallbackCandidates, currentTile, agentId, excludeIds);
 };
 
 const seatedStateForStatus = (status: AgentStatus, type: WaypointClaim['type'] | null): MovementState => {
@@ -528,9 +520,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     } else if (status === 'conference') {
       waypoint = pickNearestAvailableWaypoint(waypoints.conferenceRoomChairs, safeTile, agentId, otherTargets);
     } else if (status === 'idle') {
-      console.log('[PixDash Debug] picking idle waypoint for', agentId, 'reserved seats will be excluded');
       waypoint = pickIdleWaypoint(agentId, safeTile, waypoints, otherTargets);
-      console.log('[PixDash Debug] idle waypoint result for', agentId, ':', waypoint?.id);
     }
 
     if (!waypoint) {
