@@ -56,7 +56,9 @@ const clearWanderTimer = (agentId: string) => {
 };
 
 const scheduleIdleWander = (agentId: string) => {
-  clearWanderTimer(agentId);
+  // Don't reset if a wander timer is already running — prevents heartbeat
+  // from indefinitely pushing back the wander time.
+  if (wanderTimers.has(agentId)) return;
   const delay = IDLE_WANDER_MIN_MS + Math.random() * (IDLE_WANDER_MAX_MS - IDLE_WANDER_MIN_MS);
   const timer = setTimeout(async () => {
     wanderTimers.delete(agentId);
