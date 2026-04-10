@@ -337,6 +337,7 @@ export class GatewayClient {
         agentId,
         status,
         timestamp,
+        source: 'presence_snapshot',
       });
     }
   }
@@ -397,6 +398,7 @@ export class GatewayClient {
         agentId,
         status,
         timestamp: lastSeen,
+        source: 'health_snapshot',
       });
     }
   }
@@ -558,7 +560,10 @@ export class GatewayClient {
     switch (event) {
       case 'agent.status':
       case 'agent:status':
-        this.agentStateManager.applyStatusEvent(payload as GatewayStatusEvent);
+        this.agentStateManager.applyStatusEvent({
+          ...(payload as GatewayStatusEvent),
+          source: 'gateway',
+        });
         break;
       case 'agent.log':
       case 'agent:log':

@@ -129,28 +129,24 @@ export class AgentStateManager {
   applyStatusEvent(event: GatewayStatusEvent): void {
     const agent = this.ensureAgent(event.agentId);
     const presence = this.ensurePresence(event.agentId);
+    const isSyntheticSnapshot = event.source === 'presence_snapshot' || event.source === 'health_snapshot';
+    const hasFreshActivity = typeof presence.lastActivityAt === 'number'
+      && Math.max(0, Date.now() - presence.lastActivityAt) < WORKING_GRACE_MS;
+    const shouldPreserveWorking = isSyntheticSnapshot && hasFreshActivity && event.status !== 'offline';
 
-    presence.explicitOffline = event.status === 'offline';
-    if (!presence.explicitOffline) {
-      presence.baselineStatus = event.status === 'idle' ? 'idle' : 'online';
+    if (!shouldPreserveWorking) {
+      presence.explicitOffline = event.status === 'offline';
+      if (!presence.explicitOffline) {
+        presence.baselineStatus = event.status === 'idle' ? 'idle' : 'online';
+      }
     }
 
     agent.lastSeen = event.timestamp;
     const derivedStatus = this.deriveStatus(event.agentId);
-    const previousStatus = agent.status;
     agent.status = derivedStatus;
 
     if (agent.stats) {
       agent.stats.uptimeSeconds += 1;
-    }
-
-    if (previousStatus !== derivedStatus || event.timestamp !== agent.lastSeen) {
-      this.broadcast('agent:status', {
-        agentId: event.agentId,
-        status: derivedStatus,
-        timestamp: agent.lastSeen,
-      });
-      return;
     }
 
     this.broadcast('agent:status', {

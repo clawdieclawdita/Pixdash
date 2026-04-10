@@ -84,6 +84,7 @@ export interface GatewayStatusEvent {
   agentId: string;
   status: Agent['status'];
   timestamp: string;
+  source?: 'gateway' | 'presence_snapshot' | 'health_snapshot';
 }
 
 export interface GatewayLogEvent {
