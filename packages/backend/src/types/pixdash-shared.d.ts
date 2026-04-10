@@ -1,7 +1,7 @@
 declare module '@pixdash/shared' {
   export type AgentStatus = 'working' | 'online' | 'idle' | 'offline' | 'busy' | 'conference';
   export type Direction = 'north' | 'south' | 'east' | 'west';
-  export type BodyType = 'male' | 'female' | 'neutral' | 'michael' | 'angela' | 'phillis' | 'creed' | 'ryan' | 'pam' | 'kelly' | 'kate' | 'pites' | 'jim';
+  export type BodyType = 'male' | 'female' | 'neutral' | 'michael' | 'angela' | 'phillis' | 'creed' | 'ryan' | 'pam' | 'kelly' | 'kate' | 'pites' | 'jim' | 'clawdie';
   export type HairStyle = 'short' | 'long' | 'bald' | 'ponytail' | 'spiky';
   export type OutfitType = 'casual' | 'formal' | 'hoodie' | 'tank-top';
   export type AccessoryType = 'glasses' | 'hat' | 'headphones' | 'watch';

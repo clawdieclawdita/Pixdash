@@ -10,6 +10,7 @@ import kellySpriteUrl from '@assets/sprites/kelly.png';
 import kateSpriteUrl from '@assets/sprites/kate.png';
 import pitesSpriteUrl from '@assets/sprites/pites.png';
 import jimSpriteUrl from '@assets/sprites/jim.png';
+import clawdieSpriteUrl from '@assets/sprites/clawdie.png';
 
 export type SpriteTemplate =
   | 'michael'
@@ -21,7 +22,8 @@ export type SpriteTemplate =
   | 'kelly'
   | 'kate'
   | 'pites'
-  | 'jim';
+  | 'jim'
+  | 'clawdie';
 export type SpriteFrameCanvas = HTMLCanvasElement;
 export type SpriteSheetFrames = Record<Direction, SpriteFrameCanvas[]>;
 
@@ -46,7 +48,8 @@ const SPRITE_TEMPLATES: SpriteTemplate[] = [
   'kelly',
   'kate',
   'pites',
-  'jim'
+  'jim',
+  'clawdie'
 ];
 
 const SPRITE_SOURCES: Record<SpriteTemplate, string> = {
@@ -59,7 +62,8 @@ const SPRITE_SOURCES: Record<SpriteTemplate, string> = {
   kelly: kellySpriteUrl,
   kate: kateSpriteUrl,
   pites: pitesSpriteUrl,
-  jim: jimSpriteUrl
+  jim: jimSpriteUrl,
+  clawdie: clawdieSpriteUrl
 };
 
 const loadImage = (src: string) =>
@@ -188,6 +192,7 @@ export const pickSpriteTemplateFromAppearance = (appearance: Appearance): Sprite
     kate: 'kate',
     pites: 'pites',
     jim: 'jim',
+    clawdie: 'clawdie',
     male: 'michael',
     female: 'angela'
   };

@@ -7,7 +7,7 @@ import {
 
 const ALL_TEMPLATES: SpriteTemplate[] = [
   'michael', 'angela', 'phillis', 'creed', 'ryan',
-  'pam', 'kelly', 'kate', 'pites', 'jim'
+  'pam', 'kelly', 'kate', 'pites', 'jim', 'clawdie'
 ];
 
 export type SpritePreviews = Partial<Record<SpriteTemplate, HTMLCanvasElement>>;

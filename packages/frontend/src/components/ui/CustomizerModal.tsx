@@ -84,6 +84,12 @@ const PRESETS: CharacterPreset[] = [
     label: 'Jim',
     bodyType: 'jim',
     description: 'Male character template'
+  },
+  {
+    id: 'clawdie',
+    label: 'Clawdie',
+    bodyType: 'clawdie',
+    description: 'Custom Clawdie sprite template'
   }
 ];
 
@@ -102,6 +108,7 @@ const PRESET_BY_BODY_TYPE: Partial<Record<string, SpriteTemplate>> = {
   kate: 'kate',
   pites: 'pites',
   jim: 'jim',
+  clawdie: 'clawdie',
   male: 'michael',
   female: 'angela'
 };
