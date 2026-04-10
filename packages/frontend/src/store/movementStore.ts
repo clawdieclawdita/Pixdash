@@ -64,8 +64,10 @@ const scheduleIdleWander = (agentId: string) => {
     wanderTimers.delete(agentId);
     const movementState = useMovementStore.getState();
     const agent = agentsStore.getState().agents.find((a) => a.id === agentId);
-    if (!agent || agent.status !== 'idle') return;
-    console.log('[PixDash Debug] idle wander trigger', JSON.stringify({ agentId, movementState: agent.movementState, claimedWaypointId: agent.claimedWaypointId }));
+    if (!agent || (agent.status !== 'idle' && agent.status !== 'online')) return;
+    // If agent is no longer seated (e.g. started walking from a status change), skip
+    if (!agent.movementState?.startsWith('seated')) return;
+    console.log('[PixDash Debug] idle wander trigger', JSON.stringify({ agentId, status: agent.status, movementState: agent.movementState, claimedWaypointId: agent.claimedWaypointId }));
     await movementState.handleStatusChange(agentId, 'idle', { forceWander: true });
   }, delay);
   wanderTimers.set(agentId, timer);
