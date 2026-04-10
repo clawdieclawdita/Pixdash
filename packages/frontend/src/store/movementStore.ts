@@ -336,21 +336,26 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       return;
     }
 
+    const currentWaypoint = agent.claimedWaypointId
+      ? findWaypointById(waypoints, agent.claimedWaypointId)
+      : null;
+    const currentWaypointType = currentWaypoint?.type ?? null;
+
     // Guard: only proceed if the status actually requires a change in behavior.
     // 'online' after 'idle' means the agent likely got a task.
-    // If they're seated at a non-desk location (restroom, reception, watercooler),
-    // they should walk to a desk. If already at a desk, stay put.
+    // Dining is intentionally a temporary idle stop, so keep its wander timer alive
+    // instead of treating it like a permanently seated location.
     if (status === 'online') {
-      const isAtDesk = agent.claimedWaypointId
-        ? findWaypointById(waypoints, agent.claimedWaypointId)?.type === 'desk'
-        : false;
+      const isAtDesk = currentWaypointType === 'desk';
       const homeBase = AGENT_HOME_BASES[agentId];
-      const isAtHomeBase = homeBase && agent.claimedWaypointId
-        ? (() => {
-            const wp = findWaypointById(waypoints, agent.claimedWaypointId);
-            return wp?.type === homeBase.type && (homeBase.preferredWaypointIds?.includes(wp.id) ?? false);
-          })()
+      const isAtHomeBase = homeBase && currentWaypoint
+        ? currentWaypoint.type === homeBase.type && (homeBase.preferredWaypointIds?.includes(currentWaypoint.id) ?? false)
         : false;
+      if (currentWaypointType === 'dining' && agent.movementState === 'seated-idle') {
+        agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
+        void scheduleIdleWander(agentId);
+        return;
+      }
       if (isAtDesk || isAtHomeBase || agent.movementState === 'seated-working') {
         // Already at a desk or was working — just update status, stay put
         agentsStore.updateAgent({ id: agentId, status });
@@ -373,7 +378,6 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     // Prevents duplicate handleStatusChange calls (heartbeat re-broadcast every 1s)
     // from re-routing the agent mid-walk.
     if (agent.movementState === 'walking' && agent.claimedWaypointId) {
-      const currentWaypoint = findWaypointById(waypoints, agent.claimedWaypointId);
       if (currentWaypoint) {
         const matches = waypointTypeMatchesStatus(currentWaypoint.type, status);
         const currentPriority = statusPriority(currentWaypoint.type);
@@ -391,6 +395,11 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     // If already in the correct seated state for this status, skip (heartbeat re-broadcast).
     const expectedSeated = seatedStateForStatus(status, null);
     if (!options?.forceWander && agent.movementState === expectedSeated) {
+      if ((status === 'idle' || status === 'online') && currentWaypointType === 'dining') {
+        agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
+        void scheduleIdleWander(agentId);
+        return;
+      }
       console.log('[PixDash Debug] skipping seated', JSON.stringify({ agentId, status, ms: agent.movementState }));
       return;
     }
