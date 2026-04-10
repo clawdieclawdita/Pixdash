@@ -448,6 +448,7 @@ export class GatewayClient {
     }
 
     if (role === 'user') {
+      this.agentStateManager.recordActivity(agentId);
       this.agentStateManager.applyLogEvent({
         agentId,
         log: {

@@ -36,7 +36,7 @@ function derivePosition(_id: string) {
 }
 
 const IDLE_THRESHOLD_MS = 300_000; // 5 minutes
-const WORKING_GRACE_MS = 2_000;  // 2 seconds — activity within this window = working
+const WORKING_GRACE_MS = 10_000; // 10 seconds, activity within this window = working
 const STATUS_REEVALUATION_INTERVAL_MS = 30_000;
 
 type AgentPresenceState = {
@@ -68,6 +68,7 @@ export class AgentStateManager {
   private readonly agents = new Map<string, Agent>();
   private readonly events = new EventEmitter();
   private readonly presence = new Map<string, AgentPresenceState>();
+  private readonly activityDecayTimers = new Map<string, NodeJS.Timeout>();
   private readonly statusInterval: NodeJS.Timeout;
 
   constructor(private readonly appearanceStore: AppearanceStore) {
@@ -213,6 +214,7 @@ export class AgentStateManager {
       status: 'working',
       timestamp: agent.lastSeen,
     });
+    this.scheduleActivityDecay(id);
   }
 
   async upsertAppearance(id: string, patch: AppearancePatch): Promise<Appearance> {
@@ -263,6 +265,21 @@ export class AgentStateManager {
       this.presence.set(id, state);
     }
     return state;
+  }
+
+  private scheduleActivityDecay(id: string): void {
+    const existingTimer = this.activityDecayTimers.get(id);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    const timer = setTimeout(() => {
+      this.activityDecayTimers.delete(id);
+      this.reevaluateStatuses(id);
+    }, WORKING_GRACE_MS + 500);
+
+    timer.unref?.();
+    this.activityDecayTimers.set(id, timer);
   }
 
   private deriveStatus(id: string, now = Date.now()): Agent['status'] {
