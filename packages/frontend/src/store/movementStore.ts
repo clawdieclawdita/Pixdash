@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { AgentStatus, Direction } from '@pixdash/shared';
-import { agentsStore, type StoreAgent } from '@/store/agentsStore';
+import { agentsStore, hasBackendMovementAuthority, type StoreAgent } from '@/store/agentsStore';
 import { loadCollisionMap, type CollisionMapData } from '@/lib/collisionMap';
 import {
   advanceAgentAlongPath,
@@ -269,6 +269,10 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     });
 
     for (const agent of sortedAgents) {
+      if (hasBackendMovementAuthority(agent.movement)) {
+        continue;
+      }
+
       const agentTile = pixelToTile(agent.x, agent.y);
 
       // Ensure spawn position is on a walkable, non-blocked tile
@@ -333,6 +337,12 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     const agent = agentsStore.getState().agents.find((entry) => entry.id === agentId);
     if (!agent) {
       console.log(`[PixDash Debug] missing agent`, { agentId, status });
+      return;
+    }
+
+    if (hasBackendMovementAuthority(agent.movement)) {
+      agentsStore.updateAgent({ id: agentId, status });
+      console.log('[PixDash Debug] skipping local status change under backend movement authority', JSON.stringify({ agentId, status, movementStatus: agent.movement?.status }));
       return;
     }
 
@@ -637,7 +647,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     const agents = agentsStore.getState().agents;
 
     for (const agent of agents) {
-      if (agent.movementState !== 'walking') {
+      if (hasBackendMovementAuthority(agent.movement) || agent.movementState !== 'walking') {
         continue;
       }
 

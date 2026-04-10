@@ -1,4 +1,5 @@
 export * from './types/agent.js';
+export * from './types/movement.js';
 export * from './types/tilemap.js';
 export * from './types/event.js';
 export * from './constants/colors.js';

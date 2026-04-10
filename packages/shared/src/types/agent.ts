@@ -78,6 +78,7 @@ export interface Agent {
   logs?: AgentLog[];
   tasks?: AgentTask[];
   soul?: string;
+  movement?: import('./movement.js').MovementAuthorityState;
   identity?: {
     creature?: string;
     vibe?: string;

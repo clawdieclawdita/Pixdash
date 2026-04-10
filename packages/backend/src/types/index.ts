@@ -7,6 +7,7 @@ import type {
   AgentTask,
   Appearance,
   AppearancePatch,
+  MoveAgentRequest,
   FrontendEventName,
   FrontendEventPayload,
   Tilemap,
@@ -129,6 +130,7 @@ export interface AgentStateManagerLike {
   getTasks(id: string): AgentTask[];
   recordActivity(id: string, timestamp?: number): void;
   upsertAppearance(id: string, patch: AppearancePatch): Promise<Appearance>;
+  requestMove(request: MoveAgentRequest): { ok: true; agent: Agent };
 }
 
 export interface PixDashServices {

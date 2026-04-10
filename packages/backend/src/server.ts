@@ -54,8 +54,8 @@ async function buildServer(): Promise<PixDashFastifyInstance> {
 
   const appearanceStore = new AppearanceStore(config.appearancesPath);
   await appearanceStore.init();
-  const agentStateManager = new AgentStateManager(appearanceStore);
   const officeLayout = loadOfficeLayout(config.officeLayoutPath);
+  const agentStateManager = new AgentStateManager(appearanceStore, officeLayout);
 
   app.decorate('pixdash', {
     config,

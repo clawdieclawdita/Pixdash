@@ -1,20 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getAgents,
   type Agent,
   type AgentLog,
-  type AgentTask
+  type AgentTask,
+  type Position
 } from '@/lib/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { useAgentsStore } from '@/store/agentsStore';
+import { normalizeIncomingPosition, useAgentsStore } from '@/store/agentsStore';
 import { useUIStore } from '@/store/uiStore';
 import { useMovementStore, movementStore } from '@/store/movementStore';
+import { tileToPixelCenter } from '@/lib/movement';
+import type { AgentMovementEventPayload } from '@pixdash/shared';
 
 type EventPayloadMap = {
   'agent.status': { agentId: string; status: Agent['status']; timestamp?: string };
   'agent.log': { agentId: string; level: AgentLog['level']; message: string; timestamp: string };
   'agent.task': { agentId: string; taskId: string; description: string; status: string; timestamp: string };
   'agent:conference': { agentIds: string[]; sessionKey?: string; source?: string; timestamp: string };
+  'agent:position': { agentId: string; position: Position; direction?: Position['direction'] };
+  'agent:movement': AgentMovementEventPayload;
 };
 
 export function useAgents() {
@@ -31,46 +36,62 @@ export function useAgents() {
   const { lastEvent, connectionState, lastError: socketError } = useWebSocket();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
+  const reconnectSyncInFlightRef = useRef(false);
+
+  const loadAgents = useCallback(async (reason: 'initial' | 'reconnect') => {
+    if (reason === 'initial') {
+      setIsLoading(true);
+    }
+
+    try {
+      const response = await getAgents();
+
+      console.log('[PixDash Debug] setAgents sync', JSON.stringify({ reason, count: response.agents.length }));
+      setAgents(response.agents);
+      const syncedAgents = useAgentsStore.getState().agents;
+      syncAgents(syncedAgents);
+      // Local placement should only run for agents still using fallback movement.
+      // Backend-authoritative agents are skipped inside placeAgentsOnLoad.
+      movementStore.placeAgentsOnLoad(syncedAgents);
+      setError(null);
+      hasLoadedRef.current = true;
+    } catch (loadError) {
+      if (reason === 'initial') {
+        setAgents([]);
+      }
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load agents');
+    } finally {
+      if (reason === 'initial') {
+        setIsLoading(false);
+      }
+    }
+  }, [setAgents, syncAgents]);
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadAgents = async () => {
-      try {
-        const response = await getAgents();
-
-        if (mounted) {
-          console.log('[PixDash Debug] setAgents initial load', JSON.stringify({ count: response.agents.length }));
-          setAgents(response.agents);
-          const syncedAgents = useAgentsStore.getState().agents;
-          syncAgents(syncedAgents);
-          // Place agents directly at chairs on load (no walking from corridor)
-          // Wander timers will handle subsequent movement.
-          movementStore.placeAgentsOnLoad(syncedAgents);
-          setError(null);
-        }
-      } catch (loadError) {
-        if (mounted) {
-          setAgents([]);
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load agents');
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void loadAgents();
-
-    return () => {
-      mounted = false;
-    };
-  }, [setAgents, syncAgents, handleStatusChange]);
+    void loadAgents('initial');
+  }, [loadAgents]);
 
   // Use a ref for agents in the WebSocket effect to avoid re-triggering on every agents change
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
+  const previousConnectionStateRef = useRef(connectionState);
+
+  useEffect(() => {
+    const previousConnectionState = previousConnectionStateRef.current;
+    previousConnectionStateRef.current = connectionState;
+
+    if (!hasLoadedRef.current) {
+      return;
+    }
+
+    if (previousConnectionState === 'disconnected' && connectionState === 'connected' && !reconnectSyncInFlightRef.current) {
+      reconnectSyncInFlightRef.current = true;
+      void loadAgents('reconnect').finally(() => {
+        reconnectSyncInFlightRef.current = false;
+      });
+    }
+  }, [connectionState, loadAgents]);
 
   useEffect(() => {
     if (!lastEvent) {
@@ -135,6 +156,52 @@ export function useAgents() {
             existingTaskIndex >= 0
               ? tasks.map((task: AgentTask, index: number) => (index === existingTaskIndex ? { ...task, ...nextTask } : task))
               : [...tasks, nextTask]
+        });
+        break;
+      }
+      case 'agent:position': {
+        const payload = lastEvent.payload as EventPayloadMap['agent:position'];
+        const normalizedPosition = normalizeIncomingPosition({
+          ...payload.position,
+          direction: payload.direction ?? payload.position.direction,
+        });
+
+        if (!normalizedPosition) {
+          break;
+        }
+
+        updateAgent({
+          id: payload.agentId,
+          position: normalizedPosition,
+          x: normalizedPosition.x,
+          y: normalizedPosition.y,
+          direction: normalizedPosition.direction,
+        });
+        break;
+      }
+      case 'agent:movement': {
+        const payload = lastEvent.payload as EventPayloadMap['agent:movement'];
+        const normalizedPosition = normalizeIncomingPosition(payload.position);
+        const destination = payload.movement.destination ? tileToPixelCenter(payload.movement.destination) : null;
+
+        updateAgent({
+          id: payload.agentId,
+          movement: payload.movement,
+          position: normalizedPosition ?? undefined,
+          ...(normalizedPosition
+            ? {
+                x: normalizedPosition.x,
+                y: normalizedPosition.y,
+                direction: normalizedPosition.direction,
+              }
+            : {}),
+          movementState: payload.movement.status === 'moving' ? 'walking' : undefined,
+          claimedWaypointId: payload.movement.claimedWaypointId ?? null,
+          path: payload.movement.path,
+          targetX: destination?.x ?? null,
+          targetY: destination?.y ?? null,
+          visualOffsetX: payload.movement.status === 'moving' ? 0 : undefined,
+          visualOffsetY: payload.movement.status === 'moving' ? 0 : undefined,
         });
         break;
       }

@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type Direction, type Position } from '@pixdash/shared';
+import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type Direction, type Position, type MovementAuthorityState } from '@pixdash/shared';
 import type { Agent } from '@/lib/api';
 import { tileToPixelCenter } from '@/lib/movement';
 import { createWaypointSet } from '@/lib/waypoints';
 import type { AgentPathNode, MovementState } from '@/types';
 
 export type StoreAgent = Agent & {
+  movement?: MovementAuthorityState;
   x: number;
   y: number;
   color: string;
@@ -46,10 +47,10 @@ const normalizeAppearance = (appearance?: Agent['appearance']): Appearance => ({
   accessories: appearance?.accessories ?? DEFAULT_APPEARANCE.accessories,
 });
 
-const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
-  if (isFiniteNumber(agent.position?.x) && isFiniteNumber(agent.position?.y)) {
-    const px = agent.position.x;
-    const py = agent.position.y;
+export const normalizeIncomingPosition = (position?: Position | null): Position | null => {
+  if (isFiniteNumber(position?.x) && isFiniteNumber(position?.y)) {
+    const px = position.x;
+    const py = position.y;
 
     // Backend now sends collision-grid tile coords (0-75, 0-56).
     // If values exceed the grid, treat as pixel coords.
@@ -57,17 +58,25 @@ const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
       return {
         x: px,
         y: py,
-        direction: agent.position.direction ?? DEFAULT_POSITION.direction,
+        direction: position.direction ?? DEFAULT_POSITION.direction,
       };
     }
 
-    // Collision grid tile coords → convert to pixel center
     const pixelPosition = tileToPixelCenter({ x: px, y: py });
     return {
       x: pixelPosition.x,
       y: pixelPosition.y,
-      direction: agent.position.direction ?? DEFAULT_POSITION.direction,
+      direction: position.direction ?? DEFAULT_POSITION.direction,
     };
+  }
+
+  return null;
+};
+
+const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
+  const normalizedPosition = normalizeIncomingPosition(agent.position);
+  if (normalizedPosition) {
+    return normalizedPosition;
   }
 
   warnMissingPosition(agent);
@@ -80,6 +89,17 @@ const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
   };
 };
 
+export const hasBackendMovementAuthority = (
+  movement?: MovementAuthorityState | null,
+): movement is MovementAuthorityState => {
+  if (!movement) return false;
+
+  return movement.status === 'moving'
+    || movement.path.length > 0
+    || movement.destination != null
+    || movement.claimedWaypointId != null;
+};
+
 const defaultMovementState = (status: Agent['status']): MovementState => {
   if (status === 'working') return 'seated-working';
   if (status === 'conference') return 'seated-conference';
@@ -90,6 +110,8 @@ const defaultMovementState = (status: Agent['status']): MovementState => {
 function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
   const position = normalizePosition(agent, fallbackIndex);
   const appearance = normalizeAppearance(agent.appearance);
+  const backendMovement = agent.movement;
+  const destination = backendMovement?.destination ? tileToPixelCenter(backendMovement.destination) : null;
 
   return {
     ...agent,
@@ -100,13 +122,15 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
     color: appearance.outfit.color,
     title: typeof agent.config?.title === 'string' ? agent.config.title : undefined,
     notes: typeof agent.config?.notes === 'string' ? agent.config.notes : undefined,
-    movementState: defaultMovementState(agent.status),
-    targetX: null,
-    targetY: null,
-    path: [],
-    claimedWaypointId: null,
+    movementState: backendMovement?.status === 'moving' ? 'walking' : defaultMovementState(agent.status),
+    targetX: destination?.x ?? null,
+    targetY: destination?.y ?? null,
+    path: backendMovement?.path ?? [],
+    claimedWaypointId: backendMovement?.claimedWaypointId ?? null,
     visualOffsetX: 0,
     visualOffsetY: 0,
+    direction: position.direction,
+    movement: backendMovement,
   };
 }
 
@@ -127,7 +151,10 @@ export const useAgentsStore = create<AgentsState>((set) => ({
       agents: agents.map((agent, index) => {
         const existing = state.agents.find((entry) => entry.id === agent.id);
         const normalized = normalizeAgent(agent, index);
-        if (existing && existing.x !== normalized.x && existing.y !== normalized.y && !(existing.movementState === 'walking' || existing.claimedWaypointId)) {
+        const backendAuthorityActive = hasBackendMovementAuthority(normalized.movement);
+        const keepLocalPlacement = !backendAuthorityActive && (existing?.movementState === 'walking' || !!existing?.claimedWaypointId);
+
+        if (existing && existing.x !== normalized.x && existing.y !== normalized.y && !keepLocalPlacement) {
           console.log('[PixDash Debug] setAgents position overwrite', JSON.stringify({
             agentId: agent.id,
             movementState: existing.movementState,
@@ -141,21 +168,16 @@ export const useAgentsStore = create<AgentsState>((set) => ({
           ? {
               ...existing,
               ...normalized,
-              // Preserve client-side position for agents that have been placed by
-              // the movement system (walking or have a claimed waypoint).
-              // Backend only knows corridor tile coords — don't overwrite.
-              x: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.x : normalized.x,
-              y: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.y : normalized.y,
-              movementState: existing.movementState,
-              targetX: existing.targetX,
-              targetY: existing.targetY,
-              path: existing.path,
-              claimedWaypointId: existing.claimedWaypointId,
-              visualOffsetX: existing.visualOffsetX,
-              visualOffsetY: existing.visualOffsetY,
-              // Preserve client-side direction when agent has been placed by movement system.
-              // Backend always sends 'south' default — would overwrite seated/walking direction.
-              direction: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.direction : normalized.direction,
+              x: keepLocalPlacement ? existing.x : normalized.x,
+              y: keepLocalPlacement ? existing.y : normalized.y,
+              movementState: backendAuthorityActive ? normalized.movementState : existing.movementState,
+              targetX: backendAuthorityActive ? normalized.targetX : existing.targetX,
+              targetY: backendAuthorityActive ? normalized.targetY : existing.targetY,
+              path: backendAuthorityActive ? normalized.path : existing.path,
+              claimedWaypointId: backendAuthorityActive ? normalized.claimedWaypointId : existing.claimedWaypointId,
+              visualOffsetX: backendAuthorityActive ? normalized.visualOffsetX : existing.visualOffsetX,
+              visualOffsetY: backendAuthorityActive ? normalized.visualOffsetY : existing.visualOffsetY,
+              direction: keepLocalPlacement ? existing.direction : normalized.direction,
             }
           : normalized;
       }),

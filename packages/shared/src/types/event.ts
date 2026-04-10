@@ -1,8 +1,9 @@
 import type { Agent, AgentLog, AgentTask, AgentStatus, Appearance, Position } from './agent.js';
+import type { AgentMovementEventPayload, MoveAgentRequest } from './movement.js';
 import type { Tilemap } from './tilemap.js';
 
 export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task';
-export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference';
+export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference' | 'agent:movement';
 
 export interface AgentStatusEventPayload {
   agentId: string;
@@ -50,7 +51,8 @@ export type FrontendEventPayload =
   | AgentAppearanceEventPayload
   | AgentPositionEventPayload
   | AgentConfigEventPayload
-  | AgentConferenceEventPayload;
+  | AgentConferenceEventPayload
+  | AgentMovementEventPayload;
 
 export interface WsConnectedMessage {
   type: 'connected';
@@ -62,7 +64,7 @@ export interface WsRequestMessage {
   type: 'req';
   id: string;
   method: 'sync' | 'updateAppearance' | 'moveAgent';
-  params?: Record<string, unknown>;
+  params?: Record<string, unknown> | MoveAgentRequest;
 }
 
 export interface WsResponseMessage {
