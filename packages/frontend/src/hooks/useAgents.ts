@@ -52,6 +52,9 @@ export function useAgents() {
   const [error, setError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
   const reconnectSyncInFlightRef = useRef(false);
+  // Safety net: re-fetch agents after 8s to catch any that were
+  // placed via frontend fallback before backend broadcastSettledStates ran.
+  const fallbackHealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadAgents = useCallback(async (reason: 'initial' | 'reconnect') => {
     if (reason === 'initial') {
@@ -70,6 +73,21 @@ export function useAgents() {
       movementStore.placeAgentsOnLoad(syncedAgents);
       setError(null);
       hasLoadedRef.current = true;
+
+      // After initial load, schedule a heal sync to upgrade any
+      // fallback-positioned agents to backend-authoritative positions.
+      if (fallbackHealTimerRef.current) clearTimeout(fallbackHealTimerRef.current);
+      if (reason === 'initial') {
+        fallbackHealTimerRef.current = setTimeout(() => {
+          fallbackHealTimerRef.current = null;
+          const current = useAgentsStore.getState().agents;
+          const fallbackCount = current.filter((a) => a.positionSource === 'fallback').length;
+          if (fallbackCount > 0) {
+            console.log(`[PixDash Debug] fallback heal: ${fallbackCount} agents still on fallback after 8s, re-syncing`);
+            void loadAgents('reconnect');
+          }
+        }, 8_000);
+      }
     } catch (loadError) {
       if (reason === 'initial') {
         setAgents([]);
@@ -84,6 +102,9 @@ export function useAgents() {
 
   useEffect(() => {
     void loadAgents('initial');
+    return () => {
+      if (fallbackHealTimerRef.current) clearTimeout(fallbackHealTimerRef.current);
+    };
   }, [loadAgents]);
 
   // Use a ref for agents in the WebSocket effect to avoid re-triggering on every agents change
