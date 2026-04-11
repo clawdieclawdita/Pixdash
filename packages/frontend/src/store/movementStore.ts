@@ -6,7 +6,6 @@ import {
   advanceAgentAlongPath,
   findNearestWalkableTile,
   getArrivalStateForMovementType,
-  getDirectionFromDelta,
   pixelToTile,
   tileToPixelCenter,
 } from '@/lib/movement';
@@ -673,9 +672,9 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
           id: agent.id,
           interpolatedX: interpX,
           interpolatedY: interpY,
-          direction: (agent.x !== agent.prevX || agent.y !== agent.prevY)
-            ? getDirectionFromDelta(agent.x - agent.prevX, agent.y - agent.prevY, agent.direction)
-            : agent.direction,
+          // Use the backend-provided direction explicitly instead of deriving
+          // from position deltas, which can be noisy during interpolation.
+          direction: agent.direction,
         });
         continue;
       }
