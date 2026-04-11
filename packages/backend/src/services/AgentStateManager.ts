@@ -40,7 +40,9 @@ function derivePosition(_id: string) {
 const IDLE_THRESHOLD_MS = 300_000;
 const WORKING_GRACE_MS = 10_000;
 const STATUS_REEVALUATION_INTERVAL_MS = 30_000;
-const MOVEMENT_TICK_INTERVAL_MS = 350;
+const MOVEMENT_TICK_INTERVAL_MS = 50;
+const TILE_SIZE_PX = 32;
+const TILE_CENTER_OFFSET_PX = TILE_SIZE_PX / 2;
 
 function createInitialMovementState(): MovementAuthorityState {
   return {
@@ -49,6 +51,7 @@ function createInitialMovementState(): MovementAuthorityState {
     destination: null,
     path: [],
     lastUpdatedAt: new Date().toISOString(),
+    progress: 0,
   };
 }
 
@@ -318,6 +321,9 @@ export class AgentStateManager {
       destination,
       path,
       lastUpdatedAt: new Date().toISOString(),
+      progress: 0,
+      fractionalX: undefined,
+      fractionalY: undefined,
       visualOffsetX: waypoint?.visualOffsetX,
       visualOffsetY: waypoint?.visualOffsetY,
       waypointType: waypoint?.type,
@@ -343,10 +349,23 @@ export class AgentStateManager {
       agent.position.x = clampedX;
       agent.position.y = clampedY;
     }
+
+    const movement = structuredClone(agent.movement ?? createInitialMovementState());
+    const basePixelX = agent.position.x * TILE_SIZE_PX + TILE_CENTER_OFFSET_PX;
+    const basePixelY = agent.position.y * TILE_SIZE_PX + TILE_CENTER_OFFSET_PX;
+
+    if (movement.status === 'moving' && typeof movement.fractionalX === 'number' && typeof movement.fractionalY === 'number') {
+      movement.fractionalX = movement.fractionalX * TILE_SIZE_PX + TILE_CENTER_OFFSET_PX;
+      movement.fractionalY = movement.fractionalY * TILE_SIZE_PX + TILE_CENTER_OFFSET_PX;
+    } else {
+      movement.fractionalX = basePixelX;
+      movement.fractionalY = basePixelY;
+    }
+
     this.lastMovementBroadcast.set(agent.id, Date.now());
     this.broadcast('agent:movement', {
       agentId: agent.id,
-      movement: structuredClone(agent.movement ?? createInitialMovementState()),
+      movement,
       position: structuredClone(agent.position),
     });
   }

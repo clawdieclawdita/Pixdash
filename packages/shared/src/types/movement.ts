@@ -22,6 +22,9 @@ export interface MovementAuthorityState {
   destination?: MovementPathNode | null;
   path: MovementPathNode[];
   lastUpdatedAt: string;
+  progress?: number;
+  fractionalX?: number;
+  fractionalY?: number;
   visualOffsetX?: number;
   visualOffsetY?: number;
   waypointType?: string;

@@ -93,46 +93,27 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
   },
   tick: (_deltaMs) => {
     const agents = agentsStore.getState().agents;
-    const now = performance.now();
 
     for (const agent of agents) {
-      // Only interpolate for agents actively walking (movement.state === 'moving').
-      // Seated/stationary agents render directly at their position — no interpolation needed.
-      // This prevents "moonwalking" caused by continuous micro-interpolation
-      // from position updates that arrive even when agents are stationary.
-      if (
-        agent.positionSource === 'backend'
-        && agent.prevPositionTimestamp != null
-        && agent.prevX != null
-        && agent.prevY != null
-        && agent.movement?.status === 'moving'
-        && (agent.path?.length ?? 0) > 0
-      ) {
-        const INTERPOLATION_DURATION_MS = 120; // slightly longer than one 100ms tick
-        const elapsed = now - agent.prevPositionTimestamp;
-        const t = Math.min(1, elapsed / INTERPOLATION_DURATION_MS);
-        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // ease-in-out quad
-        const interpX = agent.prevX + (agent.x - agent.prevX) * eased;
-        const interpY = agent.prevY + (agent.y - agent.prevY) * eased;
-
-        agentsStore.updateAgent({
-          id: agent.id,
-          interpolatedX: interpX,
-          interpolatedY: interpY,
-          direction: agent.direction,
-        });
-      } else {
-        // Stationary agent — clear interpolation state, render at actual position
-        if (agent.interpolatedX != null || agent.interpolatedY != null) {
+      if (agent.movement?.status === 'moving' && agent.movement.fractionalX != null && agent.movement.fractionalY != null) {
+        if (agent.interpolatedX !== agent.movement.fractionalX || agent.interpolatedY !== agent.movement.fractionalY) {
           agentsStore.updateAgent({
             id: agent.id,
-            interpolatedX: undefined,
-            interpolatedY: undefined,
+            interpolatedX: agent.movement.fractionalX,
+            interpolatedY: agent.movement.fractionalY,
+            direction: agent.direction,
           });
         }
+        continue;
       }
-      // Server-authoritative: all agents are rendered from backend data.
-      // No local pathfinding or movement advancement.
+
+      if (agent.interpolatedX != null || agent.interpolatedY != null) {
+        agentsStore.updateAgent({
+          id: agent.id,
+          interpolatedX: undefined,
+          interpolatedY: undefined,
+        });
+      }
     }
   },
 }));

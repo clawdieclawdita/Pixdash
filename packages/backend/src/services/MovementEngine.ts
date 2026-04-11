@@ -13,6 +13,9 @@ const WANDER_WEIGHTS: Array<{ type: BackendWaypointType; weight: number }> = [
 ];
 
 const SEATED_TYPES = new Set<BackendWaypointType>(['desk', 'reception', 'restroom', 'conference', 'dining']);
+const TICK_INTERVAL_MS = 50;
+const MOVEMENT_SPEED_TILES_PER_SECOND = 3;
+const PROGRESS_INCREMENT = (TICK_INTERVAL_MS / 1000) * MOVEMENT_SPEED_TILES_PER_SECOND;
 
 export class MovementEngine {
   private readonly wanderDueAt = new Map<string, number>();
@@ -124,16 +127,31 @@ export class MovementEngine {
         continue;
       }
 
-      const [nextStep, ...remainingPath] = movement.path;
-      const direction = this.agentStateManager.directionFromStep(agent.position, nextStep);
-      agent.position = {
-        x: nextStep.x,
-        y: nextStep.y,
-        direction,
-      };
-
-      const arrived = remainingPath.length === 0;
       const waypoint = movement.claimedWaypointId ? this.agentStateManager.findWaypointById(movement.claimedWaypointId) : null;
+      let progress = (movement.progress ?? 0) + PROGRESS_INCREMENT;
+      let path = [...movement.path];
+      let currentPosition = { ...agent.position };
+
+      while (progress >= 1 && path.length > 0) {
+        const [nextStep, ...remainingPath] = path;
+        const direction = this.agentStateManager.directionFromStep(currentPosition, nextStep);
+        currentPosition = {
+          x: nextStep.x,
+          y: nextStep.y,
+          direction,
+        };
+        path = remainingPath;
+        progress -= 1;
+      }
+
+      agent.position = currentPosition;
+
+      const nextStep = path[0];
+      const arrived = path.length === 0;
+
+      if (!arrived && nextStep) {
+        agent.position.direction = this.agentStateManager.directionFromStep(agent.position, nextStep);
+      }
 
       // On arrival, face the waypoint direction (desk chair, reception seat, etc.)
       if (arrived && waypoint) {
@@ -143,7 +161,10 @@ export class MovementEngine {
       agent.movement = {
         ...movement,
         status: arrived && waypoint && SEATED_TYPES.has(waypoint.type) ? 'seated' : arrived ? 'idle' : 'moving',
-        path: remainingPath,
+        path,
+        progress: arrived ? 0 : progress,
+        fractionalX: arrived || !nextStep ? undefined : agent.position.x + (nextStep.x - agent.position.x) * progress,
+        fractionalY: arrived || !nextStep ? undefined : agent.position.y + (nextStep.y - agent.position.y) * progress,
         lastUpdatedAt: new Date().toISOString(),
         visualOffsetX: waypoint?.visualOffsetX,
         visualOffsetY: waypoint?.visualOffsetY,
@@ -258,6 +279,9 @@ export class MovementEngine {
       claimedWaypointId: releaseWaypoint ? null : agent.movement.claimedWaypointId,
       destination: null,
       path: [],
+      progress: 0,
+      fractionalX: undefined,
+      fractionalY: undefined,
       lastUpdatedAt: new Date().toISOString(),
       visualOffsetX: undefined,
       visualOffsetY: undefined,

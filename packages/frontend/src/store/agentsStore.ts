@@ -21,10 +21,6 @@ export type StoreAgent = Agent & {
   visualOffsetX?: number;
   visualOffsetY?: number;
   positionSource: 'backend' | 'fallback';
-  // Interpolation state for smooth backend position rendering
-  prevX?: number;
-  prevY?: number;
-  prevPositionTimestamp?: number;
   interpolatedX?: number;
   interpolatedY?: number;
 };
@@ -153,6 +149,8 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
     appearance,
     x: position.x,
     y: position.y,
+    interpolatedX: backendMovement?.fractionalX,
+    interpolatedY: backendMovement?.fractionalY,
     color: appearance.outfit.color,
     title: typeof agent.config?.title === 'string' ? agent.config.title : undefined,
     notes: typeof agent.config?.notes === 'string' ? agent.config.notes : undefined,
@@ -189,13 +187,6 @@ export const useAgentsStore = create<AgentsState>((set) => ({
         const backendAuthorityActive = hasBackendMovementAuthority(normalized.movement);
         const keepLocalPlacement = !backendAuthorityActive && (existing?.movementState === 'walking' || !!existing?.claimedWaypointId);
 
-        // For backend-positioned agents, snapshot previous position for interpolation.
-        if (existing && normalized.positionSource === 'backend' && (existing.x !== normalized.x || existing.y !== normalized.y)) {
-          normalized.prevX = existing.interpolatedX ?? existing.x;
-          normalized.prevY = existing.interpolatedY ?? existing.y;
-          normalized.prevPositionTimestamp = performance.now();
-        }
-
         return existing
           ? {
               ...existing,
@@ -210,6 +201,8 @@ export const useAgentsStore = create<AgentsState>((set) => ({
               visualOffsetX: backendAuthorityActive ? normalized.visualOffsetX : existing.visualOffsetX,
               visualOffsetY: backendAuthorityActive ? normalized.visualOffsetY : existing.visualOffsetY,
               direction: keepLocalPlacement ? existing.direction : normalized.direction,
+              interpolatedX: backendAuthorityActive ? normalized.interpolatedX : existing.interpolatedX,
+              interpolatedY: backendAuthorityActive ? normalized.interpolatedY : existing.interpolatedY,
             }
           : normalized;
       }),
@@ -257,6 +250,8 @@ export const useAgentsStore = create<AgentsState>((set) => ({
           targetY: agentUpdate.targetY === undefined ? agent.targetY : agentUpdate.targetY,
           path: agentUpdate.path ?? agent.path,
           claimedWaypointId: agentUpdate.claimedWaypointId === undefined ? agent.claimedWaypointId : agentUpdate.claimedWaypointId,
+          interpolatedX: agentUpdate.interpolatedX === undefined ? agent.interpolatedX : agentUpdate.interpolatedX,
+          interpolatedY: agentUpdate.interpolatedY === undefined ? agent.interpolatedY : agentUpdate.interpolatedY,
         };
       }),
     })),

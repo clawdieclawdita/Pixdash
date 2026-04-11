@@ -238,6 +238,8 @@ export function useAgents() {
           id: payload.agentId,
           movement: payload.movement,
           position: normalizedPosition ?? undefined,
+          interpolatedX: payload.movement.fractionalX,
+          interpolatedY: payload.movement.fractionalY,
           ...(normalizedPosition
             ? {
                 x: normalizedPosition.x,
