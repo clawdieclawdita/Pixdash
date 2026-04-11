@@ -18,6 +18,32 @@ import type { MovementState } from '@/types';
 // This avoids Zustand updates for high-frequency position data
 export const smoothPositionTargets = new Map<string, { x: number; y: number }>();
 
+// Throttle Zustand state updates from high-frequency movement events.
+// Only update store at ~8Hz regardless of backend broadcast rate.
+const agentMovementBuffer = new Map<string, any>();
+let lastStoreFlush = 0;
+const STORE_FLUSH_INTERVAL_MS = 125; // ~8Hz
+
+function flushMovementBuffer(updateAgentFn: (update: any) => void) {
+  const now = performance.now();
+  if (now - lastStoreFlush < STORE_FLUSH_INTERVAL_MS) return false;
+  for (const [, update] of agentMovementBuffer) {
+    updateAgentFn(update);
+  }
+  agentMovementBuffer.clear();
+  lastStoreFlush = now;
+  return true;
+}
+
+function bufferMovementUpdate(agentId: string, update: any, updateAgentFn: (update: any) => void) {
+  agentMovementBuffer.set(agentId, update);
+  // If this is a terminal state change (seated, idle, arrived), flush immediately
+  const movement = update.movement;
+  if (movement && movement.status !== 'moving') {
+    flushMovementBuffer(updateAgentFn);
+  }
+}
+
 // Module-level waypoint lookup for movement handoff state inference
 const _waypointSet = createWaypointSet();
 const _allWaypoints = getAllWaypoints(_waypointSet);
@@ -250,7 +276,9 @@ export function useAgents() {
           smoothPositionTargets.delete(payload.agentId);
         }
 
-        updateAgent({
+        // Buffer the Zustand state update — only flush at ~8Hz for moving agents.
+        // Terminal states (seated, idle) flush immediately.
+        bufferMovementUpdate(payload.agentId, {
           id: payload.agentId,
           movement: payload.movement,
           position: normalizedPosition ?? undefined,
@@ -280,7 +308,7 @@ export function useAgents() {
           targetY: destination?.y ?? null,
           visualOffsetX: payload.movement.visualOffsetX ?? (payload.movement.status === 'moving' ? 0 : undefined),
           visualOffsetY: payload.movement.visualOffsetY ?? (payload.movement.status === 'moving' ? 0 : undefined),
-        });
+        }, updateAgent);
 
         if (releasedBackendAuthority && currentAgent) {
           // Backend movement finished. If backend left a claimedWaypointId,
