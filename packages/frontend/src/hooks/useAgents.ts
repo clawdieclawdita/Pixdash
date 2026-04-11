@@ -247,9 +247,17 @@ export function useAgents() {
             : {}),
           movementState: payload.movement.status === 'moving'
             ? 'walking'
-            : releasedBackendAuthority
-              ? 'standing'
-              : undefined,
+            : payload.movement.status === 'seated'
+              ? (() => {
+                  const wpType = payload.movement.waypointType;
+                  const agentStatus = currentAgent?.status ?? 'idle';
+                  if (wpType === 'desk') return agentStatus === 'working' ? 'seated-working' : 'seated-idle';
+                  if (wpType === 'conference') return 'seated-conference';
+                  return 'seated-idle';
+                })()
+              : releasedBackendAuthority
+                ? 'standing'
+                : undefined,
           claimedWaypointId: payload.movement.claimedWaypointId ?? null,
           path: payload.movement.path,
           targetX: destination?.x ?? null,

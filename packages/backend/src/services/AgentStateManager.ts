@@ -87,10 +87,14 @@ export class AgentStateManager {
   private readonly settledBroadcastInterval: NodeJS.Timeout;
   private readonly lastMovementBroadcast = new Map<string, number>();
   private readonly waypoints: BackendWaypoint[];
+  private readonly gridWidth: number;
+  private readonly gridHeight: number;
   private readonly movementEngine: MovementEngine;
 
   constructor(private readonly appearanceStore: AppearanceStore, officeLayout: Tilemap) {
     this.waypoints = cloneBackendWaypoints();
+    this.gridWidth = officeLayout.width;
+    this.gridHeight = officeLayout.height;
     this.movementEngine = new MovementEngine(
       officeLayout.walkable ?? [],
       this.waypoints,
@@ -331,6 +335,14 @@ export class AgentStateManager {
   }
 
   emitMovement(agent: Agent): void {
+    // Clamp position to valid grid bounds before broadcasting
+    const clampedX = Math.max(0, Math.min(agent.position.x, this.gridWidth - 1));
+    const clampedY = Math.max(0, Math.min(agent.position.y, this.gridHeight - 1));
+    if (clampedX !== agent.position.x || clampedY !== agent.position.y) {
+      console.warn(`[AgentStateManager] Clamped agent ${agent.id} position from (${agent.position.x},${agent.position.y}) to (${clampedX},${clampedY})`);
+      agent.position.x = clampedX;
+      agent.position.y = clampedY;
+    }
     this.lastMovementBroadcast.set(agent.id, Date.now());
     this.broadcast('agent:movement', {
       agentId: agent.id,

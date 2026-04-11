@@ -58,17 +58,13 @@ const normalizeAppearance = (appearance?: Agent['appearance']): Appearance => ({
 
 export const normalizeIncomingPosition = (position?: Position | null): Position | null => {
   if (isFiniteNumber(position?.x) && isFiniteNumber(position?.y)) {
-    const px = position.x;
-    const py = position.y;
+    let px = position.x;
+    let py = position.y;
 
-    // Backend now sends collision-grid tile coords (0-75, 0-56).
-    // If values exceed the grid, treat as pixel coords.
-    if (px > 75 || py > 56 || (px > 32 && py > 32)) {
-      return {
-        x: px,
-        y: py,
-        direction: position.direction ?? DEFAULT_POSITION.direction,
-      };
+    // Clamp to valid grid bounds — negative or out-of-range coordinates
+    // indicate corrupted state. Reject them rather than passing through.
+    if (px < 0 || py < 0 || px > 75 || py > 56) {
+      return null;
     }
 
     const pixelPosition = tileToPixelCenter({ x: px, y: py });

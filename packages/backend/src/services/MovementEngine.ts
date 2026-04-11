@@ -116,6 +116,11 @@ export class MovementEngine {
       const arrived = remainingPath.length === 0;
       const waypoint = movement.claimedWaypointId ? this.agentStateManager.findWaypointById(movement.claimedWaypointId) : null;
 
+      // On arrival, face the waypoint direction (desk chair, reception seat, etc.)
+      if (arrived && waypoint) {
+        agent.position.direction = waypoint.direction;
+      }
+
       agent.movement = {
         ...movement,
         status: arrived && waypoint && SEATED_TYPES.has(waypoint.type) ? 'seated' : arrived ? 'idle' : 'moving',
@@ -246,16 +251,19 @@ export class MovementEngine {
 
   /**
    * Validate all agent positions. If any agent is on a non-walkable tile
-   * and not currently moving, snap them to the nearest walkable tile.
+   * and not currently mid-path, snap them to the nearest walkable tile.
    */
   private validatePositions(): void {
     for (const agent of this.agentStateManager.getMutableAgents()) {
-      if (agent.movement?.status === 'moving') {
-        continue; // Don't interfere with agents actively pathfinding
+      // Skip agents actively stepping through a path — they may
+      // briefly pass through tiles that appear blocked due to rounding,
+      // but pathfinding guarantees the full path is valid.
+      if (agent.movement?.status === 'moving' && (agent.movement?.path?.length ?? 0) > 0) {
+        continue;
       }
 
       const { x, y } = agent.position;
-      if (this.walkable[y]?.[x]) {
+      if (x >= 0 && y >= 0 && this.walkable[y]?.[x]) {
         continue; // Position is valid
       }
 
