@@ -195,7 +195,7 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
 };
 
 export class AgentRenderer {
-  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null) {
+  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, { x: number; y: number }>) {
     const ordered = [...agents].sort((a, b) => a.y - b.y);
     const now = performance.now();
 
@@ -204,8 +204,9 @@ export class AgentRenderer {
       const frames = getSpriteFrames(agent);
       if (!frames) return;
 
-      const px = agent.interpolatedX ?? agent.x;
-      const py = agent.interpolatedY ?? agent.y;
+      const override = renderOverrides?.get(agent.id);
+      const px = override ? override.x : (agent.interpolatedX ?? agent.x);
+      const py = override ? override.y : (agent.interpolatedY ?? agent.y);
       const direction = agent.direction ?? 'south';
       const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
       const sprite = frames[direction][getWalkFrameIndex(isMoving)];

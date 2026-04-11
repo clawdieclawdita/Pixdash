@@ -25,6 +25,10 @@ const loadImage = (src: string) =>
     image.src = src;
   });
 
+// Per-frame smooth position cache — updated by draw loop, NOT Zustand
+const smoothPositions = new Map<string, { x: number; y: number; targetX: number; targetY: number }>();
+const LERP_SPEED = 0.35; // 0 = no movement, 1 = instant snap
+
 export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -143,7 +147,42 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       ctx.fillRect(0, 0, OFFICE_WIDTH, OFFICE_HEIGHT);
     }
 
-    agentRenderer.render(ctx, currentAgents, selectedAgentId);
+    // Per-frame smooth interpolation toward backend targets
+    const renderOverrides = new Map<string, { x: number; y: number }>();
+    for (const agent of currentAgents) {
+      const targetX = agent.interpolatedX ?? agent.x;
+      const targetY = agent.interpolatedY ?? agent.y;
+      const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
+
+      if (!isMoving) {
+        // Stationary — snap instantly, clear cache
+        smoothPositions.delete(agent.id);
+        continue;
+      }
+
+      let sp = smoothPositions.get(agent.id);
+      if (!sp || sp.targetX !== targetX || sp.targetY !== targetY) {
+        // New or changed target — start from current visual position
+        const fromX = sp?.x ?? targetX;
+        const fromY = sp?.y ?? targetY;
+        sp = { x: fromX, y: fromY, targetX, targetY };
+        smoothPositions.set(agent.id, sp);
+      }
+
+      // Lerp toward target
+      sp.x += (sp.targetX - sp.x) * LERP_SPEED;
+      sp.y += (sp.targetY - sp.y) * LERP_SPEED;
+
+      // Snap if close enough to avoid endless chasing
+      if (Math.abs(sp.targetX - sp.x) < 0.5 && Math.abs(sp.targetY - sp.y) < 0.5) {
+        sp.x = sp.targetX;
+        sp.y = sp.targetY;
+      }
+
+      renderOverrides.set(agent.id, { x: sp.x, y: sp.y });
+    }
+
+    agentRenderer.render(ctx, currentAgents, selectedAgentId, renderOverrides);
     ctx.restore();
   }, [agentRenderer, backgroundImage, selectedAgentId]);
 
