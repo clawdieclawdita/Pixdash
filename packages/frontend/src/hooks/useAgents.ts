@@ -10,7 +10,21 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { normalizeIncomingPosition, useAgentsStore } from '@/store/agentsStore';
 import { useUIStore } from '@/store/uiStore';
 import { useMovementStore, movementStore } from '@/store/movementStore';
-import { tileToPixelCenter } from '@/lib/movement';
+import { tileToPixelCenter, getArrivalStateForMovementType } from '@/lib/movement';
+import { createWaypointSet, getAllWaypoints } from '@/lib/waypoints';
+import type { MovementState } from '@/types';
+
+// Module-level waypoint lookup for movement handoff state inference
+const _waypointSet = createWaypointSet();
+const _allWaypoints = getAllWaypoints(_waypointSet);
+
+function inferMovementStateFromWaypoint(agentStatus: string, tileX: number, tileY: number): { movementState: MovementState } | null {
+  const wp = _allWaypoints.find((w) => w.x === tileX && w.y === tileY);
+  if (!wp) return null;
+  if (agentStatus === 'working' && wp.type !== 'desk') return null;
+  if (agentStatus === 'conference' && wp.type !== 'conference') return null;
+  return { movementState: getArrivalStateForMovementType(wp.type) };
+}
 import type { AgentMovementEventPayload } from '@pixdash/shared';
 
 type EventPayloadMap = {
@@ -229,10 +243,14 @@ export function useAgents() {
           // handleStatusChange (which may pick a different seat). Only fall
           // through to handleStatusChange when no waypoint is claimed.
           if (payload.movement.claimedWaypointId) {
-            // Agent stays where backend placed them — clear walking state only.
+            // Agent stays where backend placed them — derive correct seated state
+            // from the waypoint type instead of hardcoding seated-idle.
+            const agent = useAgentsStore.getState().agents.find((a) => a.id === payload.agentId);
+            const tile = { x: Math.round(payload.position.x), y: Math.round(payload.position.y) };
+            const inferred = inferMovementStateFromWaypoint(agent?.status ?? 'idle', tile.x, tile.y);
             updateAgent({
               id: payload.agentId,
-              movementState: 'seated-idle',
+              movementState: inferred?.movementState ?? 'seated-idle',
               path: [],
             });
           } else {
