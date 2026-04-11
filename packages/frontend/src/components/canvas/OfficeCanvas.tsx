@@ -6,6 +6,7 @@ import { CameraController } from './CameraController';
 import { useCanvas } from '@/hooks/useCanvas';
 import { useMovementStore } from '@/store/movementStore';
 import { agentsStore } from '@/store/agentsStore';
+import { smoothPositionTargets } from '@/hooks/useAgents';
 import { OFFICE_HEIGHT, OFFICE_WIDTH } from '@/lib/officeScene';
 
 interface OfficeCanvasProps {
@@ -150,15 +151,17 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     // Per-frame smooth interpolation toward backend targets
     const renderOverrides = new Map<string, { x: number; y: number }>();
     for (const agent of currentAgents) {
-      const targetX = agent.interpolatedX ?? agent.x;
-      const targetY = agent.interpolatedY ?? agent.y;
+      const target = smoothPositionTargets.get(agent.id);
       const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
 
-      if (!isMoving) {
+      if (!target || !isMoving) {
         // Stationary — snap instantly, clear cache
         smoothPositions.delete(agent.id);
         continue;
       }
+
+      const targetX = target.x;
+      const targetY = target.y;
 
       let sp = smoothPositions.get(agent.id);
       if (!sp || sp.targetX !== targetX || sp.targetY !== targetY) {

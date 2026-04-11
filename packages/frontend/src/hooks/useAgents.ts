@@ -14,6 +14,10 @@ import { tileToPixelCenter, getArrivalStateForMovementType } from '@/lib/movemen
 import { createWaypointSet, getAllWaypoints } from '@/lib/waypoints';
 import type { MovementState } from '@/types';
 
+// Shared smooth position map — written by WebSocket handler, read by canvas draw loop
+// This avoids Zustand updates for high-frequency position data
+export const smoothPositionTargets = new Map<string, { x: number; y: number }>();
+
 // Module-level waypoint lookup for movement handoff state inference
 const _waypointSet = createWaypointSet();
 const _allWaypoints = getAllWaypoints(_waypointSet);
@@ -234,12 +238,17 @@ export function useAgents() {
         const destination = payload.movement.destination ? tileToPixelCenter(payload.movement.destination) : null;
         const releasedBackendAuthority = hadBackendAuthority && !hasBackendAuthority;
 
+        // Write position target to smooth map (bypasses Zustand entirely)
+        if (payload.movement.fractionalX != null && payload.movement.fractionalY != null) {
+          smoothPositionTargets.set(payload.agentId, { x: payload.movement.fractionalX, y: payload.movement.fractionalY });
+        } else {
+          smoothPositionTargets.delete(payload.agentId);
+        }
+
         updateAgent({
           id: payload.agentId,
           movement: payload.movement,
           position: normalizedPosition ?? undefined,
-          interpolatedX: payload.movement.fractionalX,
-          interpolatedY: payload.movement.fractionalY,
           ...(normalizedPosition
             ? {
                 x: normalizedPosition.x,
