@@ -1,4 +1,5 @@
 import type { AgentPosition } from '@/types';
+import type { Direction } from '@pixdash/shared';
 import { getWalkFrameIndex } from '@/lib/movement';
 import { loadSpriteTemplate, pickSpriteTemplateFromAppearance, clearSpriteTemplateCache, type SpriteSheetFrames } from '@/lib/spriteSheets';
 
@@ -195,7 +196,7 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
 };
 
 export class AgentRenderer {
-  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, { x: number; y: number }>) {
+  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, { x: number; y: number; direction?: Direction }>) {
     const ordered = [...agents].sort((a, b) => a.y - b.y);
     const now = performance.now();
 
@@ -207,7 +208,10 @@ export class AgentRenderer {
       const override = renderOverrides?.get(agent.id);
       const px = override ? override.x : (agent.interpolatedX ?? agent.x);
       const py = override ? override.y : (agent.interpolatedY ?? agent.y);
-      const direction = agent.direction ?? 'south';
+      // Use velocity-derived direction for moving agents (bypasses throttled Zustand)
+      const direction = (override?.direction && (agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0))
+        ? override.direction
+        : (agent.direction ?? 'south');
       const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
       const sprite = frames[direction][getWalkFrameIndex(isMoving)];
       if (!sprite) return;
