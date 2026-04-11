@@ -224,7 +224,20 @@ export function useAgents() {
         });
 
         if (releasedBackendAuthority && currentAgent) {
-          void handleStatusChange(payload.agentId, currentAgent.status);
+          // Backend movement finished. If backend left a claimedWaypointId,
+          // settle directly at that waypoint instead of re-routing through
+          // handleStatusChange (which may pick a different seat). Only fall
+          // through to handleStatusChange when no waypoint is claimed.
+          if (payload.movement.claimedWaypointId) {
+            // Agent stays where backend placed them — clear walking state only.
+            updateAgent({
+              id: payload.agentId,
+              movementState: 'seated-idle',
+              path: [],
+            });
+          } else {
+            void handleStatusChange(payload.agentId, currentAgent.status);
+          }
         }
         break;
       }
