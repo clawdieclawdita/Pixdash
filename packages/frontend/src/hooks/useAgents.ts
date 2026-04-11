@@ -240,7 +240,12 @@ export function useAgents() {
 
         // Write position target to smooth map (bypasses Zustand entirely)
         if (payload.movement.fractionalX != null && payload.movement.fractionalY != null) {
-          smoothPositionTargets.set(payload.agentId, { x: payload.movement.fractionalX, y: payload.movement.fractionalY });
+          const fx = payload.movement.fractionalX;
+          const fy = payload.movement.fractionalY;
+          // Reject clearly invalid positions (negative, wildly out of bounds)
+          if (fx >= 0 && fy >= 0 && fx <= 2400 && fy <= 1792) {
+            smoothPositionTargets.set(payload.agentId, { x: fx, y: fy });
+          }
         } else {
           smoothPositionTargets.delete(payload.agentId);
         }

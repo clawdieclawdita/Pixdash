@@ -27,8 +27,9 @@ const loadImage = (src: string) =>
   });
 
 // Per-frame smooth position cache — updated by draw loop, NOT Zustand
-const smoothPositions = new Map<string, { x: number; y: number; targetX: number; targetY: number }>();
+const smoothPositions = new Map<string, { x: number; y: number; targetX: number; targetY: number; prevTargetX?: number; prevTargetY?: number; targetTime: number; prevTargetTime?: number }>();
 const LERP_SPEED = 0.35; // 0 = no movement, 1 = instant snap
+const EXTRAPOLATE_DURATION_MS = 120; // extrapolate beyond last known target for this long
 
 export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -148,39 +149,72 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       ctx.fillRect(0, 0, OFFICE_WIDTH, OFFICE_HEIGHT);
     }
 
-    // Per-frame smooth interpolation toward backend targets
+    // Per-frame smooth interpolation toward backend targets with extrapolation
     const renderOverrides = new Map<string, { x: number; y: number }>();
+    const now = performance.now();
+
     for (const agent of currentAgents) {
       const target = smoothPositionTargets.get(agent.id);
       const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
 
       if (!target || !isMoving) {
-        // Stationary — snap instantly, clear cache
         smoothPositions.delete(agent.id);
         continue;
       }
 
+      let sp = smoothPositions.get(agent.id);
       const targetX = target.x;
       const targetY = target.y;
 
-      let sp = smoothPositions.get(agent.id);
-      if (!sp || sp.targetX !== targetX || sp.targetY !== targetY) {
-        // New or changed target — start from current visual position
-        const fromX = sp?.x ?? targetX;
-        const fromY = sp?.y ?? targetY;
-        sp = { x: fromX, y: fromY, targetX, targetY };
+      if (!sp) {
+        // First frame for this agent — snap to target to avoid warp from spawn
+        sp = { x: targetX, y: targetY, targetX, targetY, targetTime: now };
         smoothPositions.set(agent.id, sp);
+        renderOverrides.set(agent.id, { x: sp.x, y: sp.y });
+        continue;
       }
 
-      // Lerp toward target
+      if (sp.targetX !== targetX || sp.targetY !== targetY) {
+        // New target from backend
+        sp.prevTargetX = sp.targetX;
+        sp.prevTargetY = sp.targetY;
+        sp.prevTargetTime = sp.targetTime;
+        sp.targetX = targetX;
+        sp.targetY = targetY;
+        sp.targetTime = now;
+      }
+
+      // Lerp toward the last known target
       sp.x += (sp.targetX - sp.x) * LERP_SPEED;
       sp.y += (sp.targetY - sp.y) * LERP_SPEED;
 
-      // Snap if close enough to avoid endless chasing
+      // Extrapolate beyond target using velocity from last two updates
+      const timeSinceTarget = now - sp.targetTime;
+      if (
+        timeSinceTarget > 30 &&
+        sp.prevTargetX != null && sp.prevTargetY != null && sp.prevTargetTime != null
+      ) {
+        const dt = sp.targetTime - sp.prevTargetTime;
+        if (dt > 0 && timeSinceTarget < EXTRAPOLATE_DURATION_MS) {
+          const vx = (sp.targetX - sp.prevTargetX) / dt;
+          const vy = (sp.targetY - sp.prevTargetY) / dt;
+          const extraTime = Math.min(timeSinceTarget - 30, EXTRAPOLATE_DURATION_MS - 30);
+          const exX = sp.targetX + vx * extraTime;
+          const exY = sp.targetY + vy * extraTime;
+          sp.x += (exX - sp.x) * 0.5;
+          sp.y += (exY - sp.y) * 0.5;
+        }
+      }
+
+      // Snap if close enough
       if (Math.abs(sp.targetX - sp.x) < 0.5 && Math.abs(sp.targetY - sp.y) < 0.5) {
         sp.x = sp.targetX;
         sp.y = sp.targetY;
       }
+
+      // Clamp to office bounds (pixel coords: 0 to 2400×1792)
+      sp.x = Math.max(0, Math.min(sp.x, 2400));
+      sp.y = Math.max(0, Math.min(sp.y, 1792));
 
       renderOverrides.set(agent.id, { x: sp.x, y: sp.y });
     }
