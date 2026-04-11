@@ -82,6 +82,7 @@ export class MovementEngine {
 
   wanderTick(): void {
     const now = Date.now();
+    this.validatePositions();
     for (const agent of this.agentStateManager.getMutableAgents()) {
       if (agent.status !== 'idle') {
         continue;
@@ -126,7 +127,6 @@ export class MovementEngine {
         waypointDirection: arrived ? waypoint?.direction : undefined,
       };
 
-      this.agentStateManager.broadcastPosition(agent);
       this.agentStateManager.emitMovement(agent);
 
       if (arrived && agent.status === 'idle') {
@@ -242,6 +242,59 @@ export class MovementEngine {
   scheduleWander(agentId: string): void {
     const delay = WANDER_DELAY_MIN_MS + Math.floor(Math.random() * (WANDER_DELAY_MAX_MS - WANDER_DELAY_MIN_MS + 1));
     this.wanderDueAt.set(agentId, Date.now() + delay);
+  }
+
+  /**
+   * Validate all agent positions. If any agent is on a non-walkable tile
+   * and not currently moving, snap them to the nearest walkable tile.
+   */
+  private validatePositions(): void {
+    for (const agent of this.agentStateManager.getMutableAgents()) {
+      if (agent.movement?.status === 'moving') {
+        continue; // Don't interfere with agents actively pathfinding
+      }
+
+      const { x, y } = agent.position;
+      if (this.walkable[y]?.[x]) {
+        continue; // Position is valid
+      }
+
+      // Find nearest walkable tile via BFS
+      const nearest = this.findNearestWalkable(x, y);
+      if (nearest) {
+        agent.position.x = nearest.x;
+        agent.position.y = nearest.y;
+        this.agentStateManager.emitMovement(agent);
+      }
+    }
+  }
+
+  private findNearestWalkable(startX: number, startY: number): { x: number; y: number } | null {
+    const visited = new Set<string>();
+    const queue: Array<{ x: number; y: number }> = [{ x: startX, y: startY }];
+    visited.add(`${startX},${startY}`);
+    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const [dx, dy] of dirs) {
+        const nx = current.x + dx;
+        const ny = current.y + dy;
+        if (nx < 0 || ny < 0 || ny >= this.walkable.length || nx >= (this.walkable[0]?.length ?? 0)) {
+          continue;
+        }
+        const key = `${nx},${ny}`;
+        if (visited.has(key)) {
+          continue;
+        }
+        visited.add(key);
+        if (this.walkable[ny][nx]) {
+          return { x: nx, y: ny };
+        }
+        queue.push({ x: nx, y: ny });
+      }
+    }
+    return null;
   }
 
   private collectTargetedWaypointIds(): Set<string> {

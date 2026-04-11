@@ -254,8 +254,8 @@ export function useAgents() {
           path: payload.movement.path,
           targetX: destination?.x ?? null,
           targetY: destination?.y ?? null,
-          visualOffsetX: payload.movement.status === 'moving' ? 0 : undefined,
-          visualOffsetY: payload.movement.status === 'moving' ? 0 : undefined,
+          visualOffsetX: payload.movement.visualOffsetX ?? (payload.movement.status === 'moving' ? 0 : undefined),
+          visualOffsetY: payload.movement.visualOffsetY ?? (payload.movement.status === 'moving' ? 0 : undefined),
         });
 
         if (releasedBackendAuthority && currentAgent) {

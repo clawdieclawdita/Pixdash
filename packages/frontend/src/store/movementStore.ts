@@ -96,9 +96,18 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     const now = performance.now();
 
     for (const agent of agents) {
-      // Backend-positioned agents: interpolate between prev and current position
-      // to smooth the visual transition between ~10Hz backend ticks.
-      if (agent.positionSource === 'backend' && agent.prevPositionTimestamp != null && agent.prevX != null && agent.prevY != null) {
+      // Only interpolate for agents actively walking (movement.state === 'moving').
+      // Seated/stationary agents render directly at their position — no interpolation needed.
+      // This prevents "moonwalking" caused by continuous micro-interpolation
+      // from position updates that arrive even when agents are stationary.
+      if (
+        agent.positionSource === 'backend'
+        && agent.prevPositionTimestamp != null
+        && agent.prevX != null
+        && agent.prevY != null
+        && agent.movement?.status === 'moving'
+        && (agent.path?.length ?? 0) > 0
+      ) {
         const INTERPOLATION_DURATION_MS = 120; // slightly longer than one 100ms tick
         const elapsed = now - agent.prevPositionTimestamp;
         const t = Math.min(1, elapsed / INTERPOLATION_DURATION_MS);
@@ -110,10 +119,17 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
           id: agent.id,
           interpolatedX: interpX,
           interpolatedY: interpY,
-          // Use the backend-provided direction explicitly instead of deriving
-          // from position deltas, which can be noisy during interpolation.
           direction: agent.direction,
         });
+      } else {
+        // Stationary agent — clear interpolation state, render at actual position
+        if (agent.interpolatedX != null || agent.interpolatedY != null) {
+          agentsStore.updateAgent({
+            id: agent.id,
+            interpolatedX: undefined,
+            interpolatedY: undefined,
+          });
+        }
       }
       // Server-authoritative: all agents are rendered from backend data.
       // No local pathfinding or movement advancement.
