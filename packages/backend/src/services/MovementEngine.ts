@@ -12,7 +12,7 @@ const WANDER_WEIGHTS: Array<{ type: BackendWaypointType; weight: number }> = [
   { type: 'dining', weight: 15 },
 ];
 
-const SEATED_TYPES = new Set<BackendWaypointType>(['desk', 'reception', 'restroom', 'conference']);
+const SEATED_TYPES = new Set<BackendWaypointType>(['desk', 'reception', 'restroom', 'conference', 'dining']);
 
 export class MovementEngine {
   private readonly wanderDueAt = new Map<string, number>();
@@ -39,7 +39,15 @@ export class MovementEngine {
     }
 
     if (newStatus === 'working') {
-      this.routeToCategory(agentId, 'desk');
+      const reserved = this.findReservedWaypoint(agentId);
+      if (reserved) {
+        if (!this.routeAgentToWaypoint(agentId, reserved)) {
+          // Reserved seat unreachable — fall through to regular desk
+          this.routeToCategory(agentId, 'desk');
+        }
+      } else {
+        this.routeToCategory(agentId, 'desk');
+      }
       return;
     }
 
@@ -51,7 +59,18 @@ export class MovementEngine {
       if (seatedWaypoint?.type === 'desk' && agent?.movement?.status === 'seated') {
         return;
       }
-      this.routeToCategory(agentId, 'desk');
+      // Online agents with reserved seats should stay there
+      if (seatedWaypoint?.reservedFor === agentId && agent?.movement?.status === 'seated') {
+        return;
+      }
+      const reserved = this.findReservedWaypoint(agentId);
+      if (reserved) {
+        if (!this.routeAgentToWaypoint(agentId, reserved)) {
+          this.routeToCategory(agentId, 'desk');
+        }
+      } else {
+        this.routeToCategory(agentId, 'desk');
+      }
       return;
     }
 
@@ -138,6 +157,10 @@ export class MovementEngine {
         this.scheduleWander(agent.id);
       }
     }
+  }
+
+  private findReservedWaypoint(agentId: string): BackendWaypoint | null {
+    return this.waypoints.find((wp) => wp.reservedFor === agentId) ?? null;
   }
 
   requestMove(agentId: string, waypointId?: string, destination?: { x: number; y: number }) {
