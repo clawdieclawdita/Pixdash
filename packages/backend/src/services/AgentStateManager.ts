@@ -146,6 +146,8 @@ export class AgentStateManager {
   private readonly canonicalWaypoints: CanonicalWaypoint[];
   private readonly movementInterval: NodeJS.Timeout;
   private readonly statusInterval: NodeJS.Timeout;
+  private readonly settledBroadcastInterval: NodeJS.Timeout;
+  private readonly lastMovementBroadcast = new Map<string, number>();
 
   constructor(private readonly appearanceStore: AppearanceStore, private readonly officeLayout: Tilemap) {
     this.canonicalWaypoints = createCanonicalWaypoints(officeLayout);
@@ -157,6 +159,10 @@ export class AgentStateManager {
       this.reevaluateStatuses();
     }, STATUS_REEVALUATION_INTERVAL_MS);
     this.statusInterval.unref?.();
+    this.settledBroadcastInterval = setInterval(() => {
+      this.broadcastSettledStates();
+    }, 5_000);
+    this.settledBroadcastInterval.unref?.();
   }
 
   async hydrateAppearance(agentId: string): Promise<void> {
@@ -455,6 +461,40 @@ export class AgentStateManager {
     }
   }
 
+  /**
+   * Periodically broadcast settled (non-moving) movement state for ALL agents.
+   * This ensures every connected tab stays in sync, even for agents that
+   * aren't actively walking. Uses a per-agent cooldown to avoid re-emitting
+   * for agents that already broadcast recently (e.g. via tickMovement).
+   */
+  private broadcastSettledStates(): void {
+    const now = Date.now();
+    const COOLDOWN_MS = 4_000; // slightly less than interval to always emit at least once
+
+    for (const agent of this.agents.values()) {
+      const lastBroadcast = this.lastMovementBroadcast.get(agent.id) ?? 0;
+      if (now - lastBroadcast < COOLDOWN_MS) {
+        continue;
+      }
+
+      const movement = agent.movement;
+      // Always emit for settled agents; skip agents already broadcasting via tickMovement
+      if (movement?.status === 'moving') {
+        continue;
+      }
+
+      this.lastMovementBroadcast.set(agent.id, now);
+      this.emitMovement(agent);
+    }
+
+    // Prune stale entries for removed agents
+    for (const id of this.lastMovementBroadcast.keys()) {
+      if (!this.agents.has(id)) {
+        this.lastMovementBroadcast.delete(id);
+      }
+    }
+  }
+
   private tickMovement(): void {
     for (const agent of this.agents.values()) {
       const movement = agent.movement;
@@ -485,6 +525,7 @@ export class AgentStateManager {
   }
 
   private emitMovement(agent: Agent): void {
+    this.lastMovementBroadcast.set(agent.id, Date.now());
     this.broadcast('agent:movement', {
       agentId: agent.id,
       movement: structuredClone(agent.movement ?? createInitialMovementState()),
