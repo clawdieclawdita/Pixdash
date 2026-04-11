@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type Direction, type Position, type MovementAuthorityState } from '@pixdash/shared';
 import type { Agent } from '@/lib/api';
-import { tileToPixelCenter } from '@/lib/movement';
-import { createWaypointSet } from '@/lib/waypoints';
+import { getArrivalStateForMovementType, pixelToTile, tileToPixelCenter } from '@/lib/movement';
+import { createWaypointSet, getAllWaypoints, type WaypointClaim } from '@/lib/waypoints';
 import type { AgentPathNode, MovementState } from '@/types';
 
 export type StoreAgent = Agent & {
@@ -23,7 +23,9 @@ export type StoreAgent = Agent & {
   positionSource: 'backend' | 'fallback';
 };
 
-const initialFallbackWaypoints = createWaypointSet().desks;
+const initialWaypointSet = createWaypointSet();
+const initialFallbackWaypoints = initialWaypointSet.desks;
+const allInitialWaypoints = getAllWaypoints(initialWaypointSet);
 const warnedAgentIds = new Set<string>();
 
 const warnMissingPosition = (agent: Agent) => {
@@ -112,6 +114,24 @@ const defaultMovementState = (status: Agent['status']): MovementState => {
   return 'standing';
 };
 
+const inferWaypointFromPosition = (agent: Agent, position: Position): WaypointClaim | null => {
+  const tile = pixelToTile(position.x, position.y);
+  const exactMatch = allInitialWaypoints.find((waypoint) => waypoint.x === tile.x && waypoint.y === tile.y) ?? null;
+  if (!exactMatch) {
+    return null;
+  }
+
+  if (agent.status === 'working' && exactMatch.type !== 'desk') {
+    return null;
+  }
+
+  if (agent.status === 'conference' && exactMatch.type !== 'conference') {
+    return null;
+  }
+
+  return exactMatch;
+};
+
 function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
   const positionSource = getPositionSource(agent);
   const position = positionSource === 'backend'
@@ -120,6 +140,10 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
   const appearance = normalizeAppearance(agent.appearance);
   const backendMovement = agent.movement;
   const destination = backendMovement?.destination ? tileToPixelCenter(backendMovement.destination) : null;
+  const inferredWaypoint = !hasBackendMovementAuthority(backendMovement) && positionSource === 'backend'
+    ? inferWaypointFromPosition(agent, position)
+    : null;
+  const settledMovementState = inferredWaypoint ? getArrivalStateForMovementType(inferredWaypoint.type) : defaultMovementState(agent.status);
 
   return {
     ...agent,
@@ -130,13 +154,13 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
     color: appearance.outfit.color,
     title: typeof agent.config?.title === 'string' ? agent.config.title : undefined,
     notes: typeof agent.config?.notes === 'string' ? agent.config.notes : undefined,
-    movementState: backendMovement?.status === 'moving' ? 'walking' : defaultMovementState(agent.status),
+    movementState: backendMovement?.status === 'moving' ? 'walking' : settledMovementState,
     targetX: destination?.x ?? null,
     targetY: destination?.y ?? null,
     path: backendMovement?.path ?? [],
-    claimedWaypointId: backendMovement?.claimedWaypointId ?? null,
-    visualOffsetX: 0,
-    visualOffsetY: 0,
+    claimedWaypointId: backendMovement?.claimedWaypointId ?? inferredWaypoint?.id ?? null,
+    visualOffsetX: inferredWaypoint?.visualOffsetX ?? 0,
+    visualOffsetY: inferredWaypoint?.visualOffsetY ?? 0,
     direction: position.direction,
     movement: backendMovement,
     positionSource,
