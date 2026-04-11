@@ -38,6 +38,8 @@ export interface AgentPosition {
   claimedWaypointId?: string | null;
   visualOffsetX?: number;
   visualOffsetY?: number;
+  interpolatedX?: number;
+  interpolatedY?: number;
 }
 
 export interface AgentProfile extends AgentPosition {

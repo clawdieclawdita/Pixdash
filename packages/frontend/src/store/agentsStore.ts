@@ -21,6 +21,12 @@ export type StoreAgent = Agent & {
   visualOffsetX?: number;
   visualOffsetY?: number;
   positionSource: 'backend' | 'fallback';
+  // Interpolation state for smooth backend position rendering
+  prevX?: number;
+  prevY?: number;
+  prevPositionTimestamp?: number;
+  interpolatedX?: number;
+  interpolatedY?: number;
 };
 
 const initialWaypointSet = createWaypointSet();
@@ -187,14 +193,11 @@ export const useAgentsStore = create<AgentsState>((set) => ({
         const backendAuthorityActive = hasBackendMovementAuthority(normalized.movement);
         const keepLocalPlacement = !backendAuthorityActive && (existing?.movementState === 'walking' || !!existing?.claimedWaypointId);
 
-        if (existing && existing.x !== normalized.x && existing.y !== normalized.y && !keepLocalPlacement) {
-          console.log('[PixDash Debug] setAgents position overwrite', JSON.stringify({
-            agentId: agent.id,
-            movementState: existing.movementState,
-            claimedWaypointId: existing.claimedWaypointId,
-            from: { x: existing.x, y: existing.y },
-            to: { x: normalized.x, y: normalized.y },
-          }));
+        // For backend-positioned agents, snapshot previous position for interpolation.
+        if (existing && normalized.positionSource === 'backend' && (existing.x !== normalized.x || existing.y !== normalized.y)) {
+          normalized.prevX = existing.interpolatedX ?? existing.x;
+          normalized.prevY = existing.interpolatedY ?? existing.y;
+          normalized.prevPositionTimestamp = performance.now();
         }
 
         return existing

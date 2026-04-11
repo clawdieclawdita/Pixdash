@@ -6,6 +6,7 @@ import {
   advanceAgentAlongPath,
   findNearestWalkableTile,
   getArrivalStateForMovementType,
+  getDirectionFromDelta,
   pixelToTile,
   tileToPixelCenter,
 } from '@/lib/movement';
@@ -655,9 +656,30 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
   tick: (deltaMs) => {
     const { waypoints } = get();
     const agents = agentsStore.getState().agents;
+    const now = performance.now();
 
     for (const agent of agents) {
-      // Backend-positioned agents are never moved by local tick logic.
+      // Backend-positioned agents: interpolate between prev and current position
+      // to smooth the visual transition between ~10Hz backend ticks.
+      if (agent.positionSource === 'backend' && agent.prevPositionTimestamp != null && agent.prevX != null && agent.prevY != null) {
+        const INTERPOLATION_DURATION_MS = 120; // slightly longer than one 100ms tick
+        const elapsed = now - agent.prevPositionTimestamp;
+        const t = Math.min(1, elapsed / INTERPOLATION_DURATION_MS);
+        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // ease-in-out quad
+        const interpX = agent.prevX + (agent.x - agent.prevX) * eased;
+        const interpY = agent.prevY + (agent.y - agent.prevY) * eased;
+
+        agentsStore.updateAgent({
+          id: agent.id,
+          interpolatedX: interpX,
+          interpolatedY: interpY,
+          direction: (agent.x !== agent.prevX || agent.y !== agent.prevY)
+            ? getDirectionFromDelta(agent.x - agent.prevX, agent.y - agent.prevY, agent.direction)
+            : agent.direction,
+        });
+        continue;
+      }
+      // Backend-positioned agents with no interpolation data: skip local logic
       if (agent.positionSource === 'backend') {
         continue;
       }

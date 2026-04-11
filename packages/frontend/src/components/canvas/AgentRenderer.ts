@@ -204,8 +204,8 @@ export class AgentRenderer {
       const frames = getSpriteFrames(agent);
       if (!frames) return;
 
-      const px = agent.x;
-      const py = agent.y;
+      const px = agent.interpolatedX ?? agent.x;
+      const py = agent.interpolatedY ?? agent.y;
       const direction = agent.direction ?? 'south';
       const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
       const sprite = frames[direction][getWalkFrameIndex(isMoving)];
@@ -258,8 +258,8 @@ export class AgentRenderer {
     const isSeated = agent.movementState?.startsWith('seated');
     const offsetPx = isSeated ? (agent.visualOffsetX ?? 0) : 0;
     const offsetPy = isSeated ? (agent.visualOffsetY ?? 0) : 0;
-    const spriteLeft = agent.x + offsetPx + SPRITE_OFFSET_X;
-    const spriteTop = agent.y + offsetPy + SPRITE_OFFSET_Y;
+    const spriteLeft = (agent.interpolatedX ?? agent.x) + offsetPx + SPRITE_OFFSET_X;
+    const spriteTop = (agent.interpolatedY ?? agent.y) + offsetPy + SPRITE_OFFSET_Y;
 
     return {
       left: spriteLeft,
