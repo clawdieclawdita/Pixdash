@@ -374,6 +374,8 @@ export class AgentStateManager {
 
     this.agents.set(id, agent);
     this.ensurePresence(id);
+    // New agents start as idle — schedule initial wander
+    this.movementEngine.scheduleWander(id);
     return agent;
   }
 

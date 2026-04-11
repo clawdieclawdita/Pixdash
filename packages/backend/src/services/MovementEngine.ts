@@ -239,7 +239,7 @@ export class MovementEngine {
     this.agentStateManager.emitMovement(agent);
   }
 
-  private scheduleWander(agentId: string): void {
+  scheduleWander(agentId: string): void {
     const delay = WANDER_DELAY_MIN_MS + Math.floor(Math.random() * (WANDER_DELAY_MAX_MS - WANDER_DELAY_MIN_MS + 1));
     this.wanderDueAt.set(agentId, Date.now() + delay);
   }
