@@ -67,6 +67,8 @@ const scheduleIdleWander = (agentId: string) => {
     const movementState = useMovementStore.getState();
     const agent = agentsStore.getState().agents.find((a) => a.id === agentId);
     if (!agent || (agent.status !== 'idle' && agent.status !== 'online')) return;
+    // Backend-positioned agents must never wander via local logic.
+    if (agent.positionSource === 'backend') return;
     // If agent is no longer seated (e.g. started walking from a status change), skip
     if (!agent.movementState?.startsWith('seated')) return;
     await movementState.handleStatusChange(agentId, 'idle', { forceWander: true });
@@ -337,6 +339,14 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     const agent = agentsStore.getState().agents.find((entry) => entry.id === agentId);
     if (!agent) {
       console.log(`[PixDash Debug] missing agent`, { agentId, status });
+      return;
+    }
+
+    // Agents whose position comes from the backend should never be moved
+    // by local pathfinding/wander logic — the backend owns their placement.
+    if (agent.positionSource === 'backend') {
+      agentsStore.updateAgent({ id: agentId, status });
+      console.log('[PixDash Debug] skipping local status change for backend-positioned agent', JSON.stringify({ agentId, status }));
       return;
     }
 
@@ -647,6 +657,10 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     const agents = agentsStore.getState().agents;
 
     for (const agent of agents) {
+      // Backend-positioned agents are never moved by local tick logic.
+      if (agent.positionSource === 'backend') {
+        continue;
+      }
       if (hasBackendMovementAuthority(agent.movement) || agent.movementState !== 'walking') {
         continue;
       }
