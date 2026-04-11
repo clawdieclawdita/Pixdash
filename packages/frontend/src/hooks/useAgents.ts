@@ -181,8 +181,23 @@ export function useAgents() {
       }
       case 'agent:movement': {
         const payload = lastEvent.payload as EventPayloadMap['agent:movement'];
+        const currentAgent = currentAgents.find((agent) => agent.id === payload.agentId);
+        const hadBackendAuthority = Boolean(
+          currentAgent?.movement
+          && (
+            currentAgent.movement.status === 'moving'
+            || currentAgent.movement.path.length > 0
+            || currentAgent.movement.destination != null
+            || currentAgent.movement.claimedWaypointId != null
+          ),
+        );
+        const hasBackendAuthority = payload.movement.status === 'moving'
+          || payload.movement.path.length > 0
+          || payload.movement.destination != null
+          || payload.movement.claimedWaypointId != null;
         const normalizedPosition = normalizeIncomingPosition(payload.position);
         const destination = payload.movement.destination ? tileToPixelCenter(payload.movement.destination) : null;
+        const releasedBackendAuthority = hadBackendAuthority && !hasBackendAuthority;
 
         updateAgent({
           id: payload.agentId,
@@ -195,7 +210,11 @@ export function useAgents() {
                 direction: normalizedPosition.direction,
               }
             : {}),
-          movementState: payload.movement.status === 'moving' ? 'walking' : undefined,
+          movementState: payload.movement.status === 'moving'
+            ? 'walking'
+            : releasedBackendAuthority
+              ? 'standing'
+              : undefined,
           claimedWaypointId: payload.movement.claimedWaypointId ?? null,
           path: payload.movement.path,
           targetX: destination?.x ?? null,
@@ -203,6 +222,10 @@ export function useAgents() {
           visualOffsetX: payload.movement.status === 'moving' ? 0 : undefined,
           visualOffsetY: payload.movement.status === 'moving' ? 0 : undefined,
         });
+
+        if (releasedBackendAuthority && currentAgent) {
+          void handleStatusChange(payload.agentId, currentAgent.status);
+        }
         break;
       }
       case 'agent:conference': {
