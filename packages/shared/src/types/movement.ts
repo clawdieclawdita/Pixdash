@@ -1,7 +1,7 @@
 import type { Direction, Position } from './agent.js';
 
-export type CanonicalWaypointType = 'spawn' | 'parking';
-export type MovementAuthorityStatus = 'idle' | 'moving';
+export type CanonicalWaypointType = 'spawn' | 'parking' | 'desk' | 'reception' | 'restroom' | 'conference' | 'dining';
+export type MovementAuthorityStatus = 'idle' | 'moving' | 'seated';
 
 export interface CanonicalWaypoint {
   id: string;
@@ -22,6 +22,10 @@ export interface MovementAuthorityState {
   destination?: MovementPathNode | null;
   path: MovementPathNode[];
   lastUpdatedAt: string;
+  visualOffsetX?: number;
+  visualOffsetY?: number;
+  waypointType?: string;
+  waypointDirection?: Direction;
 }
 
 export interface AgentMovementEventPayload {

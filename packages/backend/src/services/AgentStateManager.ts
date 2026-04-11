@@ -1,12 +1,14 @@
 import { EventEmitter } from 'node:events';
-import type { Agent, AgentLog, AgentTask, Appearance, AppearancePatch, CanonicalWaypoint, FrontendEventName, FrontendEventPayload, MoveAgentRequest, MovementAuthorityState, Tilemap } from '@pixdash/shared';
+import type { Agent, AgentLog, AgentTask, Appearance, AppearancePatch, FrontendEventName, FrontendEventPayload, MoveAgentRequest, MovementAuthorityState, Tilemap } from '@pixdash/shared';
 import { DEFAULT_APPEARANCE, DEFAULT_POSITION } from '@pixdash/shared';
+import type { BackendWaypoint } from '../data/waypoints.js';
+import { cloneBackendWaypoints } from '../data/waypoints.js';
+import { createNoGoTiles } from '../data/noGoTiles.js';
 import type { ConfigAgentSnapshot, GatewayConferenceEvent, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent } from '../types/index.js';
 import { AppearanceStore } from './AppearanceStore.js';
+import { MovementEngine } from './MovementEngine.js';
 
 const AGENT_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
-  // All positions verified walkable against blocked.png (brightness > 128)
-  // Spread across main corridor (rows 21-22)
   { x: 3, y: 22 },
   { x: 6, y: 22 },
   { x: 16, y: 22 },
@@ -35,8 +37,8 @@ function derivePosition(_id: string) {
   };
 }
 
-const IDLE_THRESHOLD_MS = 300_000; // 5 minutes
-const WORKING_GRACE_MS = 10_000; // 10 seconds, activity within this window = working
+const IDLE_THRESHOLD_MS = 300_000;
+const WORKING_GRACE_MS = 10_000;
 const STATUS_REEVALUATION_INTERVAL_MS = 30_000;
 const MOVEMENT_TICK_INTERVAL_MS = 350;
 
@@ -48,69 +50,6 @@ function createInitialMovementState(): MovementAuthorityState {
     path: [],
     lastUpdatedAt: new Date().toISOString(),
   };
-}
-
-function isWalkable(layout: Tilemap, x: number, y: number): boolean {
-  return Boolean(layout.walkable?.[y]?.[x]);
-}
-
-function createCanonicalWaypoints(layout: Tilemap): CanonicalWaypoint[] {
-  const spawnWaypoints = (layout.spawnPoints ?? []).map((point, index) => ({
-    id: `spawn-${index + 1}`,
-    x: point.x,
-    y: point.y,
-    type: 'spawn' as const,
-    claimedBy: null,
-  }));
-
-  const parkingWaypoints: CanonicalWaypoint[] = [];
-  for (let y = 0; y < layout.height; y += 1) {
-    for (let x = 0; x < layout.width; x += 1) {
-      if (!isWalkable(layout, x, y)) {
-        continue;
-      }
-      const key = `${x},${y}`;
-      const overlapsSpawn = spawnWaypoints.some((waypoint) => `${waypoint.x},${waypoint.y}` === key);
-      if (overlapsSpawn) {
-        continue;
-      }
-      if ((x + y) % 4 === 0) {
-        parkingWaypoints.push({
-          id: `parking-${x}-${y}`,
-          x,
-          y,
-          type: 'parking',
-          claimedBy: null,
-        });
-      }
-    }
-  }
-
-  return [...spawnWaypoints, ...parkingWaypoints];
-}
-
-function buildTilePath(layout: Tilemap, start: { x: number; y: number }, destination: { x: number; y: number }): Array<{ x: number; y: number }> {
-  const path: Array<{ x: number; y: number }> = [];
-  let currentX = start.x;
-  let currentY = start.y;
-
-  while (currentX !== destination.x) {
-    currentX += Math.sign(destination.x - currentX);
-    if (!isWalkable(layout, currentX, currentY)) {
-      return [];
-    }
-    path.push({ x: currentX, y: currentY });
-  }
-
-  while (currentY !== destination.y) {
-    currentY += Math.sign(destination.y - currentY);
-    if (!isWalkable(layout, currentX, currentY)) {
-      return [];
-    }
-    path.push({ x: currentX, y: currentY });
-  }
-
-  return path;
 }
 
 type AgentPresenceState = {
@@ -143,22 +82,32 @@ export class AgentStateManager {
   private readonly events = new EventEmitter();
   private readonly presence = new Map<string, AgentPresenceState>();
   private readonly activityDecayTimers = new Map<string, NodeJS.Timeout>();
-  private readonly canonicalWaypoints: CanonicalWaypoint[];
   private readonly movementInterval: NodeJS.Timeout;
   private readonly statusInterval: NodeJS.Timeout;
   private readonly settledBroadcastInterval: NodeJS.Timeout;
   private readonly lastMovementBroadcast = new Map<string, number>();
+  private readonly waypoints: BackendWaypoint[];
+  private readonly movementEngine: MovementEngine;
 
-  constructor(private readonly appearanceStore: AppearanceStore, private readonly officeLayout: Tilemap) {
-    this.canonicalWaypoints = createCanonicalWaypoints(officeLayout);
+  constructor(private readonly appearanceStore: AppearanceStore, officeLayout: Tilemap) {
+    this.waypoints = cloneBackendWaypoints();
+    this.movementEngine = new MovementEngine(
+      officeLayout.walkable ?? [],
+      this.waypoints,
+      createNoGoTiles(this.waypoints),
+      this,
+    );
+
     this.movementInterval = setInterval(() => {
-      this.tickMovement();
+      this.movementEngine.movementTick();
     }, MOVEMENT_TICK_INTERVAL_MS);
     this.movementInterval.unref?.();
+
     this.statusInterval = setInterval(() => {
       this.reevaluateStatuses();
     }, STATUS_REEVALUATION_INTERVAL_MS);
     this.statusInterval.unref?.();
+
     this.settledBroadcastInterval = setInterval(() => {
       this.broadcastSettledStates();
     }, 5_000);
@@ -217,6 +166,7 @@ export class AgentStateManager {
   applyStatusEvent(event: GatewayStatusEvent): void {
     const agent = this.ensureAgent(event.agentId);
     const presence = this.ensurePresence(event.agentId);
+    const previousStatus = agent.status;
     const isSyntheticSnapshot = event.source === 'presence_snapshot' || event.source === 'health_snapshot';
     const hasFreshActivity = typeof presence.lastActivityAt === 'number'
       && Math.max(0, Date.now() - presence.lastActivityAt) < WORKING_GRACE_MS;
@@ -242,6 +192,8 @@ export class AgentStateManager {
       status: derivedStatus,
       timestamp: agent.lastSeen,
     });
+
+    this.movementEngine.handleStatusChange(event.agentId, derivedStatus, previousStatus);
   }
 
   applyLogEvent(event: GatewayLogEvent): void {
@@ -277,6 +229,7 @@ export class AgentStateManager {
       return;
     }
 
+    this.movementEngine.handleConference(validAgentIds);
     this.broadcast('agent:conference', {
       agentIds: validAgentIds,
       sessionKey: event.sessionKey,
@@ -288,6 +241,7 @@ export class AgentStateManager {
   recordActivity(id: string, timestamp = Date.now()): void {
     const agent = this.ensureAgent(id);
     const presence = this.ensurePresence(id);
+    const previousStatus = agent.status;
     presence.explicitOffline = false;
     presence.baselineStatus = 'online';
     presence.lastActivityAt = timestamp;
@@ -299,6 +253,7 @@ export class AgentStateManager {
       timestamp: agent.lastSeen,
     });
     this.scheduleActivityDecay(id);
+    this.movementEngine.handleStatusChange(id, 'working', previousStatus);
   }
 
   async upsertAppearance(id: string, patch: AppearancePatch): Promise<Appearance> {
@@ -315,47 +270,85 @@ export class AgentStateManager {
       throw new Error('agentId is required');
     }
 
+    this.ensureAgent(agentId);
+    this.movementEngine.requestMove(agentId, request.waypointId, request.destination);
     const agent = this.ensureAgent(agentId);
-    const currentPosition = agent.position ?? DEFAULT_POSITION;
-    const start = { x: currentPosition.x, y: currentPosition.y };
-    const targetWaypoint = request.waypointId
-      ? this.canonicalWaypoints.find((waypoint) => waypoint.id === request.waypointId)
-      : undefined;
-    const destination = targetWaypoint ?? request.destination;
+    return { ok: true, agent: structuredClone(agent) };
+  }
 
-    if (!destination) {
-      throw new Error('destination or waypointId is required');
-    }
-    if (!isWalkable(this.officeLayout, destination.x, destination.y)) {
-      throw new Error(`destination ${destination.x},${destination.y} is not walkable`);
-    }
-    if (targetWaypoint?.claimedBy && targetWaypoint.claimedBy !== agentId) {
-      throw new Error(`waypoint ${targetWaypoint.id} is already claimed by ${targetWaypoint.claimedBy}`);
-    }
+  getMutableAgents(): Agent[] {
+    return [...this.agents.values()];
+  }
 
-    const path = buildTilePath(this.officeLayout, start, destination);
-    if (start.x !== destination.x || start.y !== destination.y) {
-      if (path.length === 0) {
-        throw new Error(`no backend path available from ${start.x},${start.y} to ${destination.x},${destination.y}`);
-      }
-      agent.position.direction = this.directionFromStep(start, path[0]);
-    }
+  getMutableAgent(id: string): Agent | undefined {
+    return this.agents.get(id);
+  }
 
-    this.releaseWaypointClaim(agent.movement?.claimedWaypointId, agentId);
-    if (targetWaypoint) {
-      targetWaypoint.claimedBy = agentId;
+  findWaypointById(waypointId: string | null | undefined): BackendWaypoint | null {
+    if (!waypointId) {
+      return null;
     }
+    return this.waypoints.find((waypoint) => waypoint.id === waypointId) ?? null;
+  }
 
+  claimWaypoint(waypoint: BackendWaypoint, agentId: string): void {
+    waypoint.claimedBy = agentId;
+  }
+
+  releaseWaypointClaim(waypointId: string | null | undefined, agentId: string): void {
+    if (!waypointId) {
+      return;
+    }
+    const waypoint = this.findWaypointById(waypointId);
+    if (waypoint?.claimedBy === agentId) {
+      waypoint.claimedBy = null;
+    }
+  }
+
+  applyMovement(agent: Agent, path: Array<{ x: number; y: number }>, waypoint: BackendWaypoint | null, destination: { x: number; y: number }): void {
+    const nextDirection = path.length > 0 ? this.directionFromStep(agent.position, path[0]) : waypoint?.direction ?? agent.position.direction ?? 'south';
+    agent.position.direction = nextDirection;
     agent.movement = {
-      status: path.length > 0 ? 'moving' : 'idle',
-      claimedWaypointId: targetWaypoint?.id ?? null,
-      destination: { x: destination.x, y: destination.y },
+      status: path.length > 0 ? 'moving' : waypoint ? 'seated' : 'idle',
+      claimedWaypointId: waypoint?.id ?? null,
+      destination,
       path,
       lastUpdatedAt: new Date().toISOString(),
+      visualOffsetX: waypoint?.visualOffsetX,
+      visualOffsetY: waypoint?.visualOffsetY,
+      waypointType: waypoint?.type,
+      waypointDirection: path.length > 0 ? undefined : waypoint?.direction,
     };
-
     this.emitMovement(agent);
-    return { ok: true, agent: structuredClone(agent) };
+  }
+
+  broadcastPosition(agent: Agent): void {
+    this.broadcast('agent:position', {
+      agentId: agent.id,
+      position: structuredClone(agent.position),
+      direction: agent.position.direction,
+    });
+  }
+
+  emitMovement(agent: Agent): void {
+    this.lastMovementBroadcast.set(agent.id, Date.now());
+    this.broadcast('agent:movement', {
+      agentId: agent.id,
+      movement: structuredClone(agent.movement ?? createInitialMovementState()),
+      position: structuredClone(agent.position),
+    });
+  }
+
+  directionFromStep(from: { x: number; y: number; direction?: Agent['position']['direction'] }, to: { x: number; y: number }): Agent['position']['direction'] {
+    const deltaX = to.x - from.x;
+    const deltaY = to.y - from.y;
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      return deltaX >= 0 ? 'east' : 'west';
+    }
+    if (deltaY !== 0) {
+      return deltaY >= 0 ? 'south' : 'north';
+    }
+    return from.direction ?? 'south';
   }
 
   private ensureAgent(id: string, name?: string): Agent {
@@ -371,18 +364,13 @@ export class AgentStateManager {
       occupied.add(`${existingAgent.position.x},${existingAgent.position.y}`);
     }
 
-    // Find an unoccupied spawn position
-    const availableSpawns = AGENT_SPAWN_POSITIONS.filter(
-      (pos) => !occupied.has(`${pos.x},${pos.y}`)
-    );
-
+    const availableSpawns = AGENT_SPAWN_POSITIONS.filter((pos) => !occupied.has(`${pos.x},${pos.y}`));
     if (availableSpawns.length > 0) {
       const index = Math.floor(Math.random() * availableSpawns.length);
       const spawnPos = availableSpawns[index];
       agent.position.x = spawnPos.x;
       agent.position.y = spawnPos.y;
     }
-    // If all spawns are occupied, keep the derivePosition result
 
     this.agents.set(id, agent);
     this.ensurePresence(id);
@@ -447,6 +435,7 @@ export class AgentStateManager {
         continue;
       }
 
+      const previousStatus = agent.status;
       const nextStatus = this.deriveStatus(id, now);
       if (agent.status === nextStatus) {
         continue;
@@ -458,28 +447,21 @@ export class AgentStateManager {
         status: nextStatus,
         timestamp: agent.lastSeen,
       });
+      this.movementEngine.handleStatusChange(id, nextStatus, previousStatus);
     }
   }
 
-  /**
-   * Periodically broadcast settled (non-moving) movement state for ALL agents.
-   * This ensures every connected tab stays in sync, even for agents that
-   * aren't actively walking. Uses a per-agent cooldown to avoid re-emitting
-   * for agents that already broadcast recently (e.g. via tickMovement).
-   */
   private broadcastSettledStates(): void {
     const now = Date.now();
-    const COOLDOWN_MS = 4_000; // slightly less than interval to always emit at least once
+    const cooldownMs = 4_000;
 
     for (const agent of this.agents.values()) {
       const lastBroadcast = this.lastMovementBroadcast.get(agent.id) ?? 0;
-      if (now - lastBroadcast < COOLDOWN_MS) {
+      if (now - lastBroadcast < cooldownMs) {
         continue;
       }
 
-      const movement = agent.movement;
-      // Always emit for settled agents; skip agents already broadcasting via tickMovement
-      if (movement?.status === 'moving') {
+      if (agent.movement?.status === 'moving') {
         continue;
       }
 
@@ -487,72 +469,11 @@ export class AgentStateManager {
       this.emitMovement(agent);
     }
 
-    // Prune stale entries for removed agents
     for (const id of this.lastMovementBroadcast.keys()) {
       if (!this.agents.has(id)) {
         this.lastMovementBroadcast.delete(id);
       }
     }
-  }
-
-  private tickMovement(): void {
-    for (const agent of this.agents.values()) {
-      const movement = agent.movement;
-      if (!movement || movement.path.length === 0) {
-        continue;
-      }
-
-      const [nextStep, ...remainingPath] = movement.path;
-      agent.position = {
-        x: nextStep.x,
-        y: nextStep.y,
-        direction: this.directionFromStep(agent.position, nextStep),
-      };
-      agent.movement = {
-        ...movement,
-        status: remainingPath.length > 0 ? 'moving' : 'idle',
-        path: remainingPath,
-        lastUpdatedAt: new Date().toISOString(),
-      };
-
-      this.broadcast('agent:position', {
-        agentId: agent.id,
-        position: structuredClone(agent.position),
-        direction: agent.position.direction,
-      });
-      this.emitMovement(agent);
-    }
-  }
-
-  private emitMovement(agent: Agent): void {
-    this.lastMovementBroadcast.set(agent.id, Date.now());
-    this.broadcast('agent:movement', {
-      agentId: agent.id,
-      movement: structuredClone(agent.movement ?? createInitialMovementState()),
-      position: structuredClone(agent.position),
-    });
-  }
-
-  private releaseWaypointClaim(waypointId: string | null | undefined, agentId: string): void {
-    if (!waypointId) {
-      return;
-    }
-    const waypoint = this.canonicalWaypoints.find((entry) => entry.id === waypointId);
-    if (waypoint?.claimedBy === agentId) {
-      waypoint.claimedBy = null;
-    }
-  }
-
-  private directionFromStep(from: { x: number; y: number; direction?: Agent['position']['direction'] }, to: { x: number; y: number }): Agent['position']['direction'] {
-    const deltaX = to.x - from.x;
-    const deltaY = to.y - from.y;
-    if (Math.abs(deltaX) > Math.abs(deltaY)) {
-      return deltaX >= 0 ? 'east' : 'west';
-    }
-    if (deltaY !== 0) {
-      return deltaY >= 0 ? 'south' : 'north';
-    }
-    return from.direction ?? 'south';
   }
 
   private broadcast(event: FrontendEventName, payload: FrontendEventPayload): void {
