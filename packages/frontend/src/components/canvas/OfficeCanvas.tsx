@@ -113,8 +113,6 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, []);
 
-  const tickMovement = useMovementStore((state) => state.tick);
-
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -149,8 +147,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     ctx.restore();
   }, [agentRenderer, backgroundImage, selectedAgentId]);
 
-  useCanvas((deltaMs) => {
-    tickMovement(deltaMs);
+  useCanvas(() => {
     draw();
   });
 

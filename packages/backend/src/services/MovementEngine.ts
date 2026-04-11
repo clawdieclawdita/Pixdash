@@ -14,7 +14,7 @@ const WANDER_WEIGHTS: Array<{ type: BackendWaypointType; weight: number }> = [
 
 const SEATED_TYPES = new Set<BackendWaypointType>(['desk', 'reception', 'restroom', 'conference', 'dining']);
 const TICK_INTERVAL_MS = 50;
-const MOVEMENT_SPEED_TILES_PER_SECOND = 3;
+const MOVEMENT_SPEED_TILES_PER_SECOND = 5;
 const PROGRESS_INCREMENT = (TICK_INTERVAL_MS / 1000) * MOVEMENT_SPEED_TILES_PER_SECOND;
 
 export class MovementEngine {
