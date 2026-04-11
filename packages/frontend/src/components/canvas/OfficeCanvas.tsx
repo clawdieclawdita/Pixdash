@@ -46,10 +46,15 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
 
   const agentRenderer = useMemo(() => new AgentRenderer(), []);
   const agentsRef = useRef(agents);
+  const onAgentSelectRef = useRef(onAgentSelect);
 
   useEffect(() => {
     agentsRef.current = agents;
   }, [agents]);
+
+  useEffect(() => {
+    onAgentSelectRef.current = onAgentSelect;
+  }, [onAgentSelect]);
 
   const syncCanvasSize = useCallback((recenter = false) => {
     const canvas = canvasRef.current;
@@ -162,6 +167,12 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
 
       if (!target || !isMoving) {
+        // Agent stopped moving — keep the last smooth position for one frame
+        // to avoid falling back to stale Zustand data
+        const lastSp = smoothPositions.get(agent.id);
+        if (lastSp) {
+          renderOverrides.set(agent.id, { x: lastSp.x, y: lastSp.y });
+        }
         smoothPositions.delete(agent.id);
         smoothDirections.delete(agent.id);
         continue;
@@ -347,7 +358,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         console.log('===================');
         setClickCoords({ px: Math.round(worldPoint.x), py: Math.round(worldPoint.y), tileX, tileY });
         const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agentsRef.current);
-        onAgentSelect?.(clickedAgent);
+        onAgentSelectRef.current?.(clickedAgent);
       }
 
       if (activePointerId !== null && canvas.hasPointerCapture(activePointerId)) {
@@ -376,7 +387,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       window.removeEventListener('pointerup', endPointerInteraction);
       window.removeEventListener('pointercancel', endPointerInteraction);
     };
-  }, [pointerPosition, worldPosition, agentRenderer, onAgentSelect]);
+  }, [pointerPosition, worldPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div ref={hostRef} className="relative h-full overflow-hidden rounded-[28px] border border-white/10 bg-black/30 shadow-panel shadow-black/40">

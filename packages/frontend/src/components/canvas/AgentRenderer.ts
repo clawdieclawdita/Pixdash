@@ -208,6 +208,8 @@ export class AgentRenderer {
       const override = renderOverrides?.get(agent.id);
       const px = override ? override.x : (agent.interpolatedX ?? agent.x);
       const py = override ? override.y : (agent.interpolatedY ?? agent.y);
+      // Skip rendering if position is clearly invalid (negative/off-map)
+      if (px < -100 || py < -100 || px > 2500 || py > 1900) return;
       // Use velocity-derived direction for moving agents (bypasses throttled Zustand)
       const direction = (override?.direction && (agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0))
         ? override.direction
