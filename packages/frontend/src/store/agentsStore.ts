@@ -20,6 +20,7 @@ export type StoreAgent = Agent & {
   direction?: Direction;
   visualOffsetX?: number;
   visualOffsetY?: number;
+  positionSource: 'backend' | 'fallback';
 };
 
 const initialFallbackWaypoints = createWaypointSet().desks;
@@ -89,6 +90,10 @@ const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
   };
 };
 
+const getPositionSource = (agent: Agent): 'backend' | 'fallback' => (
+  normalizeIncomingPosition(agent.position) ? 'backend' : 'fallback'
+);
+
 export const hasBackendMovementAuthority = (
   movement?: MovementAuthorityState | null,
 ): movement is MovementAuthorityState => {
@@ -108,7 +113,10 @@ const defaultMovementState = (status: Agent['status']): MovementState => {
 };
 
 function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
-  const position = normalizePosition(agent, fallbackIndex);
+  const positionSource = getPositionSource(agent);
+  const position = positionSource === 'backend'
+    ? (normalizeIncomingPosition(agent.position) as Position)
+    : normalizePosition(agent, fallbackIndex);
   const appearance = normalizeAppearance(agent.appearance);
   const backendMovement = agent.movement;
   const destination = backendMovement?.destination ? tileToPixelCenter(backendMovement.destination) : null;
@@ -131,6 +139,7 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
     visualOffsetY: 0,
     direction: position.direction,
     movement: backendMovement,
+    positionSource,
   };
 }
 

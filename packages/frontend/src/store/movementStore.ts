@@ -269,7 +269,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     });
 
     for (const agent of sortedAgents) {
-      if (hasBackendMovementAuthority(agent.movement)) {
+      if (hasBackendMovementAuthority(agent.movement) || agent.positionSource === 'backend') {
         continue;
       }
 
