@@ -19,6 +19,8 @@ const PROGRESS_INCREMENT = (TICK_INTERVAL_MS / 1000) * MOVEMENT_SPEED_TILES_PER_
 
 export class MovementEngine {
   private readonly wanderDueAt = new Map<string, number>();
+  /** Tiles currently occupied by non-moving agents (seated/idle). Moving agents are tracked separately. */
+  private readonly occupiedTiles = new Map<string, string>(); // "x,y" -> agentId
 
   constructor(
     private readonly walkable: boolean[][],
@@ -26,6 +28,54 @@ export class MovementEngine {
     private readonly noGoTiles: Set<string>,
     private readonly agentStateManager: AgentStateManager,
   ) {}
+
+  /**
+   * Record an agent as occupying a tile. Removes any previous tile for that agent.
+   */
+  private setOccupied(agentId: string, x: number, y: number): void {
+    // Remove previous tile
+    for (const [key, id] of this.occupiedTiles) {
+      if (id === agentId) {
+        this.occupiedTiles.delete(key);
+        break;
+      }
+    }
+    this.occupiedTiles.set(`${x},${y}`, agentId);
+  }
+
+  /**
+   * Remove an agent's tile occupancy.
+   */
+  private clearOccupied(agentId: string): void {
+    for (const [key, id] of this.occupiedTiles) {
+      if (id === agentId) {
+        this.occupiedTiles.delete(key);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Check if a tile is occupied by another agent.
+   */
+  private isTileOccupiedByOther(x: number, y: number, agentId: string): boolean {
+    const occupant = this.occupiedTiles.get(`${x},${y}`);
+    return occupant !== undefined && occupant !== agentId;
+  }
+
+  /**
+   * Rebuild the occupied-tiles map from current agent state.
+   * Called periodically to stay in sync.
+   */
+  syncOccupancy(): void {
+    this.occupiedTiles.clear();
+    for (const agent of this.agentStateManager.getMutableAgents()) {
+      // Only track non-moving agents as tile occupants
+      if (agent.movement?.status !== 'moving') {
+        this.occupiedTiles.set(`${agent.position.x},${agent.position.y}`, agent.id);
+      }
+    }
+  }
 
   handleStatusChange(agentId: string, newStatus: AgentStatus, previousStatus: AgentStatus): void {
     if (newStatus === previousStatus) {
@@ -104,6 +154,8 @@ export class MovementEngine {
 
   wanderTick(): void {
     const now = Date.now();
+    // Keep occupancy map in sync with current agent state
+    this.syncOccupancy();
     this.validatePositions();
     for (const agent of this.agentStateManager.getMutableAgents()) {
       if (agent.status !== 'idle') {
@@ -144,10 +196,28 @@ export class MovementEngine {
         progress -= 1;
       }
 
-      agent.position = currentPosition;
-
       const nextStep = path[0];
       const arrived = path.length === 0;
+
+      // While moving, clear our old tile occupancy (we're transient)
+      if (!arrived) {
+        this.clearOccupied(agent.id);
+      }
+
+      // Check if next step is occupied by another stationary agent — pause if so
+      if (!arrived && nextStep && this.isTileOccupiedByOther(nextStep.x, nextStep.y, agent.id)) {
+        // Don't advance — wait for the tile to clear, but update position to last valid step
+        agent.position = currentPosition;
+        agent.movement = {
+          ...movement,
+          progress: 0,
+          lastUpdatedAt: new Date().toISOString(),
+        };
+        this.agentStateManager.emitMovement(agent);
+        continue;
+      }
+
+      agent.position = currentPosition;
 
       if (!arrived && nextStep) {
         agent.position.direction = this.agentStateManager.directionFromStep(agent.position, nextStep);
@@ -174,8 +244,13 @@ export class MovementEngine {
 
       this.agentStateManager.emitMovement(agent);
 
-      if (arrived && agent.status === 'idle') {
-        this.scheduleWander(agent.id);
+      if (arrived) {
+        // Mark the arrival tile as occupied
+        this.setOccupied(agent.id, agent.position.x, agent.position.y);
+
+        if (agent.status === 'idle') {
+          this.scheduleWander(agent.id);
+        }
       }
     }
   }
@@ -225,7 +300,18 @@ export class MovementEngine {
     }
 
     const choice = this.pickWeightedCategory();
-    this.routeToCategory(agentId, choice);
+    const routed = this.routeToCategory(agentId, choice);
+    if (!routed) {
+      // All waypoints in this category are occupied — try other categories
+      const otherCategories = WANDER_WEIGHTS.filter(w => w.type !== choice).map(w => w.type);
+      for (const fallback of otherCategories) {
+        if (this.routeToCategory(agentId, fallback)) {
+          return;
+        }
+      }
+      // Truly nowhere to go — reschedule later
+      this.scheduleWander(agentId);
+    }
   }
 
   private routeToCategory(agentId: string, type: BackendWaypointType): boolean {
@@ -271,6 +357,11 @@ export class MovementEngine {
 
     if (releaseWaypoint && agent.movement.claimedWaypointId) {
       this.agentStateManager.releaseWaypointClaim(agent.movement.claimedWaypointId, agentId);
+    }
+
+    // Mark current position as occupied if we were moving
+    if (agent.movement.status === 'moving') {
+      this.setOccupied(agentId, agent.position.x, agent.position.y);
     }
 
     agent.movement = {
@@ -375,7 +466,10 @@ export class MovementEngine {
       if (excludeIds.has(waypoint.id)) {
         return false;
       }
-      return !waypoint.claimedBy || waypoint.claimedBy === agentId;
+      if (!waypoint.claimedBy || waypoint.claimedBy === agentId) {
+        return true;
+      }
+      return false;
     });
 
     if (available.length === 0) {
@@ -388,7 +482,10 @@ export class MovementEngine {
       return leftDistance - rightDistance;
     });
 
-    const top = sorted.slice(0, Math.min(sorted.length, 5));
+    // Filter out waypoints whose tile is occupied by another agent
+    const unoccupied = sorted.filter(wp => !this.isTileOccupiedByOther(wp.x, wp.y, agentId));
+    const pool = unoccupied.length > 0 ? unoccupied : sorted;
+    const top = pool.slice(0, Math.min(pool.length, 5));
     return top[Math.floor(Math.random() * top.length)] ?? null;
   }
 
