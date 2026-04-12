@@ -92,6 +92,14 @@ export class MovementEngine {
     }
 
     if (newStatus === 'working') {
+      // If already seated somewhere, stay put — don't reroute to desk
+      const agent = this.agentStateManager.getMutableAgent(agentId);
+      const currentWaypoint = agent?.movement?.claimedWaypointId
+        ? this.agentStateManager.findWaypointById(agent.movement.claimedWaypointId)
+        : null;
+      if (currentWaypoint && agent?.movement?.status === 'seated') {
+        return;
+      }
       const reserved = this.findReservedWaypoint(agentId);
       if (reserved) {
         if (!this.routeAgentToWaypoint(agentId, reserved)) {
@@ -109,11 +117,8 @@ export class MovementEngine {
       const seatedWaypoint = agent?.movement?.claimedWaypointId
         ? this.agentStateManager.findWaypointById(agent.movement.claimedWaypointId)
         : null;
-      if (seatedWaypoint?.type === 'desk' && agent?.movement?.status === 'seated') {
-        return;
-      }
-      // Online agents with reserved seats should stay there
-      if (seatedWaypoint?.reservedFor === agentId && agent?.movement?.status === 'seated') {
+      // Already seated anywhere — stay put
+      if (seatedWaypoint && agent?.movement?.status === 'seated') {
         return;
       }
       const reserved = this.findReservedWaypoint(agentId);

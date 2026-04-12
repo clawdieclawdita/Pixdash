@@ -28,9 +28,8 @@ const loadImage = (src: string) =>
   });
 
 // Per-frame smooth position cache — updated by draw loop, NOT Zustand
-const smoothPositions = new Map<string, { x: number; y: number; targetX: number; targetY: number; prevTargetX?: number; prevTargetY?: number; targetTime: number; prevTargetTime?: number }>();
+const smoothPositions = new Map<string, { x: number; y: number; targetX: number; targetY: number; prevTargetX?: number; prevTargetY?: number; targetTime: number }>();
 const LERP_SPEED = 0.35; // 0 = no movement, 1 = instant snap
-const EXTRAPOLATE_DURATION_MS = 120; // extrapolate beyond last known target for this long
 
 // Direction overrides computed from velocity — bypasses throttled Zustand
 const smoothDirections = new Map<string, Direction>();
@@ -164,7 +163,9 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
 
     for (const agent of currentAgents) {
       const target = smoothPositionTargets.get(agent.id);
-      const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
+      // Use target existence as the movement indicator — more reliable than
+      // throttled Zustand state which can lag up to 125ms behind reality.
+      const isMoving = !!target;
 
       if (!target || !isMoving) {
         // Agent stopped moving — keep the last smooth position for one frame
@@ -194,7 +195,6 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         // New target from backend — compute direction from movement vector
         sp.prevTargetX = sp.targetX;
         sp.prevTargetY = sp.targetY;
-        sp.prevTargetTime = sp.targetTime;
         sp.targetX = targetX;
         sp.targetY = targetY;
         sp.targetTime = now;
@@ -214,28 +214,6 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       // Lerp toward the last known target
       sp.x += (sp.targetX - sp.x) * LERP_SPEED;
       sp.y += (sp.targetY - sp.y) * LERP_SPEED;
-
-      // Extrapolate beyond target using velocity from last two updates
-      const timeSinceTarget = now - sp.targetTime;
-      if (
-        timeSinceTarget > 30 &&
-        sp.prevTargetX != null && sp.prevTargetY != null && sp.prevTargetTime != null
-      ) {
-        const dt = sp.targetTime - sp.prevTargetTime;
-        if (dt > 0 && timeSinceTarget < EXTRAPOLATE_DURATION_MS) {
-          const vx = (sp.targetX - sp.prevTargetX) / dt;
-          const vy = (sp.targetY - sp.prevTargetY) / dt;
-          // Only extrapolate if velocity is consistent (not a direction change)
-          const stepSize = Math.sqrt((sp.targetX - (sp.prevTargetX ?? sp.targetX)) ** 2 + (sp.targetY - (sp.prevTargetY ?? sp.targetY)) ** 2);
-          if (stepSize > 1 && stepSize < 80) { // ignore tiny jitter and huge jumps
-            const extraTime = Math.min(timeSinceTarget - 30, EXTRAPOLATE_DURATION_MS - 30);
-            const exX = sp.targetX + vx * extraTime;
-            const exY = sp.targetY + vy * extraTime;
-            sp.x += (exX - sp.x) * 0.5;
-            sp.y += (exY - sp.y) * 0.5;
-          }
-        }
-      }
 
       // Snap if close enough
       if (Math.abs(sp.targetX - sp.x) < 0.5 && Math.abs(sp.targetY - sp.y) < 0.5) {
