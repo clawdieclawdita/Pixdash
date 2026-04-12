@@ -158,7 +158,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     }
 
     // Per-frame smooth interpolation toward backend targets with extrapolation
-    const renderOverrides = new Map<string, { x: number; y: number; direction?: Direction }>();
+    const renderOverrides = new Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>();
     const now = performance.now();
 
     for (const agent of currentAgents) {
@@ -172,7 +172,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         // to avoid falling back to stale Zustand data
         const lastSp = smoothPositions.get(agent.id);
         if (lastSp) {
-          renderOverrides.set(agent.id, { x: lastSp.x, y: lastSp.y });
+          renderOverrides.set(agent.id, { x: lastSp.x, y: lastSp.y, isMoving: false });
         }
         smoothPositions.delete(agent.id);
         smoothDirections.delete(agent.id);
@@ -187,7 +187,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         // First frame for this agent — snap to target to avoid warp from spawn
         sp = { x: targetX, y: targetY, targetX, targetY, targetTime: now };
         smoothPositions.set(agent.id, sp);
-        renderOverrides.set(agent.id, { x: sp.x, y: sp.y });
+        renderOverrides.set(agent.id, { x: sp.x, y: sp.y, isMoving: true });
         continue;
       }
 
@@ -229,6 +229,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         x: sp.x,
         y: sp.y,
         direction: smoothDirections.get(agent.id),
+        isMoving: true,
       });
     }
 

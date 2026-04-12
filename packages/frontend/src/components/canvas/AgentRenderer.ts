@@ -196,7 +196,7 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
 };
 
 export class AgentRenderer {
-  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, { x: number; y: number; direction?: Direction }>) {
+  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>) {
     const ordered = [...agents].sort((a, b) => a.y - b.y);
     const now = performance.now();
 
@@ -210,11 +210,12 @@ export class AgentRenderer {
       const py = override ? override.y : (agent.interpolatedY ?? agent.y);
       // Skip rendering if position is clearly invalid (negative/off-map)
       if (px < -100 || py < -100 || px > 2500 || py > 1900) return;
+      // Use override-driven isMoving (real-time from smooth targets, not throttled Zustand)
+      const isMoving = override?.isMoving ?? (agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0);
       // Use velocity-derived direction for moving agents (bypasses throttled Zustand)
-      const direction = (override?.direction && (agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0))
+      const direction = (override?.direction && isMoving)
         ? override.direction
         : (agent.direction ?? 'south');
-      const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
       const sprite = frames[direction][getWalkFrameIndex(isMoving)];
       if (!sprite) return;
 
