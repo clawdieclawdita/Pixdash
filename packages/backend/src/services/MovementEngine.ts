@@ -189,6 +189,31 @@ export class MovementEngine {
       let path = [...movement.path];
       let currentPosition = { ...agent.position };
 
+      // Stale path guard: if first step is not adjacent to current position,
+      // the path was generated from a different location. Cancel movement.
+      if (path.length > 0) {
+        const firstStep = path[0];
+        const dist = Math.abs(currentPosition.x - firstStep.x) + Math.abs(currentPosition.y - firstStep.y);
+        if (dist > 1) {
+          // Path is stale — cancel and release
+          this.clearOccupied(agent.id);
+          if (movement.claimedWaypointId) {
+            this.agentStateManager.releaseWaypointClaim(movement.claimedWaypointId, agent.id);
+          }
+          agent.movement = {
+            ...movement,
+            status: 'idle',
+            path: [],
+            progress: 0,
+            fractionalX: undefined,
+            fractionalY: undefined,
+            lastUpdatedAt: new Date().toISOString(),
+          };
+          this.agentStateManager.emitMovement(agent);
+          continue;
+        }
+      }
+
       while (progress >= 1 && path.length > 0) {
         const [nextStep, ...remainingPath] = path;
         const direction = this.agentStateManager.directionFromStep(currentPosition, nextStep);
