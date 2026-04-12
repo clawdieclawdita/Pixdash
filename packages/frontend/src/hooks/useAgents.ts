@@ -265,7 +265,10 @@ export function useAgents() {
         const releasedBackendAuthority = hadBackendAuthority && !hasBackendAuthority;
 
         // Write position target to smooth map (bypasses Zustand entirely)
-        if (payload.movement.fractionalX != null && payload.movement.fractionalY != null) {
+        // Only keep target while agent is actually moving — clear on seated/idle
+        const isActuallyMoving = payload.movement.status === 'moving'
+          && (payload.movement.path.length > 0 || payload.movement.destination != null);
+        if (isActuallyMoving && payload.movement.fractionalX != null && payload.movement.fractionalY != null) {
           const fx = payload.movement.fractionalX;
           const fy = payload.movement.fractionalY;
           // Reject clearly invalid positions (negative, wildly out of bounds)

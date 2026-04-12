@@ -198,6 +198,14 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
 export class AgentRenderer {
   render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>) {
     const ordered = [...agents].sort((a, b) => a.y - b.y);
+    // DEBUG: verify render is called
+    if (typeof window !== 'undefined' && (window as any).__pixdashDebug) {
+      const t = performance.now();
+      if (!(window as any).__renderLogT || t - (window as any).__renderLogT > 1000) {
+        (window as any).__renderLogT = t;
+        console.log(`[pixdash] render() called: ${ordered.length} agents, overrides=${renderOverrides?.size ?? 0}`);
+      }
+    }
     const now = performance.now();
 
     ordered.forEach((agent) => {
@@ -215,12 +223,29 @@ export class AgentRenderer {
       const hasPath = (agent.path?.length ?? 0) > 0;
       const hasPosition = override != null || agent.interpolatedX != null;
       const isMoving = override?.isMoving ?? (hasPath && hasPosition);
+      // DEBUG: log when isMoving disagrees with visual expectation
+      if (typeof window !== 'undefined' && (window as any).__pixdashDebug) {
+        const zustandMoving = agent.movementState === 'walking' || hasPath;
+        if (isMoving !== zustandMoving) {
+          console.log(`[pixdash] ${agent.name} isMoving=${isMoving} (override=${override?.isMoving} hasPath=${hasPath} hasPosition=${hasPosition}) zustand=${agent.movementState} pathLen=${agent.path?.length ?? 0}`);
+        }
+      }
       // Use velocity-derived direction for moving agents (bypasses throttled Zustand)
       const direction = (override?.direction && isMoving)
         ? override.direction
         : (agent.direction ?? 'south');
       const sprite = frames[direction][getWalkFrameIndex(isMoving)];
       if (!sprite) return;
+      // DEBUG
+      if (typeof window !== 'undefined' && (window as any).__pixdashDebug) {
+        const now = performance.now();
+        if (!(window as any).__pixdashDebugLast || now - (window as any).__pixdashDebugLast > 500) {
+          (window as any).__pixdashDebugLast = now;
+          const frameIdx = getWalkFrameIndex(isMoving);
+          const spriteRow = ['south','north','west','east'].indexOf(direction);
+          console.log(`[pixdash] DRAW ${agent.name} moving=${isMoving} dir=${direction}(${spriteRow}) frame=${frameIdx} pos=(${px.toFixed(0)},${py.toFixed(0)}) mvState=${agent.movementState} pathLen=${agent.path?.length ?? 0} seatType=${agent.claimedWaypointId?.split('-')[0] ?? '-'}`);
+        }
+      }
 
       // When seated, shift sprite visually to appear ON the chair
       const isSeated = agent.movementState?.startsWith('seated');
