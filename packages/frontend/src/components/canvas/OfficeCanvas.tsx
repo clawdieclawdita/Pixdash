@@ -167,13 +167,12 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       // throttled Zustand state which can lag up to 125ms behind reality.
       const isMoving = !!target;
 
-      if (!target || !isMoving) {
-        // Agent stopped moving — keep the last smooth position for one frame
-        // to avoid falling back to stale Zustand data
+      if (!isMoving) {
+        // Agent not moving — keep the last smooth position or use Zustand fallback
         const lastSp = smoothPositions.get(agent.id);
-        if (lastSp) {
-          renderOverrides.set(agent.id, { x: lastSp.x, y: lastSp.y, isMoving: false });
-        }
+        const px = lastSp?.x ?? (agent.interpolatedX ?? agent.x);
+        const py = lastSp?.y ?? (agent.interpolatedY ?? agent.y);
+        renderOverrides.set(agent.id, { x: px, y: py, isMoving: false });
         smoothPositions.delete(agent.id);
         smoothDirections.delete(agent.id);
         continue;

@@ -211,7 +211,10 @@ export class AgentRenderer {
       // Skip rendering if position is clearly invalid (negative/off-map)
       if (px < -100 || py < -100 || px > 2500 || py > 1900) return;
       // Use override-driven isMoving (real-time from smooth targets, not throttled Zustand)
-      const isMoving = override?.isMoving ?? (agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0);
+      // Fallback: only treat as moving if backend path exists AND we have position data
+      const hasPath = (agent.path?.length ?? 0) > 0;
+      const hasPosition = override != null || agent.interpolatedX != null;
+      const isMoving = override?.isMoving ?? (hasPath && hasPosition);
       // Use velocity-derived direction for moving agents (bypasses throttled Zustand)
       const direction = (override?.direction && isMoving)
         ? override.direction
