@@ -559,6 +559,11 @@ export class MovementEngine {
       if (agent.movement?.status === 'moving' && (agent.movement?.path?.length ?? 0) > 0) {
         continue;
       }
+      // Skip seated agents — their waypoint position may be on a
+      // non-walkable tile (decorative chair) with a visual offset
+      if (agent.movement?.status === 'seated' || agent.movement?.claimedWaypointId) {
+        continue;
+      }
 
       const { x, y } = agent.position;
       if (x >= 0 && y >= 0 && this.walkable[y]?.[x]) {
