@@ -15,11 +15,18 @@ const DESK_TILES: Array<[number, number]> = [
   [38,47],[39,47],[40,47],[41,47],[42,47],[43,47],[44,47],[45,47],[46,47],[47,47],[48,47],[38,48],[39,48],[40,48],[41,48],[42,48],[43,48],[44,48],[45,48],[46,48],[47,48],[48,48],[38,49],[39,49],[40,49],[41,49],[42,49],[43,49],[44,49],[45,49],[46,49],[47,49],[48,49],[38,50],[39,50],[40,50],[41,50],[42,50],[43,50],[44,50],[45,50],[46,50],[47,50],[48,50],[40,51],[41,51],[44,51],[45,51],[47,51],[48,51],
 ];
 
+// Conference room door tiles — blocked by wall in layout but threshold-based
+// collision grid may mark as walkable. Added as explicit no-go.
+const CONFERENCE_DOOR_TILES: Array<[number, number]> = [
+  [17,10],[18,10],[19,10],[20,10],
+  [17,27],[18,27],[19,27],[20,27],
+];
+
 export const createNoGoTiles = (waypoints: BackendWaypoint[]): Set<string> => {
   const noGoTiles = new Set<string>();
   const waypointTiles = new Set(waypoints.map((waypoint) => `${waypoint.x},${waypoint.y}`));
 
-  for (const [x, y] of [...RESTROOM_TILES, ...DESK_TILES]) {
+  for (const [x, y] of [...RESTROOM_TILES, ...DESK_TILES, ...CONFERENCE_DOOR_TILES]) {
     const key = `${x},${y}`;
     if (!waypointTiles.has(key)) {
       noGoTiles.add(key);
