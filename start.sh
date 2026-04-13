@@ -5,8 +5,8 @@ cd "$(dirname "$0")"
 
 PID_FILE="/tmp/pixdash.pid"
 LOG_FILE="/tmp/pixdash.log"
-HOST="192.168.1.200"
-PORT="3000"
+HOST="${PIXDASH_HOST:-192.168.1.200}"
+PORT="${PIXDASH_PORT:-3000}"
 
 ./stop.sh
 sleep 1
@@ -20,7 +20,7 @@ if [ "${PIXDASH_DEV_MODE:-}" = "true" ]; then
 fi
 
 pushd packages/backend >/dev/null
-nohup node $NODE_FLAGS dist/server.js > "$LOG_FILE" 2>&1 &
+PIXDASH_PORT="$PORT" PIXDASH_HOST="$HOST" nohup node $NODE_FLAGS dist/server.js > "$LOG_FILE" 2>&1 &
 PID=$!
 popd >/dev/null
 
