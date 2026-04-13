@@ -3,6 +3,14 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# Load .env if present
+ENV_FILE=".env"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
+
 PID_FILE="/tmp/pixdash.pid"
 LOG_FILE="/tmp/pixdash.log"
 HOST="${PIXDASH_HOST:-192.168.1.200}"
