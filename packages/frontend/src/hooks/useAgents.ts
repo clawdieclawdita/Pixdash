@@ -16,7 +16,9 @@ import type { MovementState } from '@/types';
 
 // Shared smooth position map — written by WebSocket handler, read by canvas draw loop
 // This avoids Zustand updates for high-frequency position data
-export const smoothPositionTargets = new Map<string, { x: number; y: number }>();
+export const smoothPositionTargets = new Map<string, { x: number; y: number; direction?: Direction; moving: boolean }>();
+export const recentMovingAgents = new Map<string, number>();
+const RECENT_MOVING_GRACE_MS = 1500;
 
 // Throttle Zustand state updates from high-frequency movement events.
 // Only update store at ~8Hz regardless of backend broadcast rate.
@@ -55,7 +57,7 @@ function inferMovementStateFromWaypoint(agentStatus: string, tileX: number, tile
   if (agentStatus === 'conference' && wp.type !== 'conference') return null;
   return { movementState: getArrivalStateForMovementType(wp.type) };
 }
-import type { AgentMovementEventPayload } from '@pixdash/shared';
+import type { AgentMovementEventPayload, Direction } from '@pixdash/shared';
 
 type EventPayloadMap = {
   'agent.status': { agentId: string; status: Agent['status']; timestamp?: string };
@@ -77,7 +79,7 @@ export function useAgents() {
   const syncAgents = useMovementStore((state) => state.syncAgents);
   const handleStatusChange = useMovementStore((state) => state.handleStatusChange);
   const handleConference = useMovementStore((state) => state.handleConference);
-  const { lastEvent, connectionState, lastError: socketError } = useWebSocket();
+  const { eventsVersion, drainEvents, connectionState, lastError: socketError } = useWebSocket();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
@@ -94,8 +96,49 @@ export function useAgents() {
     try {
       const response = await getAgents();
 
-      console.log('[PixDash Debug] setAgents sync', JSON.stringify({ reason, count: response.agents.length }));
-      setAgents(response.agents);
+      const now = Date.now();
+      const protectedAgents = response.agents.map((agent) => {
+        const lastMovingAt = recentMovingAgents.get(agent.id);
+        const backendMoving = agent.movement?.status === 'moving';
+        if (!lastMovingAt || backendMoving || now - lastMovingAt > RECENT_MOVING_GRACE_MS) {
+          return agent;
+        }
+
+        const current = useAgentsStore.getState().agents.find((entry) => entry.id === agent.id);
+        if (!current || current.movementState !== 'walking') {
+          return agent;
+        }
+
+        const movement = agent.movement;
+        if (!movement) {
+          return agent;
+        }
+
+        return {
+          ...agent,
+          movement: {
+            ...movement,
+            status: 'moving' as const,
+            path: current.path.map((step) => ({ x: step.x, y: step.y })),
+            claimedWaypointId: current.claimedWaypointId,
+            destination: current.targetX != null && current.targetY != null
+              ? {
+                  x: Math.round((current.targetX - 16) / 32),
+                  y: Math.round((current.targetY - 16) / 32),
+                }
+              : movement.destination,
+            waypointDirection: current.waypointDirection ?? movement.waypointDirection,
+          },
+          position: {
+            x: Math.round((current.x - 16) / 32),
+            y: Math.round((current.y - 16) / 32),
+            direction: current.direction,
+          },
+        };
+      });
+
+      console.log('[PixDash Debug] setAgents sync', JSON.stringify({ reason, count: protectedAgents.length }));
+      setAgents(protectedAgents);
       const syncedAgents = useAgentsStore.getState().agents;
       syncAgents(syncedAgents);
       // Local placement should only run for agents still using fallback movement.
@@ -159,13 +202,19 @@ export function useAgents() {
   }, [connectionState, loadAgents]);
 
   useEffect(() => {
-    if (!lastEvent) {
+    if (eventsVersion === 0) {
       return;
     }
 
-    const currentAgents = agentsRef.current;
+    const events = drainEvents();
+    if (events.length === 0) {
+      return;
+    }
 
-    switch (lastEvent.event) {
+    for (const lastEvent of events) {
+      const currentAgents = agentsRef.current;
+
+      switch (lastEvent.event) {
       case 'agent.status':
       case 'agent:status': {
         const payload = lastEvent.payload as EventPayloadMap['agent.status'];
@@ -269,14 +318,44 @@ export function useAgents() {
         const isActuallyMoving = payload.movement.status === 'moving'
           && (payload.movement.path.length > 0 || payload.movement.destination != null);
         if (isActuallyMoving && payload.movement.fractionalX != null && payload.movement.fractionalY != null) {
+          recentMovingAgents.set(payload.agentId, Date.now());
           const fx = payload.movement.fractionalX;
           const fy = payload.movement.fractionalY;
           // Reject clearly invalid positions (negative, wildly out of bounds)
           if (fx >= 0 && fy >= 0 && fx <= 2400 && fy <= 1792) {
-            smoothPositionTargets.set(payload.agentId, { x: fx, y: fy });
+            const previous = smoothPositionTargets.get(payload.agentId);
+            smoothPositionTargets.set(payload.agentId, {
+              x: fx,
+              y: fy,
+              direction: payload.position.direction,
+              moving: true,
+            });
+            if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === payload.agentId) {
+              console.log('[pixdash][movement-in]', payload.agentId, {
+                status: payload.movement.status,
+                pos: payload.position,
+                fractional: { x: fx, y: fy },
+                previousTarget: previous ?? null,
+                changed: previous?.x !== fx || previous?.y !== fy || previous?.direction !== payload.position.direction,
+                pathLen: payload.movement.path.length,
+                destination: payload.movement.destination,
+                claimedWaypointId: payload.movement.claimedWaypointId,
+                waypointDirection: payload.movement.waypointDirection,
+              });
+            }
           }
         } else {
+          recentMovingAgents.delete(payload.agentId);
           smoothPositionTargets.delete(payload.agentId);
+          if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === payload.agentId) {
+            console.log('[pixdash][movement-stop]', payload.agentId, {
+              status: payload.movement.status,
+              pos: payload.position,
+              pathLen: payload.movement.path.length,
+              destination: payload.movement.destination,
+              claimedWaypointId: payload.movement.claimedWaypointId,
+            });
+          }
         }
 
         // Buffer the Zustand state update — only flush at ~8Hz for moving agents.
@@ -311,6 +390,7 @@ export function useAgents() {
           targetY: destination?.y ?? null,
           visualOffsetX: payload.movement.visualOffsetX ?? (payload.movement.status === 'moving' ? 0 : undefined),
           visualOffsetY: payload.movement.visualOffsetY ?? (payload.movement.status === 'moving' ? 0 : undefined),
+          waypointDirection: payload.movement.waypointDirection,
         }, updateAgent);
 
         if (releasedBackendAuthority && currentAgent) {
@@ -343,8 +423,9 @@ export function useAgents() {
       }
       default:
         break;
+      }
     }
-  }, [lastEvent, updateAgent, handleStatusChange, handleConference]);
+  }, [eventsVersion, drainEvents, updateAgent, handleStatusChange, handleConference]);
 
   const handleSelectAgent = (agentId: string | null) => {
     selectAgent(agentId);

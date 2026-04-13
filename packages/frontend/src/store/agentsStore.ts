@@ -18,6 +18,7 @@ export type StoreAgent = Agent & {
   path: AgentPathNode[];
   claimedWaypointId: string | null;
   direction?: Direction;
+  waypointDirection?: Direction;
   visualOffsetX?: number;
   visualOffsetY?: number;
   positionSource: 'backend' | 'fallback';
@@ -162,6 +163,7 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
     visualOffsetX: backendMovement?.visualOffsetX ?? inferredWaypoint?.visualOffsetX ?? 0,
     visualOffsetY: backendMovement?.visualOffsetY ?? inferredWaypoint?.visualOffsetY ?? 0,
     direction: position.direction,
+    waypointDirection: backendMovement?.waypointDirection,
     movement: backendMovement,
     positionSource,
   };
@@ -185,7 +187,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
         const existing = state.agents.find((entry) => entry.id === agent.id);
         const normalized = normalizeAgent(agent, index);
         const backendAuthorityActive = hasBackendMovementAuthority(normalized.movement);
-        const keepLocalPlacement = !backendAuthorityActive && (existing?.movementState === 'walking' || !!existing?.claimedWaypointId);
+        const keepLocalPlacement = !backendAuthorityActive && existing?.movementState === 'walking';
 
         return existing
           ? {
@@ -193,16 +195,16 @@ export const useAgentsStore = create<AgentsState>((set) => ({
               ...normalized,
               x: keepLocalPlacement ? existing.x : normalized.x,
               y: keepLocalPlacement ? existing.y : normalized.y,
-              movementState: backendAuthorityActive ? normalized.movementState : existing.movementState,
-              targetX: backendAuthorityActive ? normalized.targetX : existing.targetX,
-              targetY: backendAuthorityActive ? normalized.targetY : existing.targetY,
-              path: backendAuthorityActive ? normalized.path : existing.path,
-              claimedWaypointId: backendAuthorityActive ? normalized.claimedWaypointId : existing.claimedWaypointId,
-              visualOffsetX: backendAuthorityActive ? normalized.visualOffsetX : existing.visualOffsetX,
-              visualOffsetY: backendAuthorityActive ? normalized.visualOffsetY : existing.visualOffsetY,
+              movementState: keepLocalPlacement ? existing.movementState : normalized.movementState,
+              targetX: keepLocalPlacement ? existing.targetX : normalized.targetX,
+              targetY: keepLocalPlacement ? existing.targetY : normalized.targetY,
+              path: keepLocalPlacement ? existing.path : normalized.path,
+              claimedWaypointId: keepLocalPlacement ? existing.claimedWaypointId : normalized.claimedWaypointId,
+              visualOffsetX: keepLocalPlacement ? existing.visualOffsetX : normalized.visualOffsetX,
+              visualOffsetY: keepLocalPlacement ? existing.visualOffsetY : normalized.visualOffsetY,
               direction: keepLocalPlacement ? existing.direction : normalized.direction,
-              interpolatedX: backendAuthorityActive ? normalized.interpolatedX : existing.interpolatedX,
-              interpolatedY: backendAuthorityActive ? normalized.interpolatedY : existing.interpolatedY,
+              interpolatedX: keepLocalPlacement ? existing.interpolatedX : normalized.interpolatedX,
+              interpolatedY: keepLocalPlacement ? existing.interpolatedY : normalized.interpolatedY,
             }
           : normalized;
       }),
@@ -252,6 +254,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
           claimedWaypointId: agentUpdate.claimedWaypointId === undefined ? agent.claimedWaypointId : agentUpdate.claimedWaypointId,
           interpolatedX: agentUpdate.interpolatedX === undefined ? agent.interpolatedX : agentUpdate.interpolatedX,
           interpolatedY: agentUpdate.interpolatedY === undefined ? agent.interpolatedY : agentUpdate.interpolatedY,
+          waypointDirection: agentUpdate.waypointDirection === undefined ? agent.waypointDirection : agentUpdate.waypointDirection,
         };
       }),
     })),

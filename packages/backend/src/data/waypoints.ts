@@ -69,7 +69,7 @@ const seated = (
 export const BACKEND_WAYPOINTS: BackendWaypoint[] = [
   seated('desk-a1', 6, 18, 'desk', 'east', 11, 30),
   seated('desk-a2', 15, 18, 'desk', 'west', 1, 33),
-  seated('desk-a3', 7, 24, 'desk', 'east', -21, -22),
+  seated('desk-a3', 6, 25, 'desk', 'east', 30, -12),
   seated('desk-a4', 16, 25, 'desk', 'west', -35, -11),
   seated('desk-b1', 23, 18, 'desk', 'east', 1, 31),
   seated('desk-b2', 31, 18, 'desk', 'west', 12, 34),

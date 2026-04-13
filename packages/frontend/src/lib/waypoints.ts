@@ -90,7 +90,7 @@ export const createWaypointSet = (): WaypointSet => ({
     seated('desk-a1', 6, 18, 'desk', 'east', 11, 30),
     seated('desk-a2', 15, 18, 'desk', 'west', 1, 33),
     // South-side chairs (rows 24-25): face north toward desk above
-    seated('desk-a3', 7, 24, 'desk', 'east', -21, -22),
+    seated('desk-a3', 6, 25, 'desk', 'east', 30, -12),
     seated('desk-a4', 16, 25, 'desk', 'west', -35, -11),
 
     // ── Upper desk cluster CENTER ──

@@ -27,12 +27,6 @@ const loadImage = (src: string) =>
     image.src = src;
   });
 
-// Per-frame smooth position cache — updated by draw loop, NOT Zustand
-const smoothPositions = new Map<string, { x: number; y: number; targetX: number; targetY: number; prevTargetX?: number; prevTargetY?: number; targetTime: number }>();
-const LERP_SPEED = 0.35; // 0 = no movement, 1 = instant snap
-
-// Direction overrides computed from velocity — bypasses throttled Zustand
-const smoothDirections = new Map<string, Direction>();
 
 export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -159,77 +153,43 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
 
     // Per-frame smooth interpolation toward backend targets with extrapolation
     const renderOverrides = new Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>();
-    const now = performance.now();
 
     for (const agent of currentAgents) {
       const target = smoothPositionTargets.get(agent.id);
-      // Use target existence as the movement indicator — more reliable than
-      // throttled Zustand state which can lag up to 125ms behind reality.
-      const isMoving = !!target;
+      const isMoving = !!target?.moving;
 
       if (!isMoving) {
-        // Agent not moving — keep the last smooth position or use Zustand fallback
-        const lastSp = smoothPositions.get(agent.id);
-        const px = lastSp?.x ?? (agent.interpolatedX ?? agent.x);
-        const py = lastSp?.y ?? (agent.interpolatedY ?? agent.y);
-        renderOverrides.set(agent.id, { x: px, y: py, isMoving: false });
-        smoothPositions.delete(agent.id);
-        smoothDirections.delete(agent.id);
-        continue;
-      }
-
-      let sp = smoothPositions.get(agent.id);
-      const targetX = target.x;
-      const targetY = target.y;
-
-      if (!sp) {
-        // First frame for this agent — snap to target to avoid warp from spawn
-        sp = { x: targetX, y: targetY, targetX, targetY, targetTime: now };
-        smoothPositions.set(agent.id, sp);
-        renderOverrides.set(agent.id, { x: sp.x, y: sp.y, isMoving: true });
-        continue;
-      }
-
-      if (sp.targetX !== targetX || sp.targetY !== targetY) {
-        // New target from backend — compute direction from movement vector
-        sp.prevTargetX = sp.targetX;
-        sp.prevTargetY = sp.targetY;
-        sp.targetX = targetX;
-        sp.targetY = targetY;
-        sp.targetTime = now;
-
-        // Derive walking direction from position delta between last two targets
-        const mvX = targetX - (sp.prevTargetX ?? targetX);
-        const mvY = targetY - (sp.prevTargetY ?? targetY);
-        if (Math.abs(mvX) > 0.5 || Math.abs(mvY) > 0.5) {
-          if (Math.abs(mvX) > Math.abs(mvY)) {
-            smoothDirections.set(agent.id, mvX > 0 ? 'east' : 'west');
-          } else {
-            smoothDirections.set(agent.id, mvY > 0 ? 'south' : 'north');
-          }
+        const override = {
+          x: agent.interpolatedX ?? agent.x,
+          y: agent.interpolatedY ?? agent.y,
+          direction: agent.waypointDirection ?? agent.direction ?? undefined,
+          isMoving: false,
+        };
+        renderOverrides.set(agent.id, override);
+        if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === agent.id) {
+          console.log('[pixdash][override]', agent.id, { source: 'store', override, movementState: agent.movementState, pathLen: agent.path?.length ?? 0 });
         }
+        continue;
       }
 
-      // Lerp toward the last known target
-      sp.x += (sp.targetX - sp.x) * LERP_SPEED;
-      sp.y += (sp.targetY - sp.y) * LERP_SPEED;
-
-      // Snap if close enough
-      if (Math.abs(sp.targetX - sp.x) < 0.5 && Math.abs(sp.targetY - sp.y) < 0.5) {
-        sp.x = sp.targetX;
-        sp.y = sp.targetY;
-      }
-
-      // Clamp to office bounds (pixel coords: 0 to 2400×1792)
-      sp.x = Math.max(0, Math.min(sp.x, 2400));
-      sp.y = Math.max(0, Math.min(sp.y, 1792));
-
-      renderOverrides.set(agent.id, {
-        x: sp.x,
-        y: sp.y,
-        direction: smoothDirections.get(agent.id),
+      const override = {
+        x: Math.max(0, Math.min(target.x, 2400)),
+        y: Math.max(0, Math.min(target.y, 1792)),
+        direction: target.direction,
         isMoving: true,
-      });
+      };
+      renderOverrides.set(agent.id, override);
+      if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === agent.id) {
+        console.log('[pixdash][override]', agent.id, {
+          source: 'smooth-target',
+          override,
+          target,
+          movementState: agent.movementState,
+          pathLen: agent.path?.length ?? 0,
+          storeXY: { x: agent.x, y: agent.y },
+          interpXY: { x: agent.interpolatedX, y: agent.interpolatedY },
+        });
+      }
     }
 
     agentRenderer.render(ctx, currentAgents, selectedAgentId, renderOverrides);

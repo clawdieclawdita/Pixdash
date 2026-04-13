@@ -17,10 +17,17 @@ const TICK_INTERVAL_MS = 50;
 const MOVEMENT_SPEED_TILES_PER_SECOND = 5;
 const PROGRESS_INCREMENT = (TICK_INTERVAL_MS / 1000) * MOVEMENT_SPEED_TILES_PER_SECOND;
 
+const REROUTE_COOLDOWN_MS = 3000;
+const BLOCKED_TIMEOUT_MS = 5000;
+
 export class MovementEngine {
   private readonly wanderDueAt = new Map<string, number>();
   /** Tiles currently occupied by non-moving agents (seated/idle). Moving agents are tracked separately. */
   private readonly occupiedTiles = new Map<string, string>(); // "x,y" -> agentId
+  /** Per-agent: last reroute attempt timestamp (prevents rerouting every tick). */
+  private readonly lastRerouteAt = new Map<string, number>();
+  /** Per-agent: when the agent first became blocked at this obstacle. */
+  private readonly blockedSince = new Map<string, number>();
 
   constructor(
     private readonly walkable: boolean[][],
@@ -189,13 +196,18 @@ export class MovementEngine {
       let path = [...movement.path];
       let currentPosition = { ...agent.position };
 
-      // Stale path guard: if first step is not adjacent to current position,
-      // the path was generated from a different location. Cancel movement.
+      // Stale path guard: only cancel if we are clearly desynced from both the
+      // current tile and the next reachable step. Fractional/sub-tile movement
+      // can legitimately leave the first queued path step more than 1 tile away
+      // after route changes or tick timing, so be conservative here.
       if (path.length > 0) {
         const firstStep = path[0];
         const dist = Math.abs(currentPosition.x - firstStep.x) + Math.abs(currentPosition.y - firstStep.y);
-        if (dist > 1) {
-          // Path is stale — cancel and release
+        const destination = movement.destination;
+        const distToDestination = destination
+          ? Math.abs(currentPosition.x - destination.x) + Math.abs(currentPosition.y - destination.y)
+          : 0;
+        if (dist > 2 && (!destination || distToDestination > 2)) {
           this.clearOccupied(agent.id);
           if (movement.claimedWaypointId) {
             this.agentStateManager.releaseWaypointClaim(movement.claimedWaypointId, agent.id);
@@ -234,9 +246,61 @@ export class MovementEngine {
         this.clearOccupied(agent.id);
       }
 
-      // Check if next step is occupied by another stationary agent — pause if so
+      // Check if next step is occupied by another stationary agent — attempt reroute
       if (!arrived && nextStep && this.isTileOccupiedByOther(nextStep.x, nextStep.y, agent.id)) {
-        // Don't advance — wait for the tile to clear, but update position to last valid step
+        const now = Date.now();
+        const lastReroute = this.lastRerouteAt.get(agent.id) ?? 0;
+        const blockStart = this.blockedSince.get(agent.id) ?? now;
+
+        // Track when blocking started
+        if (!this.blockedSince.has(agent.id)) {
+          this.blockedSince.set(agent.id, now);
+        }
+
+        // Cancel movement if blocked for too long (dead-end / no reroute found)
+        if (now - blockStart > BLOCKED_TIMEOUT_MS) {
+          this.blockedSince.delete(agent.id);
+          this.lastRerouteAt.delete(agent.id);
+          agent.position = currentPosition;
+          this.cancelMovement(agent.id, true);
+          continue;
+        }
+
+        // Attempt reroute (once per cooldown window)
+        if (now - lastReroute >= REROUTE_COOLDOWN_MS && movement.destination) {
+          this.lastRerouteAt.set(agent.id, now);
+
+          // Build a temporary no-go set that includes the blocking agent's tile
+          const dynamicNoGo = new Set(this.noGoTiles);
+          dynamicNoGo.add(`${nextStep.x},${nextStep.y}`);
+
+          const newPath = findPath(
+            currentPosition,
+            movement.destination,
+            this.walkable,
+            dynamicNoGo,
+          );
+
+          if (newPath.length > 1) {
+            // Valid detour found — replace current path
+            this.blockedSince.delete(agent.id);
+            agent.position = currentPosition;
+            const newPathWithoutCurrent = newPath.slice(1);
+            agent.movement = {
+              ...movement,
+              path: newPathWithoutCurrent,
+              progress: 0,
+              fractionalX: undefined,
+              fractionalY: undefined,
+              lastUpdatedAt: new Date().toISOString(),
+            };
+            this.agentStateManager.emitMovement(agent);
+            continue;
+          }
+          // No detour — will keep waiting or timeout
+        }
+
+        // Waiting — update position to last valid step
         agent.position = currentPosition;
         agent.movement = {
           ...movement,
@@ -245,6 +309,9 @@ export class MovementEngine {
         };
         this.agentStateManager.emitMovement(agent);
         continue;
+      } else {
+        // Tile no longer blocked — clear tracking
+        this.blockedSince.delete(agent.id);
       }
 
       agent.position = currentPosition;
@@ -360,6 +427,11 @@ export class MovementEngine {
       return false;
     }
 
+    // Prevent routing to a waypoint already claimed by another agent
+    if (waypoint.claimedBy && waypoint.claimedBy !== agentId) {
+      return false;
+    }
+
     const path = findPath(
       { x: agent.position.x, y: agent.position.y },
       { x: waypoint.x, y: waypoint.y },
@@ -380,6 +452,8 @@ export class MovementEngine {
 
   private cancelMovement(agentId: string, releaseWaypoint: boolean): void {
     this.wanderDueAt.delete(agentId);
+    this.blockedSince.delete(agentId);
+    this.lastRerouteAt.delete(agentId);
     const agent = this.agentStateManager.getMutableAgent(agentId);
     if (!agent?.movement) {
       return;
@@ -476,7 +550,8 @@ export class MovementEngine {
   private collectTargetedWaypointIds(): Set<string> {
     const targeted = new Set<string>();
     for (const agent of this.agentStateManager.getMutableAgents()) {
-      if (agent.movement?.status === 'moving' && agent.movement.claimedWaypointId) {
+      // Include both moving AND seated agents' waypoint claims
+      if (agent.movement?.claimedWaypointId && (agent.movement.status === 'moving' || agent.movement.status === 'seated')) {
         targeted.add(agent.movement.claimedWaypointId);
       }
     }

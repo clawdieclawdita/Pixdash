@@ -197,7 +197,11 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
 
 export class AgentRenderer {
   render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>) {
-    const ordered = [...agents].sort((a, b) => a.y - b.y);
+    const ordered = [...agents].sort((a, b) => {
+      const ay = renderOverrides?.get(a.id)?.y ?? a.interpolatedY ?? a.y;
+      const by = renderOverrides?.get(b.id)?.y ?? b.interpolatedY ?? b.y;
+      return ay - by;
+    });
     // DEBUG: verify render is called
     if (typeof window !== 'undefined' && (window as any).__pixdashDebug) {
       const t = performance.now();
@@ -220,9 +224,11 @@ export class AgentRenderer {
       if (px < -100 || py < -100 || px > 2500 || py > 1900) return;
       // Use override-driven isMoving (real-time from smooth targets, not throttled Zustand)
       // Fallback: only treat as moving if backend path exists AND we have position data
+      // AND agent is NOT at a claimed waypoint (seated agents can still have stale path in Zustand)
       const hasPath = (agent.path?.length ?? 0) > 0;
       const hasPosition = override != null || agent.interpolatedX != null;
-      const isMoving = override?.isMoving ?? (hasPath && hasPosition);
+      const isAtClaimedSeat = !override?.isMoving && !!agent.claimedWaypointId;
+      const isMoving = isAtClaimedSeat ? false : (override?.isMoving ?? (hasPath && hasPosition));
       // DEBUG: log when isMoving disagrees with visual expectation
       if (typeof window !== 'undefined' && (window as any).__pixdashDebug) {
         const zustandMoving = agent.movementState === 'walking' || hasPath;
@@ -230,10 +236,19 @@ export class AgentRenderer {
           console.log(`[pixdash] ${agent.name} isMoving=${isMoving} (override=${override?.isMoving} hasPath=${hasPath} hasPosition=${hasPosition}) zustand=${agent.movementState} pathLen=${agent.path?.length ?? 0}`);
         }
       }
-      // Use velocity-derived direction for moving agents (bypasses throttled Zustand)
-      const direction = (override?.direction && isMoving)
-        ? override.direction
-        : (agent.direction ?? 'south');
+      const direction = override?.direction ?? agent.direction ?? 'south';
+      if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === agent.id) {
+        console.log('[pixdash][draw]', agent.id, {
+          isMoving,
+          direction,
+          px,
+          py,
+          override,
+          movementState: agent.movementState,
+          pathLen: agent.path?.length ?? 0,
+          claimedWaypointId: agent.claimedWaypointId,
+        });
+      }
       const sprite = frames[direction][getWalkFrameIndex(isMoving)];
       if (!sprite) return;
       // DEBUG
@@ -248,7 +263,8 @@ export class AgentRenderer {
       }
 
       // When seated, shift sprite visually to appear ON the chair
-      const isSeated = agent.movementState?.startsWith('seated');
+      // Only apply offset if movementState confirms seated (not just claimedWaypointId)
+      const isSeated = !isMoving && !!agent.claimedWaypointId && agent.movementState?.startsWith('seated');
       const offsetPx = isSeated ? (agent.visualOffsetX ?? 0) : 0;
       const offsetPy = isSeated ? (agent.visualOffsetY ?? 0) : 0;
       const renderX = px + offsetPx;
