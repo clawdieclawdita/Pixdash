@@ -6,7 +6,7 @@ import {
   sign as signMessage,
   type KeyObject,
 } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -710,6 +710,7 @@ export class GatewayClient {
         // Re-derive and store if deviceId changed
         if (stored.deviceId !== deviceId) {
           writeFileSync(DEVICE_KEY_PATH, JSON.stringify(keys, null, 2), 'utf8');
+          chmodSync(DEVICE_KEY_PATH, 0o600);
         }
         return keys;
       }
@@ -728,6 +729,7 @@ export class GatewayClient {
     };
 
     writeFileSync(DEVICE_KEY_PATH, JSON.stringify(keys, null, 2), 'utf8');
+    chmodSync(DEVICE_KEY_PATH, 0o600);
     return keys;
   }
 

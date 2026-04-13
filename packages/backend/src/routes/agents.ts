@@ -1,12 +1,29 @@
 import appearanceSchema from '../schemas/appearance.schema.json' with { type: 'json' };
 import type { FastifyPluginAsync } from 'fastify';
-import type { AgentLog, AppearancePatch } from '@pixdash/shared';
+import type { Agent, AgentLog, AppearancePatch } from '@pixdash/shared';
 import { assertValid, createValidator } from '../utils/validation.js';
+
+function stripSensitiveFields(agent: Agent): Agent {
+  const a = agent as unknown as Record<string, unknown>;
+  delete a.soul;
+  delete a.identity;
+  const config = a.config as Record<string, unknown> | undefined;
+  if (config) {
+    delete config.workspace;
+    delete config.agentDir;
+    delete config.source;
+    delete config.model;
+  }
+  return agent;
+}
 
 const validateAppearancePatch = createValidator<AppearancePatch>(appearanceSchema);
 
 const agentRoutes: FastifyPluginAsync = async (app) => {
-  app.get('/api/v1/agents', async () => ({ agents: app.pixdash.agentStateManager.getAgents() }));
+  app.get('/api/v1/agents', async () => {
+    const agents = app.pixdash.agentStateManager.getAgents().map(stripSensitiveFields);
+    return { agents };
+  });
 
   app.get('/api/v1/agents/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -14,7 +31,7 @@ const agentRoutes: FastifyPluginAsync = async (app) => {
     if (!agent) {
       return reply.code(404).send({ error: 'Agent not found' });
     }
-    return agent;
+    return stripSensitiveFields(agent);
   });
 
   app.get('/api/v1/agents/:id/logs', async (request, reply) => {

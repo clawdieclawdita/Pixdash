@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PID_FILE="/tmp/pixdash.pid"
+PIXDASH_DIR="$HOME/.openclaw/pixdash"
+PID_FILE="$PIXDASH_DIR/pixdash.pid"
 STOPPED=0
 
 if [[ -f "$PID_FILE" ]]; then
@@ -12,7 +13,9 @@ if [[ -f "$PID_FILE" ]]; then
   fi
 fi
 
-pkill -f "dist/server.js" 2>/dev/null && STOPPED=1 || true
+# Fallback: match only within the PixDash backend directory to avoid killing unrelated processes.
+# This only runs if the PID file is missing or stale.
+pkill -f "pixdash/packages/backend/dist/server.js" 2>/dev/null && STOPPED=1 || true
 rm -f "$PID_FILE"
 
 if [[ "$STOPPED" -eq 1 ]]; then

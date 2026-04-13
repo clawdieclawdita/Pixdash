@@ -34,7 +34,8 @@ export class PixDashWebSocketServer {
           });
           socket.send(JSON.stringify(response));
         } catch (error) {
-          socket.send(JSON.stringify({ type: 'res', id: 'unknown', ok: false, error: (error as Error).message }));
+          console.error('[WebSocket] Request error:', error);
+          socket.send(JSON.stringify({ type: 'res', id: 'unknown', ok: false, error: 'Internal error' }));
         }
       });
 

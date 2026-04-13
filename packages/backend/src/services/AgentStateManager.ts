@@ -191,7 +191,17 @@ export class AgentStateManager {
     agent.identity = snapshot.identity;
     agent.movement ??= createInitialMovementState();
     agent.appearance = await this.appearanceStore.get(snapshot.id);
-    this.broadcast('agent:config', { agentId: snapshot.id, agent: structuredClone(agent) });
+    const safeAgent = structuredClone(agent) as unknown as Record<string, unknown>;
+    delete safeAgent.soul;
+    delete safeAgent.identity;
+    const cfg = safeAgent.config as Record<string, unknown> | undefined;
+    if (cfg) {
+      delete cfg.workspace;
+      delete cfg.agentDir;
+      delete cfg.source;
+      delete cfg.model;
+    }
+    this.broadcast('agent:config', { agentId: snapshot.id, agent: safeAgent } as unknown as FrontendEventPayload);
   }
 
   applyStatusEvent(event: GatewayStatusEvent): void {

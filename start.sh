@@ -11,8 +11,10 @@ if [ -f "$ENV_FILE" ]; then
   set +a
 fi
 
-PID_FILE="/tmp/pixdash.pid"
-LOG_FILE="/tmp/pixdash.log"
+PIXDASH_DIR="$HOME/.openclaw/pixdash"
+mkdir -p "$PIXDASH_DIR"
+PID_FILE="$PIXDASH_DIR/pixdash.pid"
+LOG_FILE="$PIXDASH_DIR/pixdash.log"
 HOST="${PIXDASH_HOST:-192.168.1.200}"
 PORT="${PIXDASH_PORT:-3000}"
 
