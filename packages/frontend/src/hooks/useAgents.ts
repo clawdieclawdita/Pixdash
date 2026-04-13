@@ -12,6 +12,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useMovementStore, movementStore } from '@/store/movementStore';
 import { tileToPixelCenter, getArrivalStateForMovementType } from '@/lib/movement';
 import { createWaypointSet, getAllWaypoints } from '@/lib/waypoints';
+import { debugAgent } from '@/lib/debug';
 import type { MovementState } from '@/types';
 
 // Shared smooth position map — written by WebSocket handler, read by canvas draw loop
@@ -87,6 +88,19 @@ export function useAgents() {
   // Safety net: re-fetch agents after 8s to catch any that were
   // placed via frontend fallback before backend broadcastSettledStates ran.
   const fallbackHealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pruneRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Prune stale entries from recentMovingAgents every 30s
+  useEffect(() => {
+    const GRACE_2X = RECENT_MOVING_GRACE_MS * 2;
+    pruneRef.current = setInterval(() => {
+      const now = Date.now();
+      for (const [id, ts] of recentMovingAgents) {
+        if (now - ts > GRACE_2X) recentMovingAgents.delete(id);
+      }
+    }, 30_000);
+    return () => { if (pruneRef.current) clearInterval(pruneRef.current); };
+  }, []);
 
   const loadAgents = useCallback(async (reason: 'initial' | 'reconnect') => {
     if (reason === 'initial') {
@@ -137,7 +151,7 @@ export function useAgents() {
         };
       });
 
-      console.log('[PixDash Debug] setAgents sync', JSON.stringify({ reason, count: protectedAgents.length }));
+      debugAgent('setAgents', '[PixDash Debug] setAgents sync', { reason, count: protectedAgents.length });
       setAgents(protectedAgents);
       const syncedAgents = useAgentsStore.getState().agents;
       syncAgents(syncedAgents);
@@ -156,7 +170,7 @@ export function useAgents() {
           const current = useAgentsStore.getState().agents;
           const fallbackCount = current.filter((a) => a.positionSource === 'fallback').length;
           if (fallbackCount > 0) {
-            console.log(`[PixDash Debug] fallback heal: ${fallbackCount} agents still on fallback after 8s, re-syncing`);
+            console.warn(`[PixDash] ${fallbackCount} agents still on fallback after 8s, re-syncing`);
             void loadAgents('reconnect');
           }
         }, 8_000);
@@ -330,8 +344,7 @@ export function useAgents() {
               direction: payload.position.direction,
               moving: true,
             });
-            if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === payload.agentId) {
-              console.log('[pixdash][movement-in]', payload.agentId, {
+            debugAgent(payload.agentId, '[pixdash][movement-in] ' + payload.agentId, {
                 status: payload.movement.status,
                 pos: payload.position,
                 fractional: { x: fx, y: fy },
@@ -342,20 +355,17 @@ export function useAgents() {
                 claimedWaypointId: payload.movement.claimedWaypointId,
                 waypointDirection: payload.movement.waypointDirection,
               });
-            }
           }
         } else {
           recentMovingAgents.delete(payload.agentId);
           smoothPositionTargets.delete(payload.agentId);
-          if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === payload.agentId) {
-            console.log('[pixdash][movement-stop]', payload.agentId, {
+          debugAgent(payload.agentId, '[pixdash][movement-stop] ' + payload.agentId, {
               status: payload.movement.status,
               pos: payload.position,
               pathLen: payload.movement.path.length,
               destination: payload.movement.destination,
               claimedWaypointId: payload.movement.claimedWaypointId,
             });
-          }
         }
 
         // Buffer the Zustand state update — only flush at ~8Hz for moving agents.
@@ -417,7 +427,6 @@ export function useAgents() {
       }
       case 'agent:conference': {
         const payload = lastEvent.payload as EventPayloadMap['agent:conference'];
-        console.log('[PixDash Debug] agent:conference event', JSON.stringify(payload));
         void handleConference(payload.agentIds);
         break;
       }

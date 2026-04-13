@@ -46,8 +46,13 @@ export class PixDashWebSocketServer {
 
   broadcast<TPayload>(event: WsEventMessage<TPayload>): void {
     const payload = JSON.stringify(event);
-    for (const client of this.clients.values()) {
-      client.socket.send(payload);
+    for (const [id, client] of this.clients) {
+      try {
+        client.socket.send(payload);
+      } catch (err) {
+        console.warn(`[WebSocket] Broadcast failed for client ${id}, removing: ${(err as Error).message}`);
+        this.clients.delete(id);
+      }
     }
   }
 }

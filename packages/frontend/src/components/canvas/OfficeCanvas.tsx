@@ -6,6 +6,7 @@ import { CameraController } from './CameraController';
 import { useCanvas } from '@/hooks/useCanvas';
 import { useMovementStore } from '@/store/movementStore';
 import { agentsStore } from '@/store/agentsStore';
+import { debugAgent } from '@/lib/debug';
 import { smoothPositionTargets } from '@/hooks/useAgents';
 import { OFFICE_HEIGHT, OFFICE_WIDTH } from '@/lib/officeScene';
 import type { Direction } from '@pixdash/shared';
@@ -166,9 +167,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
           isMoving: false,
         };
         renderOverrides.set(agent.id, override);
-        if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === agent.id) {
-          console.log('[pixdash][override]', agent.id, { source: 'store', override, movementState: agent.movementState, pathLen: agent.path?.length ?? 0 });
-        }
+        debugAgent(agent.id, '[pixdash][override] ' + agent.id, { source: 'store', override, movementState: agent.movementState, pathLen: agent.path?.length ?? 0 });
         continue;
       }
 
@@ -179,8 +178,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         isMoving: true,
       };
       renderOverrides.set(agent.id, override);
-      if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === agent.id) {
-        console.log('[pixdash][override]', agent.id, {
+      debugAgent(agent.id, '[pixdash][override] ' + agent.id, {
           source: 'smooth-target',
           override,
           target,
@@ -189,7 +187,6 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
           storeXY: { x: agent.x, y: agent.y },
           interpXY: { x: agent.interpolatedX, y: agent.interpolatedY },
         });
-      }
     }
 
     agentRenderer.render(ctx, currentAgents, selectedAgentId, renderOverrides);
@@ -282,18 +279,6 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         const worldPoint = worldPosition(point.x, point.y);
         const tileX = Math.floor(worldPoint.x / 32);
         const tileY = Math.floor(worldPoint.y / 32);
-        const camState = cameraRef.current.getSnapshot();
-        const { width: vpWidth, height: vpHeight } = viewportRef.current;
-        const rect = canvasRef.current?.getBoundingClientRect();
-        console.log('=== CLICK DEBUG ===');
-        console.log('clientX/Y:', event.clientX, event.clientY);
-        console.log('rect:', rect?.left, rect?.top, rect?.width, rect?.height);
-        console.log('viewportRef:', vpWidth, vpHeight);
-        console.log('camera state:', camState);
-        console.log('pointerPosition:', point);
-        console.log('worldPosition:', worldPoint);
-        console.log('tile:', tileX, tileY);
-        console.log('===================');
         setClickCoords({ px: Math.round(worldPoint.x), py: Math.round(worldPoint.y), tileX, tileY });
         const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agentsRef.current);
         onAgentSelectRef.current?.(clickedAgent);

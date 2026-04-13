@@ -13,8 +13,14 @@ sleep 1
 
 pnpm -r build
 
+# Conditional --watch flag: enabled when PIXDASH_DEV_MODE=true, default is production (no watch)
+NODE_FLAGS=""
+if [ "${PIXDASH_DEV_MODE:-}" = "true" ]; then
+  NODE_FLAGS="--watch --enable-source-maps"
+fi
+
 pushd packages/backend >/dev/null
-nohup node --watch --enable-source-maps dist/server.js > "$LOG_FILE" 2>&1 &
+nohup node $NODE_FLAGS dist/server.js > "$LOG_FILE" 2>&1 &
 PID=$!
 popd >/dev/null
 

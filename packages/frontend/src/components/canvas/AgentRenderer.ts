@@ -1,6 +1,7 @@
 import type { AgentPosition } from '@/types';
 import type { Direction } from '@pixdash/shared';
 import { getWalkFrameIndex } from '@/lib/movement';
+import { isDebug, isDebugAgent } from '@/lib/debug';
 import { loadSpriteTemplate, pickSpriteTemplateFromAppearance, clearSpriteTemplateCache, type SpriteSheetFrames } from '@/lib/spriteSheets';
 
 const SPRITE_DRAW_WIDTH = 235;
@@ -203,7 +204,7 @@ export class AgentRenderer {
       return ay - by;
     });
     // DEBUG: verify render is called
-    if (typeof window !== 'undefined' && (window as any).__pixdashDebug) {
+    if (isDebug()) {
       const t = performance.now();
       if (!(window as any).__renderLogT || t - (window as any).__renderLogT > 1000) {
         (window as any).__renderLogT = t;
@@ -230,14 +231,14 @@ export class AgentRenderer {
       const isAtClaimedSeat = !override?.isMoving && !!agent.claimedWaypointId;
       const isMoving = isAtClaimedSeat ? false : (override?.isMoving ?? (hasPath && hasPosition));
       // DEBUG: log when isMoving disagrees with visual expectation
-      if (typeof window !== 'undefined' && (window as any).__pixdashDebug) {
+      if (isDebug()) {
         const zustandMoving = agent.movementState === 'walking' || hasPath;
         if (isMoving !== zustandMoving) {
           console.log(`[pixdash] ${agent.name} isMoving=${isMoving} (override=${override?.isMoving} hasPath=${hasPath} hasPosition=${hasPosition}) zustand=${agent.movementState} pathLen=${agent.path?.length ?? 0}`);
         }
       }
       const direction = override?.direction ?? agent.direction ?? 'south';
-      if (typeof window !== 'undefined' && (window as any).__pixdashDebugAgent === agent.id) {
+      if (isDebugAgent(agent.id)) {
         console.log('[pixdash][draw]', agent.id, {
           isMoving,
           direction,
@@ -252,7 +253,7 @@ export class AgentRenderer {
       const sprite = frames[direction][getWalkFrameIndex(isMoving)];
       if (!sprite) return;
       // DEBUG
-      if (typeof window !== 'undefined' && (window as any).__pixdashDebug) {
+      if (isDebug()) {
         const now = performance.now();
         if (!(window as any).__pixdashDebugLast || now - (window as any).__pixdashDebugLast > 500) {
           (window as any).__pixdashDebugLast = now;

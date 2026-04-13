@@ -121,6 +121,30 @@ export class AgentStateManager {
     this.settledBroadcastInterval.unref?.();
   }
 
+  /** Remove an agent and all associated state. Safe to call multiple times. */
+  removeAgent(id: string): void {
+    this.agents.delete(id);
+    this.presence.delete(id);
+    const timer = this.activityDecayTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.activityDecayTimers.delete(id);
+    }
+    this.lastMovementBroadcast.delete(id);
+    this.movementEngine.removeAgent(id);
+  }
+
+  /** Gracefully shut down all intervals and timers. */
+  shutdown(): void {
+    clearInterval(this.movementInterval);
+    clearInterval(this.statusInterval);
+    clearInterval(this.settledBroadcastInterval);
+    for (const timer of this.activityDecayTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.activityDecayTimers.clear();
+  }
+
   async hydrateAppearance(agentId: string): Promise<void> {
     const agent = this.ensureAgent(agentId);
     agent.appearance = await this.appearanceStore.get(agentId);
@@ -184,6 +208,12 @@ export class AgentStateManager {
       if (!presence.explicitOffline) {
         presence.baselineStatus = event.status === 'idle' ? 'idle' : 'online';
       }
+    }
+
+    // Remove agents that go offline (cleanup resources)
+    if (presence.explicitOffline) {
+      this.removeAgent(event.agentId);
+      return;
     }
 
     agent.lastSeen = event.timestamp;
@@ -460,6 +490,22 @@ export class AgentStateManager {
 
   private reevaluateStatuses(agentId?: string): void {
     const now = Date.now();
+
+    // Periodic cleanup: remove agents offline for >24h
+    if (!agentId) {
+      for (const [id, presence] of this.presence.entries()) {
+        if (presence.explicitOffline) {
+          const agent = this.agents.get(id);
+          if (agent) {
+            const offlineMs = Date.parse(agent.lastSeen) ? now - new Date(agent.lastSeen).getTime() : Infinity;
+            if (offlineMs > 24 * 60 * 60 * 1000) {
+              this.removeAgent(id);
+            }
+          }
+        }
+      }
+    }
+
     const ids = agentId ? [agentId] : [...this.agents.keys()];
 
     for (const id of ids) {

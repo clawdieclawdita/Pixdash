@@ -72,7 +72,7 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     // Backend provides canonical positions for all agents via HTTP GET
     // and WebSocket broadcasts. The agentsStore normalizer handles
     // fallback positioning when backend data is absent.
-    console.log('[PixDash Debug] placeAgentsOnLoad: skipped (server-authoritative mode)');
+    console.warn('[PixDash] placeAgentsOnLoad: skipped (server-authoritative mode)');
   },
   handleStatusChange: async (agentId, status) => {
     // Server-authoritative migration: local status-change movement is disabled.
@@ -81,12 +81,12 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
     const agent = agentsStore.getState().agents.find((entry) => entry.id === agentId);
     if (!agent) return;
     agentsStore.updateAgent({ id: agentId, status });
-    console.log('[PixDash Debug] handleStatusChange: status-only update (server-authoritative)', JSON.stringify({ agentId, status }));
+    console.warn('[PixDash] handleStatusChange: status-only update (server-authoritative)', JSON.stringify({ agentId, status }));
   },
   handleConference: async (agentIds) => {
     // Server-authoritative migration: local conference placement is disabled.
     // Backend handles conference seat assignment and movement.
-    console.log('[PixDash Debug] handleConference: no-op (server-authoritative)', JSON.stringify({ agentIds }));
+    console.warn('[PixDash] handleConference: no-op (server-authoritative)', JSON.stringify({ agentIds }));
   },
   removeAgent: (agentId) => {
     releaseWaypointClaim(get().waypoints, agentId);

@@ -89,6 +89,12 @@ export class MovementEngine {
       return;
     }
 
+    if (newStatus === 'busy') {
+      // Busy agents keep their current movement state — no cancel, no reroute.
+      // They simply continue walking if already moving, or stay put if idle.
+      return;
+    }
+
     if (newStatus === 'offline') {
       this.cancelMovement(agentId, true);
       return;
@@ -185,9 +191,41 @@ export class MovementEngine {
   movementTick(): void {
     this.wanderTick();
 
+
+    // Periodic cleanup of stale agent entries (every ~60 s worth of ticks at 50 ms)
+    if (Math.random() < 0.001) {
+      this.periodicCleanup();
+    }
     for (const agent of this.agentStateManager.getMutableAgents()) {
       const movement = agent.movement;
-      if (!movement || movement.path.length === 0) {
+      if (!movement) {
+        continue;
+      }
+
+      // Stuck-in-moving recovery: path is empty but status says moving
+      if (movement.path.length === 0 && movement.status === 'moving') {
+        console.warn(`[MovementEngine] Agent ${agent.id} stuck in moving with empty path — auto-recovering`);
+        const recoverStatus = movement.claimedWaypointId ? 'seated' : 'idle';
+        if (movement.claimedWaypointId) {
+          this.setOccupied(agent.id, agent.position.x, agent.position.y);
+        }
+        agent.movement = {
+          ...movement,
+          status: recoverStatus,
+          path: [],
+          progress: 0,
+          fractionalX: undefined,
+          fractionalY: undefined,
+          lastUpdatedAt: new Date().toISOString(),
+        };
+        this.agentStateManager.emitMovement(agent);
+        if (recoverStatus === 'idle') {
+          this.scheduleWander(agent.id);
+        }
+        continue;
+      }
+
+      if (movement.path.length === 0) {
         continue;
       }
 
@@ -484,6 +522,24 @@ export class MovementEngine {
       waypointDirection: undefined,
     };
     this.agentStateManager.emitMovement(agent);
+  }
+
+  /** Clean up all internal maps for a removed agent. Called by AgentStateManager.removeAgent. */
+  removeAgent(agentId: string): void {
+    this.cancelMovement(agentId, true);
+    this.wanderDueAt.delete(agentId);
+    this.lastRerouteAt.delete(agentId);
+    this.blockedSince.delete(agentId);
+    this.clearOccupied(agentId);
+  }
+
+  /** Remove stale entries from all maps for agents that no longer exist. */
+  private periodicCleanup(): void {
+    const liveIds = new Set(this.agentStateManager.getMutableAgents().map(a => a.id));
+    for (const id of this.wanderDueAt.keys()) if (!liveIds.has(id)) this.wanderDueAt.delete(id);
+    for (const id of this.lastRerouteAt.keys()) if (!liveIds.has(id)) this.lastRerouteAt.delete(id);
+    for (const id of this.blockedSince.keys()) if (!liveIds.has(id)) this.blockedSince.delete(id);
+    for (const [key, id] of this.occupiedTiles) if (!liveIds.has(id)) this.occupiedTiles.delete(key);
   }
 
   scheduleWander(agentId: string): void {

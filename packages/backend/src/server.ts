@@ -66,6 +66,7 @@ async function buildServer(): Promise<PixDashFastifyInstance> {
   }
 
   app.addHook('onClose', async () => {
+    agentStateManager.shutdown();
     gatewayClient.stop();
     await configWatcher.stop();
   });
