@@ -9,7 +9,7 @@ interface ConfigState {
   fetchConfig: () => Promise<void>;
 }
 
-export const useConfigStore = create<ConfigState>()((set) => ({
+export const configStore = create<ConfigState>()((set) => ({
   config: {
     displayNames: {},
     roles: {},
@@ -35,3 +35,5 @@ export const useConfigStore = create<ConfigState>()((set) => ({
     }
   },
 }));
+
+export const useConfigStore = configStore;

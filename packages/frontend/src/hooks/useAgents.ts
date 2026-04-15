@@ -9,6 +9,7 @@ import {
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { normalizeIncomingPosition, useAgentsStore } from '@/store/agentsStore';
 import { useUIStore } from '@/store/uiStore';
+import { configStore } from '@/store/configStore';
 import { useMovementStore, movementStore } from '@/store/movementStore';
 import { tileToPixelCenter, getArrivalStateForMovementType } from '@/lib/movement';
 import { createWaypointSet, getAllWaypoints } from '@/lib/waypoints';
@@ -153,7 +154,17 @@ export function useAgents() {
       });
 
       debugAgent('setAgents', '[PixDash Debug] setAgents sync', { reason, count: protectedAgents.length });
-      setAgents(protectedAgents);
+
+      // Enrich agents with display names from config (pixdash.json)
+      const displayNames = configStore.getState().config.displayNames;
+      const enrichedAgents = protectedAgents.map((agent) => {
+        if (!agent.displayName && displayNames[agent.id]) {
+          return { ...agent, displayName: displayNames[agent.id] };
+        }
+        return agent;
+      });
+
+      setAgents(enrichedAgents);
       const syncedAgents = useAgentsStore.getState().agents;
       syncAgents(syncedAgents);
       // Local placement should only run for agents still using fallback movement.
