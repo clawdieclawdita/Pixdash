@@ -176,7 +176,7 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.font = "24px 'Press Start 2P', monospace";
+  ctx.font = "bold 28px 'Space Mono', monospace";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -191,7 +191,7 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
   drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 6);
   ctx.fill();
 
-  ctx.fillStyle = `rgba(255, 255, 255, ${0.92 * opacity})`;
+  ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, opacity * 1.3)})`;
   ctx.fillText(label, px, labelY + labelHeight / 2 + 0.5);
   ctx.restore();
 };

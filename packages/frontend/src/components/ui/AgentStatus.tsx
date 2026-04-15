@@ -42,10 +42,10 @@ export function AgentStatus({ status }: AgentStatusProps) {
   const config = statusConfig[status];
 
   return (
-    <div className="flex items-center gap-2 text-sm font-medium text-slate-200">
+    <div className="pixel-frame inline-flex items-center gap-2 rounded-[10px] bg-[#140f12]/95 px-2.5 py-1.5 text-[11px] uppercase tracking-[0.16em] text-slate-200">
       <style>{`@keyframes agent-status-working-pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } } .animate-agent-status-working { animation: agent-status-working-pulse 1.5s ease-in-out infinite; }`}</style>
       <span
-        className={cn('h-2.5 w-2.5 rounded-full', config.dotClass)}
+        className={cn('h-2.5 w-2.5 border border-[#2a2520]', config.dotClass)}
         aria-hidden="true"
       />
       <span className={config.labelClass}>{config.label}</span>

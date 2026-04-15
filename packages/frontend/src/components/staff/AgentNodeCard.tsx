@@ -104,23 +104,23 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
       <Handle type="target" position={Position.Top} style={hiddenHandleStyle} />
       <Handle type="source" position={Position.Bottom} style={hiddenHandleStyle} />
 
-      <div className="group relative flex h-[88px] w-[260px] flex-row items-center justify-center rounded-xl border border-[#d1a45a]/20 bg-gradient-to-b from-[#1a1714] to-[#0f0e10] px-4 py-3 transition-all duration-300 hover:border-[#d1a45a]/40 hover:shadow-[0_0_20px_rgba(209,164,90,0.08)]">
-        <div className="pointer-events-none absolute inset-0 rounded-xl bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.04)_2px,rgba(0,0,0,0.04)_4px)]" />
+      <div className="pixel-frame group relative flex h-[88px] w-[260px] flex-row items-center justify-center rounded-[14px] bg-gradient-to-b from-[#1a1714] to-[#0f0e10] px-4 py-3 transition-all duration-300 hover:brightness-110">
+        <div className="pointer-events-none absolute inset-0 rounded-[14px] bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.04)_2px,rgba(0,0,0,0.04)_4px)]" />
 
         <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
           <SpriteAvatar bodyType={bodyType} />
         </div>
 
         <div className="relative ml-3 flex w-auto flex-col justify-center leading-[1.15]">
-          <span className={cn('text-[15px] font-bold uppercase tracking-[0.2em]', roleColor)}>
+          <span className={cn('font-display text-[11px] uppercase tracking-[0.18em]', roleColor)}>
             {role}
           </span>
 
-          <span className="mt-1 text-[14px] font-medium text-slate-200">
+          <span className="mt-2 text-[14px] font-bold text-slate-200">
             {displayName}
           </span>
 
-          <span className={cn('mt-[2px] text-[12px] font-medium', config.labelClass)}>
+          <span className={cn('mt-[4px] text-[11px] uppercase tracking-[0.16em]', config.labelClass)}>
             {config.label}
           </span>
         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dagre from 'dagre';
 import {
   Background,
@@ -36,7 +36,7 @@ const ORG_EDGES = [
 
 const defaultEdgeOptions = {
   type: 'smoothstep',
-  style: { stroke: 'rgba(209, 164, 90, 0.4)', strokeWidth: 1.5 },
+  style: { stroke: 'rgba(209, 164, 90, 0.55)', strokeWidth: 2 },
   animated: false,
 };
 
@@ -49,7 +49,7 @@ type AgentFlowNode = Node<{ agent: StoreAgent; role: string }, 'agent'>;
 function buildGraph(agents: StoreAgent[]): { nodes: AgentFlowNode[]; edges: Edge[] } {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 100 });
+  g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 80 });
 
   agents.forEach((agent) => {
     g.setNode(agent.id, { width: CARD_WIDTH, height: CARD_HEIGHT });
@@ -104,28 +104,13 @@ function StaffFlow({ initialNodes, initialEdges }: { initialNodes: AgentFlowNode
     if (!hasFitted.current) {
       hasFitted.current = true;
       requestAnimationFrame(() => {
-        reactFlow.fitView({ padding: 0.15, duration: 300 });
+        reactFlow.fitView({ padding: 0.08, duration: 300 });
       });
     }
   }, [reactFlow]);
 
-  const fitToView = useCallback(() => {
-    requestAnimationFrame(() => {
-      reactFlow.fitView({ padding: 0.15, duration: 300 });
-    });
-  }, [reactFlow]);
-
   return (
     <>
-      <button
-        type="button"
-        onClick={fitToView}
-        className="absolute right-6 top-[5.75rem] z-20 flex items-center gap-2 rounded-xl border border-[#d1a45a]/25 bg-[#15110d]/90 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#f0d6a5] shadow-[0_0_18px_rgba(209,164,90,0.16)] backdrop-blur-sm transition hover:border-[#d1a45a]/45 hover:bg-[#1b1611]"
-      >
-        <span className="text-xs leading-none">⌘</span>
-        Fit
-      </button>
-
       <ReactFlow
         nodes={nodes}
         edges={initialEdges}
@@ -142,7 +127,7 @@ function StaffFlow({ initialNodes, initialEdges }: { initialNodes: AgentFlowNode
         proOptions={{ hideAttribution: true }}
         className="bg-transparent"
       >
-        <Background color="rgba(209, 164, 90, 0.08)" gap={24} size={1} />
+        <Background color="rgba(209, 164, 90, 0.05)" gap={20} size={1} />
         <Controls
           showInteractive={false}
           className="!bottom-6 !left-6 !top-auto !rounded-xl !border !border-[#d1a45a]/20 !bg-[#15110d]/90 !shadow-[0_0_18px_rgba(209,164,90,0.1)] [&_button]:!border-b-[#d1a45a]/10 [&_button]:!bg-transparent [&_button]:!text-[#f0d6a5] hover:[&_button]:!bg-[#1b1611]"
@@ -166,11 +151,10 @@ export function StaffView() {
   }, [agents]);
 
   const { nodes, edges } = useMemo(() => buildGraph(visibleAgents), [visibleAgents]);
+  const [fitSignal, setFitSignal] = useState(0);
 
   return (
-    <div className="relative min-h-[70vh] overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,16,18,0.92),rgba(11,11,14,0.95))] shadow-panel shadow-black/30">
-      <div className="pointer-events-none absolute inset-0 z-10 bg-[repeating-linear-gradient(0deg,transparent,transparent_3px,rgba(0,0,0,0.03)_3px,rgba(0,0,0,0.03)_4px)]" />
-      <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(0,0,0,0.3)_100%)]" />
+    <div className="pixel-frame crt-panel relative min-h-[70vh] overflow-hidden rounded-[18px] bg-[linear-gradient(180deg,rgba(15,12,16,0.98),rgba(9,8,11,0.98))]">
 
       <div className="relative z-20 border-b border-[#d1a45a]/15 px-8 py-5">
         <div className="flex items-center justify-between">
@@ -178,15 +162,23 @@ export function StaffView() {
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-[#d1a45a]/60">
               Command Center
             </p>
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white">
+            <h2 className="font-display text-xl leading-relaxed text-white md:text-2xl">
               Staff Hierarchy
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[#9c907f]">
+            <span className="pixel-frame rounded-[10px] bg-[#130f13]/90 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[#9c907f]">
               {visibleAgents.filter((a) => a.status !== 'offline').length}/{visibleAgents.length} online
             </span>
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#6dbd72]" />
+            <span className="h-2.5 w-2.5 animate-pulse border border-[#2a2520] bg-[#00d4aa]" />
+            <button
+              type="button"
+              onClick={() => setFitSignal((value) => value + 1)}
+              className="pixel-button flex items-center gap-2 rounded-[10px] bg-[#15110d]/90 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[#f0d6a5] transition hover:brightness-110"
+            >
+              <span className="text-xs leading-none">⌘</span>
+              Fit
+            </button>
           </div>
         </div>
       </div>
@@ -194,10 +186,23 @@ export function StaffView() {
       <div className="relative z-0 h-[calc(70vh-89px)] min-h-[520px] w-full" style={{ backgroundColor: '#0d0c0e' }}>
         {mounted ? (
           <ReactFlowProvider>
-            <StaffFlow initialNodes={nodes} initialEdges={edges} />
+            <StaffFlowWithSignal initialNodes={nodes} initialEdges={edges} fitSignal={fitSignal} />
           </ReactFlowProvider>
         ) : null}
       </div>
     </div>
   );
+}
+
+function StaffFlowWithSignal({ initialNodes, initialEdges, fitSignal }: { initialNodes: AgentFlowNode[]; initialEdges: Edge[]; fitSignal: number }) {
+  const reactFlow = useReactFlow();
+
+  useEffect(() => {
+    if (fitSignal === 0) return;
+    requestAnimationFrame(() => {
+      reactFlow.fitView({ padding: 0.08, duration: 300 });
+    });
+  }, [fitSignal, reactFlow]);
+
+  return <StaffFlow initialNodes={initialNodes} initialEdges={initialEdges} />;
 }
