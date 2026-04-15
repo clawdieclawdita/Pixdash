@@ -169,7 +169,7 @@ export const AppLayout = ({
           </div>
 
           {panelOpen ? (
-            <div className="pixel-frame crt-panel rounded-[18px] bg-[linear-gradient(180deg,rgba(15,12,16,0.98),rgba(9,8,11,0.98))]">
+            <div className="pixel-frame crt-panel rounded-[18px] flex flex-col bg-[linear-gradient(180deg,rgba(15,12,16,0.98),rgba(9,8,11,0.98))] h-[70vh] overflow-y-auto">
               <AgentPanel
                 agent={selectedAgent}
                 onClose={handleClosePanel}
@@ -178,7 +178,7 @@ export const AppLayout = ({
             </div>
           ) : (
             <aside
-              className="pixel-frame crt-panel rounded-[18px] bg-[linear-gradient(180deg,rgba(15,12,16,0.98),rgba(9,8,11,0.98))] p-5"
+              className="pixel-frame crt-panel rounded-[18px] flex flex-col bg-[linear-gradient(180deg,rgba(15,12,16,0.98),rgba(9,8,11,0.98))] p-5 h-[70vh] overflow-y-auto"
             >
             <div className="mb-6">
               <div className="text-[10px] uppercase tracking-[0.28em] text-[#9c907f]">Scene info</div>
