@@ -23,6 +23,25 @@
     { "parent": "infralover", "child": "forbidden" }
   ],
   "reservedWaypoints": {
-    "main": "reception-clawdie"
-  }
+    "main": "reception-front"
+  },
+  // Agent spawn positions on the tile grid (x, y coordinates)
+  "spawnPositions": [
+    { "x": 3, "y": 22 },
+    { "x": 6, "y": 22 },
+    { "x": 16, "y": 22 },
+    { "x": 20, "y": 21 },
+    { "x": 23, "y": 22 },
+    { "x": 31, "y": 22 },
+    { "x": 35, "y": 22 },
+    { "x": 48, "y": 22 },
+    { "x": 52, "y": 22 },
+    { "x": 57, "y": 22 },
+    { "x": 69, "y": 22 },
+    { "x": 72, "y": 22 },
+    { "x": 3, "y": 21 },
+    { "x": 18, "y": 21 },
+    { "x": 32, "y": 21 },
+    { "x": 38, "y": 21 }
+  ]
 }

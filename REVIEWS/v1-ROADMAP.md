@@ -30,7 +30,7 @@ Remove ALL hardcoded agent data. PixDash must work with any OpenClaw Gateway con
 - `AgentStateManager.ts` — display names, spawn positions, body type defaults
 - `StaffView.tsx` — `ROLE_MAP` (6 entries), `ORG_EDGES` (5 hardcoded edges), `visibleAgents` filter
 - `AgentNodeCard.tsx` — role labels derived from `ROLE_MAP`
-- Backend `waypoints.ts` — reserved seat `reception-clawdie` for agent `main`
+- Backend `waypoints.ts` — reserved seat `reception-front` for agent `main`
 - `movementStore.ts` (frontend) / `MovementEngine.ts` (backend) — home-base routing for `main`
 
 **Required changes:**
@@ -275,6 +275,21 @@ These should NOT be touched — they work well:
 - Sensitive field stripping on API responses
 - Config watcher with JSONC parsing
 - Character customizer foundation (11 body types, sprite caching)
+
+---
+
+## Completed in v1.0 Cleanup
+
+The following items were addressed during initial v1.0 stabilization:
+
+- **Hardcoded agent remediation** — ✅ Done. Agent roster now derived from Gateway config.
+- **Move spawn positions to config** — ✅ Done. Spawn positions live in `pixdash.json`.
+- **Fix hardcoded absolute paths** — ✅ Done. All paths are relative/config-driven.
+- **API auth** — N/A. Local-only deployment (no external network exposure).
+- **CORS hardening** — N/A. Local-only deployment (no external network exposure).
+- **Rename `reception-clawdie` waypoint** — ✅ Done. Renamed to `reception-front` across all config and source files.
+- **CustomizerModal default body type** — ✅ Already correct. Default is `'neutral'` via `DEFAULT_SPRITE_APPEARANCE`.
+- **AgentNodeCard body type fallback** — ✅ Already correct. Falls back to `'michael'`.
 
 ---
 

@@ -28,32 +28,15 @@ import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('trace');
 
-const AGENT_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
-  { x: 3, y: 22 },
-  { x: 6, y: 22 },
-  { x: 16, y: 22 },
-  { x: 20, y: 21 },
-  { x: 23, y: 22 },
-  { x: 31, y: 22 },
-  { x: 35, y: 22 },
-  { x: 48, y: 22 },
-  { x: 52, y: 22 },
-  { x: 57, y: 22 },
-  { x: 69, y: 22 },
-  { x: 72, y: 22 },
-  { x: 3, y: 21 },
-  { x: 18, y: 21 },
-  { x: 32, y: 21 },
-  { x: 38, y: 21 },
-];
-
 function derivePosition(_id: string) {
-  const index = Math.floor(Math.random() * AGENT_SPAWN_POSITIONS.length);
-  const spawnPos = AGENT_SPAWN_POSITIONS[index];
+  const spawnPositions = pixdashConfig.getSpawnPositions();
+  const index = Math.floor(Math.random() * spawnPositions.length);
+  const spawnPos = spawnPositions[index];
   // Hardening: reject near-origin coordinates (indicates corruption)
   if (!spawnPos || spawnPos.x < 3 || spawnPos.y < 10) {
     logger.warn({ agentId: _id, spawnPos, index }, '[derivePosition] suspicious spawn position — using safe fallback');
-    return { x: 31, y: 22, direction: 'south' as const };
+    const fallback = pixdashConfig.getSpawnPositions()[0] ?? { x: 31, y: 22 };
+    return { x: fallback.x, y: fallback.y, direction: 'south' as const };
   }
   return {
     x: spawnPos.x,
@@ -96,7 +79,7 @@ function createInitialAgent(id: string, name = id): StatefulAgent {
     name,
     status: 'idle',
     lastSeen: new Date().toISOString(),
-    position: derivePosition(id) ?? { x: 31, y: 22, direction: 'south' as const },
+    position: derivePosition(id) ?? (() => { const fb = pixdashConfig.getSpawnPositions()[0] ?? { x: 31, y: 22 }; return { x: fb.x, y: fb.y, direction: 'south' as const }; })(),
     appearance: { ...structuredClone(DEFAULT_APPEARANCE), bodyType: randomBodyTypeForAgent(id) },
     config: {},
     stats: {
@@ -503,7 +486,8 @@ export class AgentStateManager {
       occupied.add(`${existingAgent.position.x},${existingAgent.position.y}`);
     }
 
-    const availableSpawns = AGENT_SPAWN_POSITIONS.filter((pos) => !occupied.has(`${pos.x},${pos.y}`));
+    const spawnPositions = pixdashConfig.getSpawnPositions();
+    const availableSpawns = spawnPositions.filter((pos) => !occupied.has(`${pos.x},${pos.y}`));
     if (availableSpawns.length > 0) {
       const index = Math.floor(Math.random() * availableSpawns.length);
       const spawnPos = availableSpawns[index];

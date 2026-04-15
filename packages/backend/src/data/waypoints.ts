@@ -95,7 +95,7 @@ export const BACKEND_WAYPOINTS: BackendWaypoint[] = [
   seated('desk-g2', 29, 52, 'desk', 'north', 43, -1),
   seated('desk-g3', 41, 52, 'desk', 'north', -40, -1),
   seated('desk-g4', 44, 52, 'desk', 'north', 46, -1),
-  seated('reception-clawdie', 6, 36, 'reception', 'south', 32, 32),
+  seated('reception-front', 6, 36, 'reception', 'south', 32, 32),
   seated('reception-1', 4, 42, 'reception', 'south'),
   seated('reception-2', 7, 42, 'reception', 'north'),
   seated('reception-3', 10, 42, 'reception', 'north'),

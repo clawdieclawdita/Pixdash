@@ -40,18 +40,44 @@ export interface HierarchyEdge {
   child: string;
 }
 
+export interface SpawnPosition {
+  x: number;
+  y: number;
+}
+
 export interface PixdashConfigSchema {
   displayNames: Record<string, string>;
   roles: Record<string, string>;
   hierarchy: HierarchyEdge[];
   reservedWaypoints: Record<string, string>;
+  spawnPositions: SpawnPosition[];
 }
+
+const DEFAULT_SPAWN_POSITIONS: SpawnPosition[] = [
+  { x: 3, y: 22 },
+  { x: 6, y: 22 },
+  { x: 16, y: 22 },
+  { x: 20, y: 21 },
+  { x: 23, y: 22 },
+  { x: 31, y: 22 },
+  { x: 35, y: 22 },
+  { x: 48, y: 22 },
+  { x: 52, y: 22 },
+  { x: 57, y: 22 },
+  { x: 69, y: 22 },
+  { x: 72, y: 22 },
+  { x: 3, y: 21 },
+  { x: 18, y: 21 },
+  { x: 32, y: 21 },
+  { x: 38, y: 21 },
+];
 
 const DEFAULT_CONFIG: PixdashConfigSchema = {
   displayNames: {},
   roles: {},
   hierarchy: [],
   reservedWaypoints: {},
+  spawnPositions: [...DEFAULT_SPAWN_POSITIONS],
 };
 
 class PixdashConfig {
@@ -84,6 +110,9 @@ class PixdashConfig {
         roles: parsed.roles ?? { ...DEFAULT_CONFIG.roles },
         hierarchy: parsed.hierarchy ?? [...DEFAULT_CONFIG.hierarchy],
         reservedWaypoints: parsed.reservedWaypoints ?? { ...DEFAULT_CONFIG.reservedWaypoints },
+        spawnPositions: Array.isArray(parsed.spawnPositions) && parsed.spawnPositions.length > 0
+          ? parsed.spawnPositions as SpawnPosition[]
+          : [...DEFAULT_SPAWN_POSITIONS],
       };
     } catch {
       this.config = { ...DEFAULT_CONFIG };
@@ -112,6 +141,10 @@ class PixdashConfig {
 
   getReservedWaypoint(agentId: string): string | null {
     return this.config.reservedWaypoints[agentId] ?? null;
+  }
+
+  getSpawnPositions(): SpawnPosition[] {
+    return this.config.spawnPositions;
   }
 
   /** Public-facing config (no reservedWaypoints) */

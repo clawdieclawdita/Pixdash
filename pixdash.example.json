@@ -36,6 +36,6 @@
   // Optional: reserved waypoint assignments
   // Maps agent IDs to waypoint IDs they should claim on spawn
   "reservedWaypoints": {
-    "main": "reception-clawdie"
+    "main": "reception-front"
   }
 }
