@@ -108,10 +108,10 @@ export const AppLayout = ({
         <header className="pixel-frame crt-panel flex items-center justify-between rounded-[18px] bg-[linear-gradient(135deg,rgba(33,24,18,0.97),rgba(14,12,16,0.98))] px-6 py-4 backdrop-blur-xl">
           <div className="flex items-center gap-4">
             <div>
-              <p className="mb-2 inline-flex items-center bg-[#1a140f] px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-[#f0d6a5] pixel-frame">
+              <h1 className="font-display text-2xl leading-tight text-white [text-shadow:0_0_14px_rgba(209,164,90,0.28)] md:text-3xl">PixDash</h1>
+              <p className="mt-2 inline-flex items-center bg-[#1a140f] px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-[#f0d6a5] pixel-frame">
                 Retro Office Dashboard
               </p>
-              <h1 className="font-display text-2xl leading-tight text-white [text-shadow:0_0_14px_rgba(209,164,90,0.28)] md:text-3xl">PixDash</h1>
             </div>
             <NavigationSwitch value={viewMode} onChange={setViewMode} />
           </div>
