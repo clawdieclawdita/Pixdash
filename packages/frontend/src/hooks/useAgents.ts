@@ -206,6 +206,27 @@ export function useAgents() {
     };
   }, [loadAgents]);
 
+  // Re-enrich agents with display names once config finishes loading.
+  // Fixes race condition where loadAgents runs before fetchConfig completes.
+  useEffect(() => {
+    const unsub = configStore.subscribe((state) => {
+      if (!state.isLoaded) return;
+      const displayNames = state.config.displayNames;
+      if (!displayNames || Object.keys(displayNames).length === 0) return;
+      const current = useAgentsStore.getState().agents;
+      let changed = false;
+      const enriched = current.map((a) => {
+        if (!a.displayName && displayNames[a.id]) {
+          changed = true;
+          return { ...a, displayName: displayNames[a.id] };
+        }
+        return a;
+      });
+      if (changed) setAgents(enriched);
+    });
+    return unsub;
+  }, [setAgents]);
+
   // Use a ref for agents in the WebSocket effect to avoid re-triggering on every agents change
   const agentsRef = useRef(agents);
   agentsRef.current = agents;
