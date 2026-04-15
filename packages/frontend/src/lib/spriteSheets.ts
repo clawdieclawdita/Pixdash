@@ -203,14 +203,6 @@ export const pickSpriteTemplateFromAppearance = (appearance: Appearance): Sprite
   return SPRITE_TEMPLATES[hashString(hashAppearance(appearance)) % SPRITE_TEMPLATES.length];
 };
 
-export const pickSpriteTemplateFromName = (name: string): SpriteTemplate =>
-  SPRITE_TEMPLATES[hashString(name.trim().toLowerCase()) % SPRITE_TEMPLATES.length];
-
 export const clearSpriteTemplateCache = () => {
   sheetPromiseCache.clear();
 };
-
-export const SPRITE_FRAME_SIZE = {
-  width: FRAME_WIDTH,
-  height: FRAME_HEIGHT
-} as const;

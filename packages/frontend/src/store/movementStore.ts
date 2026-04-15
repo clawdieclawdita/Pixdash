@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { AgentStatus } from '@pixdash/shared';
 import { agentsStore, type StoreAgent } from '@/store/agentsStore';
-import { loadCollisionMap, type CollisionMapData } from '@/lib/collisionMap';
 import {
   createWaypointSet,
   findWaypointById,
@@ -10,7 +9,6 @@ import {
 } from '@/lib/waypoints';
 
 interface MovementStoreState {
-  collisionMap: CollisionMapData | null;
   initialized: boolean;
   loadingPromise: Promise<void> | null;
   waypoints: WaypointSet;
@@ -24,7 +22,6 @@ interface MovementStoreState {
 }
 
 export const useMovementStore = create<MovementStoreState>((set, get) => ({
-  collisionMap: null,
   initialized: false,
   loadingPromise: null,
   waypoints: createWaypointSet(),
@@ -35,8 +32,8 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       return;
     }
 
-    const loadingPromise = loadCollisionMap().then((collisionMap) => {
-      set({ collisionMap, initialized: true });
+    const loadingPromise = Promise.resolve().then(() => {
+      set({ initialized: true });
     });
 
     set({ loadingPromise });
