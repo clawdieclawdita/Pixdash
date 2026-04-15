@@ -24,6 +24,9 @@ function randomBodyTypeForAgent(agentId: string): import('@pixdash/shared').Body
 }
 
 import { pixdashConfig } from '../config/pixdashConfig.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('trace');
 
 const AGENT_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
   { x: 3, y: 22 },
@@ -144,6 +147,10 @@ export class AgentStateManager {
 
   /** Remove an agent and all associated state. Safe to call multiple times. */
   removeAgent(id: string): void {
+    const agent = this.agents.get(id);
+    if (agent) {
+      logger.info({ agentId: id, position: agent.position, status: agent.status, movementStatus: agent.movement?.status }, '[removeAgent] removing agent');
+    }
     this.agents.delete(id);
     this.presence.delete(id);
     const timer = this.activityDecayTimers.get(id);
@@ -258,6 +265,7 @@ export class AgentStateManager {
 
     // Remove agents that go offline (cleanup resources)
     if (presence.explicitOffline) {
+      logger.info({ agentId: event.agentId, position: agent.position, movementStatus: agent.movement?.status, source: event.source }, '[applyStatusEvent] agent going offline — removing');
       this.removeAgent(event.agentId);
       return;
     }
@@ -478,7 +486,6 @@ export class AgentStateManager {
     }
 
     const agent = createInitialAgent(id, name);
-    agent.movement = createInitialMovementState();
     const occupied = new Set<string>();
     for (const existingAgent of this.agents.values()) {
       occupied.add(`${existingAgent.position.x},${existingAgent.position.y}`);
@@ -491,6 +498,8 @@ export class AgentStateManager {
       agent.position.x = spawnPos.x;
       agent.position.y = spawnPos.y;
     }
+    logger.info({ agentId: id, spawnPos: { x: agent.position.x, y: agent.position.y } }, '[ensureAgent] created new agent at spawn position');
+    agent.movement = createInitialMovementState();
 
     this.agents.set(id, agent);
     this.ensurePresence(id);

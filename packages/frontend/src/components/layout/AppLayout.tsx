@@ -233,7 +233,7 @@ export const AppLayout = ({
                             className="h-3 w-3 rounded-full border border-black/20"
                             style={{ backgroundColor: agent.color }}
                           />
-                          <span className="text-white">{agent.name}</span>
+                          <span className="text-white">{agent.displayName ?? agent.name}</span>
                         </div>
                         <AgentStatus status={agent.status} />
                       </div>

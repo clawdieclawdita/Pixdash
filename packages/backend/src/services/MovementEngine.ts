@@ -3,6 +3,9 @@ import type { BackendWaypoint, BackendWaypointType } from '../data/waypoints.js'
 import { findPath } from './PathfindingService.js';
 import { pixdashConfig } from '../config/pixdashConfig.js';
 import type { AgentStateManager } from './AgentStateManager.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('trace');
 
 const WANDER_DELAY_MIN_MS = 60_000;
 const WANDER_DELAY_MAX_MS = 90_000;
@@ -205,7 +208,7 @@ export class MovementEngine {
 
       // Stuck-in-moving recovery: path is empty but status says moving
       if (movement.path.length === 0 && movement.status === 'moving') {
-        console.warn(`[MovementEngine] Agent ${agent.id} stuck in moving with empty path — auto-recovering`);
+        logger.info({ agentId: agent.id, position: agent.position, claimedWaypointId: movement.claimedWaypointId, destination: movement.destination }, '[stuck-recovery] agent stuck in moving with empty path — auto-recovering');
         const recoverStatus = movement.claimedWaypointId ? 'seated' : 'idle';
         if (movement.claimedWaypointId) {
           this.setOccupied(agent.id, agent.position.x, agent.position.y);
@@ -247,6 +250,7 @@ export class MovementEngine {
           ? Math.abs(currentPosition.x - destination.x) + Math.abs(currentPosition.y - destination.y)
           : 0;
         if (dist > 2 && (!destination || distToDestination > 2)) {
+          logger.info({ agentId: agent.id, position: currentPosition, firstStep, dist, destination, distToDestination, pathLen: path.length }, '[stale-path-guard] cancelling movement — agent too far from path start');
           this.clearOccupied(agent.id);
           if (movement.claimedWaypointId) {
             this.agentStateManager.releaseWaypointClaim(movement.claimedWaypointId, agent.id);
@@ -576,6 +580,7 @@ export class MovementEngine {
       // Find nearest walkable tile via BFS
       const nearest = this.findNearestWalkable(x, y);
       if (nearest) {
+        logger.info({ agentId: agent.id, from: { x, y }, to: nearest, status: agent.movement?.status }, '[validatePositions] snapped agent to nearest walkable tile');
         agent.position.x = nearest.x;
         agent.position.y = nearest.y;
         this.agentStateManager.emitMovement(agent);
