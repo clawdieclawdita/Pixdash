@@ -132,8 +132,6 @@ export const createWaypointSet = (): WaypointSet => ({
   ],
 
   receptionChairs: [
-    // Clawdie's desk (main agent home base)
-    seated('reception-clawdie', 7, 37, 'reception', 'south'),
     // General reception seats
     seated('reception-1', 4, 42, 'reception', 'south'),
     seated('reception-2', 7, 42, 'reception', 'north'),
@@ -332,9 +330,6 @@ export const findWaypointById = (set: WaypointSet, waypointId: string | null | u
   getAllWaypoints(set).find((waypoint) => waypoint.id === waypointId) ?? null;
 
 export const claimWaypoint = (waypoint: WaypointClaim, agentId: string) => {
-  if (waypoint.id === 'reception-clawdie' && agentId !== 'main') {
-    console.error('[PixDash] 🚨 RESERVED SEAT VIOLATION: reception-clawdie claimed by', agentId, '— stack trace:', new Error().stack);
-  }
   waypoint.claimedBy = agentId;
   return waypoint;
 };

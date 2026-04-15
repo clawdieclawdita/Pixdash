@@ -1,0 +1,35 @@
+{
+  // Optional: human-readable names for agents (overrides Gateway name)
+  // Agents not listed here will use their Gateway-provided name
+  "displayNames": {
+    "main": "Clawdie",
+    "devo": "Devo"
+  },
+
+  // Optional: role labels for Staff/org chart view
+  // Agents not listed here default to "Agent"
+  "roles": {
+    "main": "CEO",
+    "devo": "CDO",
+    "cornelio": "CISO",
+    "infralover": "IM",
+    "docclaw": "DM",
+    "forbidden": "Analyst"
+  },
+
+  // Optional: org hierarchy edges for the Staff tree view
+  // Each entry defines a parent→child reporting line
+  "hierarchy": [
+    { "parent": "main", "child": "devo" },
+    { "parent": "main", "child": "cornelio" },
+    { "parent": "devo", "child": "infralover" },
+    { "parent": "devo", "child": "docclaw" },
+    { "parent": "infralover", "child": "forbidden" }
+  ],
+
+  // Optional: reserved waypoint assignments
+  // Maps agent IDs to waypoint IDs they should claim on spawn
+  "reservedWaypoints": {
+    "main": "reception-clawdie"
+  }
+}

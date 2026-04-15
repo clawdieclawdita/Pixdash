@@ -13,26 +13,11 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useAgentsStore, type StoreAgent } from '@/store/agentsStore';
+import { useConfigStore } from '@/store/configStore';
 import { AgentNodeCard } from './AgentNodeCard';
 
 const CARD_WIDTH = 260;
 const CARD_HEIGHT = 88;
-const ROLE_MAP: Record<string, string> = {
-  main: 'CEO',
-  devo: 'CDO',
-  cornelio: 'CISO',
-  infralover: 'IM',
-  docclaw: 'DM',
-  forbidden: 'Analyst',
-};
-
-const ORG_EDGES = [
-  { id: 'main-devo', source: 'main', target: 'devo' },
-  { id: 'main-cornelio', source: 'main', target: 'cornelio' },
-  { id: 'devo-infralover', source: 'devo', target: 'infralover' },
-  { id: 'devo-docclaw', source: 'devo', target: 'docclaw' },
-  { id: 'infralover-forbidden', source: 'infralover', target: 'forbidden' },
-] as const;
 
 const defaultEdgeOptions = {
   type: 'smoothstep',
@@ -46,7 +31,9 @@ const nodeTypes: NodeTypes = {
 
 type AgentFlowNode = Node<{ agent: StoreAgent; role: string }, 'agent'>;
 
-function buildGraph(agents: StoreAgent[]): { nodes: AgentFlowNode[]; edges: Edge[] } {
+function buildGraph(agents: StoreAgent[], roles: Record<string, string>, hierarchy: Array<{ parent: string; child: string }>): { nodes: AgentFlowNode[]; edges: Edge[] } {
+  const agentIds = new Set(agents.map((a) => a.id));
+
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 80 });
@@ -55,7 +42,8 @@ function buildGraph(agents: StoreAgent[]): { nodes: AgentFlowNode[]; edges: Edge
     g.setNode(agent.id, { width: CARD_WIDTH, height: CARD_HEIGHT });
   });
 
-  ORG_EDGES.forEach(({ source, target }) => g.setEdge(source, target));
+  const validEdges = hierarchy.filter((e) => agentIds.has(e.parent) && agentIds.has(e.child));
+  validEdges.forEach(({ parent, child }) => g.setEdge(parent, child));
   dagre.layout(g);
 
   const nodes: AgentFlowNode[] = agents.map((agent) => {
@@ -71,12 +59,12 @@ function buildGraph(agents: StoreAgent[]): { nodes: AgentFlowNode[]; edges: Edge
       },
       data: {
         agent,
-        role: ROLE_MAP[agent.id] ?? agent.title ?? 'Agent',
+        role: roles[agent.id] ?? agent.title ?? 'Agent',
       },
     };
   });
 
-  const edges: Edge[] = ORG_EDGES.map((edge) => ({ ...edge }));
+  const edges: Edge[] = validEdges.map((e) => ({ id: `${e.parent}-${e.child}`, source: e.parent, target: e.child }));
 
   return { nodes, edges };
 }
@@ -145,12 +133,9 @@ export function StaffView() {
     setMounted(true);
   }, []);
 
-  const visibleAgents = useMemo(() => {
-    const orgIds = new Set(Object.keys(ROLE_MAP));
-    return agents.filter((agent) => orgIds.has(agent.id));
-  }, [agents]);
+  const { config } = useConfigStore();
 
-  const { nodes, edges } = useMemo(() => buildGraph(visibleAgents), [visibleAgents]);
+  const { nodes, edges } = useMemo(() => buildGraph(agents, config.roles, config.hierarchy), [agents, config.roles, config.hierarchy]);
   const [fitSignal, setFitSignal] = useState(0);
 
   return (
@@ -168,7 +153,7 @@ export function StaffView() {
           </div>
           <div className="flex items-center gap-3">
             <span className="pixel-frame rounded-[10px] bg-[#130f13]/90 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[#9c907f]">
-              {visibleAgents.filter((a) => a.status !== 'offline').length}/{visibleAgents.length} online
+              {agents.filter((a) => a.status !== 'offline').length}/{agents.length} online
             </span>
             <span className="h-2.5 w-2.5 animate-pulse border border-[#2a2520] bg-[#00d4aa]" />
             <button

@@ -45,6 +45,9 @@ COPY --from=builder /app/packages/frontend/dist ./packages/frontend/dist/
 # Assets mounted via docker-compose volume
 COPY --from=builder /app/assets ./assets
 
+# Pixdash configuration
+COPY pixdash.json ./pixdash.json
+
 EXPOSE ${PIXDASH_PORT:-5555}
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

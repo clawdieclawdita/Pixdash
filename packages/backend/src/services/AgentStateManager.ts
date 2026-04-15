@@ -23,14 +23,7 @@ function randomBodyTypeForAgent(agentId: string): import('@pixdash/shared').Body
   return RANDOM_BODY_TYPES[hashString(agentId) % RANDOM_BODY_TYPES.length];
 }
 
-const DEFAULT_DISPLAY_NAMES: Record<string, string> = {
-  main: 'Clawdie',
-  devo: 'Devo',
-  docclaw: 'DocClaw',
-  forbidden: 'Forbidden',
-  infralover: 'InfraLover',
-  cornelio: 'Cornelio',
-};
+import { pixdashConfig } from '../config/pixdashConfig.js';
 
 const AGENT_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
   { x: 3, y: 22 },
@@ -182,8 +175,8 @@ export class AgentStateManager {
     }
     // Resolve displayName: user-set > default map
     const savedDisplayName = await this.appearanceStore.getDisplayName(agentId, agent.name);
-    const defaultName = DEFAULT_DISPLAY_NAMES[agentId];
-    agent.displayName = savedDisplayName !== agent.name ? savedDisplayName : (defaultName ?? undefined);
+    const configName = pixdashConfig.getDisplayName(agentId, agent.name);
+    agent.displayName = savedDisplayName !== agent.name ? savedDisplayName : configName;
   }
 
   subscribe(listener: (event: { event: FrontendEventName; payload: FrontendEventPayload }) => void): () => void {
@@ -232,8 +225,8 @@ export class AgentStateManager {
     }
     // Resolve displayName
     const savedDisplayName = await this.appearanceStore.getDisplayName(snapshot.id, snapshot.name);
-    const defaultName = DEFAULT_DISPLAY_NAMES[snapshot.id];
-    agent.displayName = savedDisplayName !== snapshot.name ? savedDisplayName : (defaultName ?? undefined);
+    const configName = pixdashConfig.getDisplayName(snapshot.id, snapshot.name);
+    agent.displayName = savedDisplayName !== snapshot.name ? savedDisplayName : configName;
     const safeAgent = structuredClone(agent) as unknown as Record<string, unknown>;
     delete safeAgent.soul;
     delete safeAgent.identity;
@@ -361,7 +354,7 @@ export class AgentStateManager {
     if (result) {
       agent.displayName = result;
     } else {
-      agent.displayName = DEFAULT_DISPLAY_NAMES[id] ?? undefined;
+      agent.displayName = pixdashConfig.getDisplayName(id, agent.name) ?? undefined;
     }
     this.broadcast('agent:config', { agentId: id, agent: structuredClone(agent) } as unknown as FrontendEventPayload);
     return result;
@@ -502,8 +495,8 @@ export class AgentStateManager {
     this.agents.set(id, agent);
     this.ensurePresence(id);
     // Set default displayName for known agents
-    const defaultName = DEFAULT_DISPLAY_NAMES[id];
-    if (defaultName) agent.displayName = defaultName;
+    const configName = pixdashConfig.getDisplayName(id, agent.name);
+    if (configName) agent.displayName = configName;
     // New agents start as idle — schedule initial wander
     this.movementEngine.scheduleWander(id);
     return agent;

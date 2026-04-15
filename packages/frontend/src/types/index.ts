@@ -1,3 +1,9 @@
+export interface PixdashConfig {
+  displayNames: Record<string, string>;
+  roles: Record<string, string>;
+  hierarchy: Array<{ parent: string; child: string }>;
+}
+
 export interface TilemapData {
   version: number;
   width: number;

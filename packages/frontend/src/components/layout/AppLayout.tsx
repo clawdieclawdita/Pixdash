@@ -8,6 +8,7 @@ import { updateAppearance } from '@/lib/api';
 import { AgentStatus } from '@/components/ui/AgentStatus';
 import { useTimezone } from '@/hooks/useTimezone';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useConfigStore } from '@/store/configStore';
 import { agentsStore, useAgentsStore } from '@/store/agentsStore';
 import { uiStore, useUIStore } from '@/store/uiStore';
 import { NavigationSwitch, type ViewMode } from '@/components/staff/NavigationSwitch';
@@ -48,6 +49,12 @@ export const AppLayout = ({
   useEffect(() => {
     localStorage.setItem('pixdash-view', viewMode);
   }, [viewMode]);
+
+  const { fetchConfig } = useConfigStore();
+
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
 
   const onlineAgentCount = agents.filter((agent) => agent.status !== 'offline').length;
   const totalAgentCount = agents.length;

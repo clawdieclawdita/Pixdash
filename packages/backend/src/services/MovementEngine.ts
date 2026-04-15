@@ -1,6 +1,7 @@
 import type { AgentStatus } from '@pixdash/shared';
 import type { BackendWaypoint, BackendWaypointType } from '../data/waypoints.js';
 import { findPath } from './PathfindingService.js';
+import { pixdashConfig } from '../config/pixdashConfig.js';
 import type { AgentStateManager } from './AgentStateManager.js';
 
 const WANDER_DELAY_MIN_MS = 60_000;
@@ -391,7 +392,9 @@ export class MovementEngine {
   }
 
   private findReservedWaypoint(agentId: string): BackendWaypoint | null {
-    return this.waypoints.find((wp) => wp.reservedFor === agentId) ?? null;
+    const waypointId = pixdashConfig.getReservedWaypoint(agentId);
+    if (!waypointId) return null;
+    return this.waypoints.find((wp) => wp.id === waypointId) ?? null;
   }
 
   requestMove(agentId: string, waypointId?: string, destination?: { x: number; y: number }) {
