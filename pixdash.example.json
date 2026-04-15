@@ -2,8 +2,14 @@
   // Optional: human-readable names for agents (overrides Gateway name)
   // Agents not listed here will use their Gateway-provided name
   "displayNames": {
+    // Map agent IDs to human-readable display names.
+    // These appear in the Agent Roster and Staff view.
     "main": "Clawdie",
-    "devo": "Devo"
+    "devo": "Devo",
+    "cornelio": "Cornelio",
+    "docclaw": "DocClaw",
+    "infralover": "InfraLover",
+    "forbidden": "Forbidden"
   },
 
   // Optional: role labels for Staff/org chart view

@@ -1,7 +1,11 @@
 {
   "displayNames": {
     "main": "Clawdie",
-    "devo": "Devo"
+    "devo": "Devo",
+    "cornelio": "Cornelio",
+    "docclaw": "DocClaw",
+    "infralover": "InfraLover",
+    "forbidden": "Forbidden"
   },
   "roles": {
     "main": "CEO",
