@@ -17,6 +17,10 @@ PixDash renders a 2D isometric office where your agents walk around, sit at desk
 
 ---
 
+<p align="center">
+  <img src="assets/banner.jpg" alt="PixDash Office Simulator" width="800" />
+</p>
+
 ## ✨ Features
 
 - **Live Agent Visualization** — 6 OpenClaw agents rendered as SNES-style pixel-art sprites
