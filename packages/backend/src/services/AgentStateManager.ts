@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { Agent, AgentLog, AgentTask, Appearance, AppearancePatch, FrontendEventName, FrontendEventPayload, MoveAgentRequest, MovementAuthorityState, Tilemap } from '@pixdash/shared';
-import { DEFAULT_APPEARANCE, DEFAULT_POSITION } from '@pixdash/shared';
+import { DEFAULT_APPEARANCE } from '@pixdash/shared';
 import type { BackendWaypoint } from '../data/waypoints.js';
 import { cloneBackendWaypoints } from '../data/waypoints.js';
 import { createNoGoTiles } from '../data/noGoTiles.js';
@@ -50,6 +50,11 @@ const AGENT_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
 function derivePosition(_id: string) {
   const index = Math.floor(Math.random() * AGENT_SPAWN_POSITIONS.length);
   const spawnPos = AGENT_SPAWN_POSITIONS[index];
+  // Hardening: reject near-origin coordinates (indicates corruption)
+  if (!spawnPos || spawnPos.x < 3 || spawnPos.y < 10) {
+    logger.warn({ agentId: _id, spawnPos, index }, '[derivePosition] suspicious spawn position — using safe fallback');
+    return { x: 31, y: 22, direction: 'south' as const };
+  }
   return {
     x: spawnPos.x,
     y: spawnPos.y,
@@ -91,7 +96,7 @@ function createInitialAgent(id: string, name = id): StatefulAgent {
     name,
     status: 'idle',
     lastSeen: new Date().toISOString(),
-    position: derivePosition(id) ?? { ...DEFAULT_POSITION },
+    position: derivePosition(id) ?? { x: 31, y: 22, direction: 'south' as const },
     appearance: { ...structuredClone(DEFAULT_APPEARANCE), bodyType: randomBodyTypeForAgent(id) },
     config: {},
     stats: {
@@ -248,26 +253,29 @@ export class AgentStateManager {
   }
 
   applyStatusEvent(event: GatewayStatusEvent): void {
+    // Short-circuit: if this is an offline event for a non-existent agent,
+    // there's nothing to remove. Avoid creating a new agent just to delete it.
+    if (event.status === 'offline') {
+      const existing = this.agents.get(event.agentId);
+      if (!existing) return;
+      const presence = this.ensurePresence(event.agentId);
+      presence.explicitOffline = true;
+      logger.info({ agentId: event.agentId, position: existing.position, movementStatus: existing.movement?.status, source: event.source }, '[applyStatusEvent] agent going offline — removing');
+      this.removeAgent(event.agentId);
+      return;
+    }
+
     const agent = this.ensureAgent(event.agentId);
     const presence = this.ensurePresence(event.agentId);
     const previousStatus = agent.status;
     const isSyntheticSnapshot = event.source === 'presence_snapshot' || event.source === 'health_snapshot';
     const hasFreshActivity = typeof presence.lastActivityAt === 'number'
       && Math.max(0, Date.now() - presence.lastActivityAt) < WORKING_GRACE_MS;
-    const shouldPreserveWorking = isSyntheticSnapshot && hasFreshActivity && event.status !== 'offline';
+    const shouldPreserveWorking = isSyntheticSnapshot && hasFreshActivity;
 
     if (!shouldPreserveWorking) {
-      presence.explicitOffline = event.status === 'offline';
-      if (!presence.explicitOffline) {
-        presence.baselineStatus = event.status === 'idle' ? 'idle' : 'online';
-      }
-    }
-
-    // Remove agents that go offline (cleanup resources)
-    if (presence.explicitOffline) {
-      logger.info({ agentId: event.agentId, position: agent.position, movementStatus: agent.movement?.status, source: event.source }, '[applyStatusEvent] agent going offline — removing');
-      this.removeAgent(event.agentId);
-      return;
+      presence.explicitOffline = false;
+      presence.baselineStatus = event.status === 'idle' ? 'idle' : 'online';
     }
 
     agent.lastSeen = event.timestamp;
@@ -445,6 +453,10 @@ export class AgentStateManager {
       console.warn(`[AgentStateManager] Clamped agent ${agent.id} position from (${agent.position.x},${agent.position.y}) to (${clampedX},${clampedY})`);
       agent.position.x = clampedX;
       agent.position.y = clampedY;
+    }
+    // Origin-proximity guard: catch suspicious positions near grid origin
+    if (agent.position.x < 5 && agent.position.y < 5) {
+      console.warn(`[AgentStateManager] Agent ${agent.id} at suspicious origin position (${agent.position.x},${agent.position.y}), movement=${agent.movement?.status}, source=broadcast`);
     }
 
     const movement = structuredClone(agent.movement ?? createInitialMovementState());
