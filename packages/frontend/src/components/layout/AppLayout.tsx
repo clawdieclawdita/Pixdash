@@ -109,7 +109,7 @@ export const AppLayout = ({
           <div className="flex items-center gap-4">
             <div>
               <p className="mb-2 inline-flex items-center bg-[#1a140f] px-3 py-2 text-[10px] uppercase tracking-[0.3em] text-[#f0d6a5] pixel-frame">
-                SNES agent theatre
+                Retro Office Dashboard
               </p>
               <h1 className="font-display text-2xl leading-tight text-white [text-shadow:0_0_14px_rgba(209,164,90,0.28)] md:text-3xl">PixDash</h1>
             </div>
