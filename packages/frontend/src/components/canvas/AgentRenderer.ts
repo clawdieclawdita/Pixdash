@@ -199,7 +199,7 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
 type AgentRenderOverride = { x: number; y: number; direction?: Direction; isMoving?: boolean };
 
 export class AgentRenderer {
-  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, AgentRenderOverride>) {
+  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, AgentRenderOverride>, showLabels = true) {
     const ordered = [...agents].sort((a, b) => {
       const ay = renderOverrides?.get(a.id)?.y ?? a.interpolatedY ?? a.y;
       const by = renderOverrides?.get(b.id)?.y ?? b.interpolatedY ?? b.y;
@@ -291,7 +291,7 @@ export class AgentRenderer {
       }
 
       ctx.drawImage(sprite, drawX, drawY, SPRITE_DRAW_WIDTH, SPRITE_DRAW_HEIGHT);
-      drawAgentLabel(ctx, agent, renderX, renderY);
+      if (showLabels) drawAgentLabel(ctx, agent, renderX, renderY);
       ctx.restore();
     });
   }

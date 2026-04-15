@@ -7,6 +7,7 @@ import { CustomizerModal } from '@/components/ui/CustomizerModal';
 import { updateAppearance } from '@/lib/api';
 import { AgentStatus } from '@/components/ui/AgentStatus';
 import { useTimezone } from '@/hooks/useTimezone';
+import { useSettingsStore } from '@/store/settingsStore';
 import { agentsStore, useAgentsStore } from '@/store/agentsStore';
 import { uiStore, useUIStore } from '@/store/uiStore';
 import { NavigationSwitch, type ViewMode } from '@/components/staff/NavigationSwitch';
@@ -38,6 +39,7 @@ export const AppLayout = ({
   const { agents: storeAgents, selectedAgentId } = useAgentsStore();
   const { isCustomizerOpen, panelOpen } = useUIStore();
   const { timezone, changeTimezone } = useTimezone();
+  const { showLabels, setShowLabels } = useSettingsStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     return (localStorage.getItem('pixdash-view') as ViewMode) ?? 'office';
@@ -142,6 +144,7 @@ export const AppLayout = ({
                 agents={agents}
                 onAgentSelect={handleAgentSelect}
                 selectedAgentId={selectedAgentId}
+                showLabels={showLabels}
               />
               {isAgentsLoading ? (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[28px] bg-black/45 backdrop-blur-sm">
@@ -257,6 +260,23 @@ export const AppLayout = ({
                     <option value="Asia/Shanghai">Shanghai (GMT+8)</option>
                     <option value="Australia/Sydney">Sydney (GMT+10)</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <div className="pixel-inset rounded-[14px] bg-white/[0.03] px-4 py-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#9c907f]">Agent Names</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowLabels(!showLabels)}
+                      className={`relative h-6 w-11 rounded-full transition-colors duration-200 ${showLabels ? 'bg-[#d1a45a]/60' : 'bg-white/10'}`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${showLabels ? 'translate-x-5' : 'translate-x-0'}`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

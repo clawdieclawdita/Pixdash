@@ -15,6 +15,7 @@ interface OfficeCanvasProps {
   agents: AgentPosition[];
   onAgentSelect?: (agent: AgentPosition | null) => void;
   selectedAgentId?: string | null;
+  showLabels?: boolean;
 }
 
 const VIEWPORT = { width: 1280, height: 840 };
@@ -29,7 +30,7 @@ const loadImage = (src: string) =>
   });
 
 
-export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeCanvasProps) => {
+export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId, showLabels = true }: OfficeCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef(VIEWPORT);
@@ -220,9 +221,9 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     }
 
     renderOverridesRef.current = renderOverrides;
-    agentRenderer.render(ctx, currentAgents, selectedAgentId, renderOverrides);
+    agentRenderer.render(ctx, currentAgents, selectedAgentId, renderOverrides, showLabels);
     ctx.restore();
-  }, [agentRenderer, backgroundImage, selectedAgentId]);
+  }, [agentRenderer, backgroundImage, selectedAgentId, showLabels]);
 
   useCanvas(() => {
     draw();

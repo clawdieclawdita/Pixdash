@@ -6,8 +6,10 @@ export type ThemeMode = 'dark' | 'light';
 interface SettingsState {
   theme: ThemeMode;
   zoom: number;
+  showLabels: boolean;
   setTheme: (theme: ThemeMode) => void;
   setZoom: (zoom: number) => void;
+  setShowLabels: (show: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -15,8 +17,10 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       theme: 'dark',
       zoom: 1,
+      showLabels: true,
       setTheme: (theme) => set({ theme }),
-      setZoom: (zoom) => set({ zoom })
+      setZoom: (zoom) => set({ zoom }),
+      setShowLabels: (showLabels) => set({ showLabels }),
     }),
     {
       name: 'pixdash-settings'
