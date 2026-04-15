@@ -115,6 +115,13 @@ export function updateAppearance(id: string, appearance: Partial<Appearance>): P
   });
 }
 
+export function updateDisplayName(id: string, displayName: string | null): Promise<{ success: boolean; displayName: string | null }> {
+  return request<{ success: boolean; displayName: string | null }>(`/agents/${encodeURIComponent(id)}/displayName`, {
+    method: 'PATCH',
+    body: JSON.stringify({ displayName })
+  });
+}
+
 export function getOfficeLayout(): Promise<OfficeLayout> {
   return request<OfficeLayout>('/office/layout');
 }

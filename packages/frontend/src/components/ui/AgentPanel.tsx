@@ -23,6 +23,7 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
   const agents = useAgentsStore((state) => state.agents);
   const selectedAgentId = useAgentsStore((state) => state.selectedAgentId);
   const clearSelection = useAgentsStore((state) => state.clearSelection);
+  const setDisplayName = useAgentsStore((state) => state.setDisplayName);
   const panelOpen = useUIStore((state) => state.panelOpen);
   const panelTab = useUIStore((state) => state.panelTab);
   const closePanel = useUIStore((state) => state.closePanel);
@@ -47,6 +48,7 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
   const [tasks, setTasks] = useState<TaskEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [displayNameDraft, setDisplayNameDraft] = useState('');
 
   useEffect(() => {
     if (!selectedAgent?.id) {
@@ -116,6 +118,16 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
     return { ...agentDetails, status: liveAgent?.status ?? agentDetails.status };
   }, [agentDetails, selectedAgent, agents]);
 
+  useEffect(() => {
+    setDisplayNameDraft(displayAgent?.displayName ?? '');
+  }, [displayAgent?.id, displayAgent?.displayName]);
+
+  const saveDisplayName = async () => {
+    if (!displayAgent) return;
+    const normalized = displayNameDraft.trim();
+    await setDisplayName(displayAgent.id, normalized.length > 0 ? normalized : null);
+  };
+
   return (
     <aside
       className={cn(
@@ -127,7 +139,7 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Agent panel</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">{displayAgent?.name ?? 'No agent selected'}</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{displayAgent?.displayName ?? displayAgent?.name ?? 'No agent selected'}</h2>
             {displayAgent ? <div className="mt-3"><AgentStatus status={displayAgent.status} /></div> : null}
           </div>
           <button
@@ -185,6 +197,37 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
               <div className="text-xs uppercase tracking-wide text-slate-400">Position</div>
               <div className="mt-2 text-sm text-slate-200">
                 X: {displayAgent.position?.x ?? '—'} · Y: {displayAgent.position?.y ?? '—'}
+              </div>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+              <div className="text-xs uppercase tracking-wide text-slate-400">Display Name</div>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={displayNameDraft}
+                  onChange={(e) => setDisplayNameDraft(e.target.value)}
+                  onBlur={() => { void saveDisplayName(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void saveDisplayName();
+                    }
+                  }}
+                  placeholder={displayAgent.name}
+                  className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-white placeholder:text-slate-500 focus:border-slate-500 focus:outline-none"
+                />
+                {(displayAgent.displayName || displayNameDraft) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDisplayNameDraft('');
+                      void setDisplayName(displayAgent.id, null);
+                    }}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-400 hover:text-slate-200"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             </div>
             <button

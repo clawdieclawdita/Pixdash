@@ -8,6 +8,30 @@ import type { ConfigAgentSnapshot, GatewayConferenceEvent, GatewayLogEvent, Gate
 import { AppearanceStore } from './AppearanceStore.js';
 import { MovementEngine } from './MovementEngine.js';
 
+const RANDOM_BODY_TYPES = ['michael', 'angela', 'phillis', 'creed', 'ryan', 'pam', 'kelly', 'kate', 'pites', 'jim', 'clawdie'] as const;
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function randomBodyTypeForAgent(agentId: string): import('@pixdash/shared').BodyType {
+  return RANDOM_BODY_TYPES[hashString(agentId) % RANDOM_BODY_TYPES.length];
+}
+
+const DEFAULT_DISPLAY_NAMES: Record<string, string> = {
+  main: 'Clawdie',
+  devo: 'Devo',
+  docclaw: 'DocClaw',
+  forbidden: 'Forbidden',
+  infralover: 'InfraLover',
+  cornelio: 'Cornelio',
+};
+
 const AGENT_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
   { x: 3, y: 22 },
   { x: 6, y: 22 },
@@ -61,14 +85,18 @@ type AgentPresenceState = {
   lastActivityAt?: number;
 };
 
-function createInitialAgent(id: string, name = id): Agent {
+type StatefulAgent = Agent & {
+  displayName?: string;
+};
+
+function createInitialAgent(id: string, name = id): StatefulAgent {
   return {
     id,
     name,
     status: 'idle',
     lastSeen: new Date().toISOString(),
     position: derivePosition(id) ?? { ...DEFAULT_POSITION },
-    appearance: structuredClone(DEFAULT_APPEARANCE),
+    appearance: { ...structuredClone(DEFAULT_APPEARANCE), bodyType: randomBodyTypeForAgent(id) },
     config: {},
     stats: {
       messagesProcessed: 0,
@@ -81,7 +109,7 @@ function createInitialAgent(id: string, name = id): Agent {
 }
 
 export class AgentStateManager {
-  private readonly agents = new Map<string, Agent>();
+  private readonly agents = new Map<string, StatefulAgent>();
   private readonly events = new EventEmitter();
   private readonly presence = new Map<string, AgentPresenceState>();
   private readonly activityDecayTimers = new Map<string, NodeJS.Timeout>();
@@ -148,6 +176,14 @@ export class AgentStateManager {
   async hydrateAppearance(agentId: string): Promise<void> {
     const agent = this.ensureAgent(agentId);
     agent.appearance = await this.appearanceStore.get(agentId);
+    // If appearance store has no saved entry, use random bodyType
+    if (!this.appearanceStore.hasSavedAppearance(agentId)) {
+      agent.appearance.bodyType = randomBodyTypeForAgent(agentId);
+    }
+    // Resolve displayName: user-set > default map
+    const savedDisplayName = await this.appearanceStore.getDisplayName(agentId, agent.name);
+    const defaultName = DEFAULT_DISPLAY_NAMES[agentId];
+    agent.displayName = savedDisplayName !== agent.name ? savedDisplayName : (defaultName ?? undefined);
   }
 
   subscribe(listener: (event: { event: FrontendEventName; payload: FrontendEventPayload }) => void): () => void {
@@ -191,6 +227,13 @@ export class AgentStateManager {
     agent.identity = snapshot.identity;
     agent.movement ??= createInitialMovementState();
     agent.appearance = await this.appearanceStore.get(snapshot.id);
+    if (!this.appearanceStore.hasSavedAppearance(snapshot.id)) {
+      agent.appearance.bodyType = randomBodyTypeForAgent(snapshot.id);
+    }
+    // Resolve displayName
+    const savedDisplayName = await this.appearanceStore.getDisplayName(snapshot.id, snapshot.name);
+    const defaultName = DEFAULT_DISPLAY_NAMES[snapshot.id];
+    agent.displayName = savedDisplayName !== snapshot.name ? savedDisplayName : (defaultName ?? undefined);
     const safeAgent = structuredClone(agent) as unknown as Record<string, unknown>;
     delete safeAgent.soul;
     delete safeAgent.identity;
@@ -311,6 +354,19 @@ export class AgentStateManager {
     return structuredClone(updated);
   }
 
+  async setDisplayName(id: string, name: string | null): Promise<string | null> {
+    const agent = this.ensureAgent(id);
+    const result = await this.appearanceStore.setDisplayName(id, name);
+    // Re-resolve: user-set takes priority, fall back to default map
+    if (result) {
+      agent.displayName = result;
+    } else {
+      agent.displayName = DEFAULT_DISPLAY_NAMES[id] ?? undefined;
+    }
+    this.broadcast('agent:config', { agentId: id, agent: structuredClone(agent) } as unknown as FrontendEventPayload);
+    return result;
+  }
+
   requestMove(request: MoveAgentRequest): { ok: true; agent: Agent } {
     const agentId = String(request.agentId ?? '');
     if (!agentId) {
@@ -323,11 +379,11 @@ export class AgentStateManager {
     return { ok: true, agent: structuredClone(agent) };
   }
 
-  getMutableAgents(): Agent[] {
+  getMutableAgents(): StatefulAgent[] {
     return [...this.agents.values()];
   }
 
-  getMutableAgent(id: string): Agent | undefined {
+  getMutableAgent(id: string): StatefulAgent | undefined {
     return this.agents.get(id);
   }
 
@@ -372,7 +428,7 @@ export class AgentStateManager {
     this.emitMovement(agent);
   }
 
-  broadcastPosition(agent: Agent): void {
+  broadcastPosition(agent: StatefulAgent): void {
     this.broadcast('agent:position', {
       agentId: agent.id,
       position: structuredClone(agent.position),
@@ -380,7 +436,7 @@ export class AgentStateManager {
     });
   }
 
-  emitMovement(agent: Agent): void {
+  emitMovement(agent: StatefulAgent): void {
     // Clamp position to valid grid bounds before broadcasting
     const clampedX = Math.max(0, Math.min(agent.position.x, this.gridWidth - 1));
     const clampedY = Math.max(0, Math.min(agent.position.y, this.gridHeight - 1));
@@ -422,7 +478,7 @@ export class AgentStateManager {
     return from.direction ?? 'south';
   }
 
-  private ensureAgent(id: string, name?: string): Agent {
+  private ensureAgent(id: string, name?: string): StatefulAgent {
     const existing = this.agents.get(id);
     if (existing) {
       return existing;
@@ -445,6 +501,9 @@ export class AgentStateManager {
 
     this.agents.set(id, agent);
     this.ensurePresence(id);
+    // Set default displayName for known agents
+    const defaultName = DEFAULT_DISPLAY_NAMES[id];
+    if (defaultName) agent.displayName = defaultName;
     // New agents start as idle — schedule initial wander
     this.movementEngine.scheduleWander(id);
     return agent;

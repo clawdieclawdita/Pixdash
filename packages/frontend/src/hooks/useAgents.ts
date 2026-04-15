@@ -66,6 +66,7 @@ type EventPayloadMap = {
   'agent.task': { agentId: string; taskId: string; description: string; status: string; timestamp: string };
   'agent:conference': { agentIds: string[]; sessionKey?: string; source?: string; timestamp: string };
   'agent:position': { agentId: string; position: Position; direction?: Position['direction'] };
+  'agent:appearance': { agentId: string; appearance: Agent['appearance'] };
   'agent:movement': AgentMovementEventPayload;
 };
 
@@ -304,6 +305,20 @@ export function useAgents() {
           x: normalizedPosition.x,
           y: normalizedPosition.y,
           direction: normalizedPosition.direction,
+        });
+        break;
+      }
+      case 'agent:appearance': {
+        const payload = lastEvent.payload as EventPayloadMap['agent:appearance'];
+        if (!payload.appearance) {
+          break;
+        }
+
+        updateAgent({
+          id: payload.agentId,
+          appearance: payload.appearance,
+          bodyType: payload.appearance.bodyType,
+          color: payload.appearance.outfit?.color,
         });
         break;
       }

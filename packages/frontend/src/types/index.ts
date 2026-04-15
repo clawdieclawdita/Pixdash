@@ -25,6 +25,7 @@ export interface AgentPathNode {
 export interface AgentPosition {
   id: string;
   name: string;
+  displayName?: string;
   x: number;
   y: number;
   color: string;

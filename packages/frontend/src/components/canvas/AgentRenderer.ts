@@ -167,7 +167,7 @@ const drawRoundedRect = (
 };
 
 const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px: number, py: number) => {
-  const label = (agent.name ?? agent.id).trim();
+  const label = (agent.displayName ?? agent.name ?? agent.id).trim();
   if (!label) return;
 
   const transform = ctx.getTransform();
@@ -196,8 +196,10 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
   ctx.restore();
 };
 
+type AgentRenderOverride = { x: number; y: number; direction?: Direction; isMoving?: boolean };
+
 export class AgentRenderer {
-  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>) {
+  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, AgentRenderOverride>) {
     const ordered = [...agents].sort((a, b) => {
       const ay = renderOverrides?.get(a.id)?.y ?? a.interpolatedY ?? a.y;
       const by = renderOverrides?.get(b.id)?.y ?? b.interpolatedY ?? b.y;
@@ -294,11 +296,20 @@ export class AgentRenderer {
     });
   }
 
-  getAgentAtWorldPosition(worldX: number, worldY: number, agents: AgentPosition[]): AgentPosition | null {
-    const ordered = [...agents].sort((a, b) => b.y - a.y);
+  getAgentAtWorldPosition(
+    worldX: number,
+    worldY: number,
+    agents: AgentPosition[],
+    renderOverrides?: Map<string, AgentRenderOverride>
+  ): AgentPosition | null {
+    const ordered = [...agents].sort((a, b) => {
+      const ay = this.getRenderPosition(a, renderOverrides).y;
+      const by = this.getRenderPosition(b, renderOverrides).y;
+      return by - ay;
+    });
 
     for (const agent of ordered) {
-      const bounds = this.getAgentBounds(agent);
+      const bounds = this.getAgentBounds(agent, renderOverrides);
       if (worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom) {
         return agent;
       }
@@ -307,12 +318,28 @@ export class AgentRenderer {
     return null;
   }
 
-  private getAgentBounds(agent: AgentPosition) {
-    const isSeated = agent.movementState?.startsWith('seated');
+  private getRenderPosition(agent: AgentPosition, renderOverrides?: Map<string, AgentRenderOverride>) {
+    const override = renderOverrides?.get(agent.id);
+    const px = override?.x ?? agent.interpolatedX ?? agent.x;
+    const py = override?.y ?? agent.interpolatedY ?? agent.y;
+    const hasPath = (agent.path?.length ?? 0) > 0;
+    const hasPosition = override != null || agent.interpolatedX != null;
+    const isAtClaimedSeat = !override?.isMoving && !!agent.claimedWaypointId;
+    const isMoving = isAtClaimedSeat ? false : (override?.isMoving ?? (hasPath && hasPosition));
+    const isSeated = !isMoving && !!agent.claimedWaypointId && agent.movementState?.startsWith('seated');
     const offsetPx = isSeated ? (agent.visualOffsetX ?? 0) : 0;
     const offsetPy = isSeated ? (agent.visualOffsetY ?? 0) : 0;
-    const spriteLeft = (agent.interpolatedX ?? agent.x) + offsetPx + SPRITE_OFFSET_X;
-    const spriteTop = (agent.interpolatedY ?? agent.y) + offsetPy + SPRITE_OFFSET_Y;
+
+    return {
+      x: px + offsetPx,
+      y: py + offsetPy,
+    };
+  }
+
+  private getAgentBounds(agent: AgentPosition, renderOverrides?: Map<string, AgentRenderOverride>) {
+    const position = this.getRenderPosition(agent, renderOverrides);
+    const spriteLeft = position.x + SPRITE_OFFSET_X;
+    const spriteTop = position.y + SPRITE_OFFSET_Y;
 
     return {
       left: spriteLeft,

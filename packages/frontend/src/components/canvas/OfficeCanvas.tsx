@@ -41,6 +41,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
   const agentRenderer = useMemo(() => new AgentRenderer(), []);
   const agentsRef = useRef(agents);
   const onAgentSelectRef = useRef(onAgentSelect);
+  const renderOverridesRef = useRef<Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>>(new Map());
 
   useEffect(() => {
     agentsRef.current = agents;
@@ -58,14 +59,17 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     const rect = host.getBoundingClientRect();
     const width = Math.max(1, Math.floor(rect.width));
     const height = Math.max(1, Math.floor(rect.height));
+    const dpr = window.devicePixelRatio || 1;
+    const expectedPixelWidth = Math.round(width * dpr);
+    const expectedPixelHeight = Math.round(height * dpr);
+    const sizeChanged = viewportRef.current.width !== width || viewportRef.current.height !== height;
+    const dprChanged = canvas.width !== expectedPixelWidth || canvas.height !== expectedPixelHeight;
 
-    if (viewportRef.current.width === width && viewportRef.current.height === height) return;
+    if (!sizeChanged && !dprChanged) return;
 
     viewportRef.current = { width, height };
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
+    canvas.width = expectedPixelWidth;
+    canvas.height = expectedPixelHeight;
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     const ctx = canvas.getContext('2d');
@@ -99,8 +103,34 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     syncCanvasSize(true);
 
     const onResize = () => syncCanvasSize(false);
+    let resolutionMediaQuery: MediaQueryList | null = null;
+    let removeResolutionListener: (() => void) | null = null;
+
+    const bindResolutionListener = () => {
+      removeResolutionListener?.();
+      resolutionMediaQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+
+      const handleResolutionChange = () => {
+        syncCanvasSize(false);
+        bindResolutionListener();
+      };
+
+      if (typeof resolutionMediaQuery.addEventListener === 'function') {
+        resolutionMediaQuery.addEventListener('change', handleResolutionChange);
+        removeResolutionListener = () => resolutionMediaQuery?.removeEventListener('change', handleResolutionChange);
+        return;
+      }
+
+      resolutionMediaQuery.addListener(handleResolutionChange);
+      removeResolutionListener = () => resolutionMediaQuery?.removeListener(handleResolutionChange);
+    };
+
+    bindResolutionListener();
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      removeResolutionListener?.();
+      window.removeEventListener('resize', onResize);
+    };
   }, [syncCanvasSize]);
 
   useEffect(() => {
@@ -189,6 +219,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         });
     }
 
+    renderOverridesRef.current = renderOverrides;
     agentRenderer.render(ctx, currentAgents, selectedAgentId, renderOverrides);
     ctx.restore();
   }, [agentRenderer, backgroundImage, selectedAgentId]);
@@ -280,7 +311,12 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         const tileX = Math.floor(worldPoint.x / 32);
         const tileY = Math.floor(worldPoint.y / 32);
         setClickCoords({ px: Math.round(worldPoint.x), py: Math.round(worldPoint.y), tileX, tileY });
-        const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agentsRef.current);
+        const clickedAgent = agentRenderer.getAgentAtWorldPosition(
+          worldPoint.x,
+          worldPoint.y,
+          agentsRef.current,
+          renderOverridesRef.current
+        );
         onAgentSelectRef.current?.(clickedAgent);
       }
 

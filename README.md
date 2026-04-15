@@ -138,6 +138,26 @@ pnpm --filter frontend build
 pnpm --filter @pixdash/shared build
 ```
 
+### Docker
+
+```bash
+# Start (builds and runs)
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+
+# Rebuild after code changes
+docker compose up -d --build
+```
+
+**Important:** When running in Docker, `PIXDASH_GATEWAY_URL` in `.env` **must** use the host's LAN IP (e.g. `ws://192.168.1.200:18789`), **not** `localhost` or `127.0.0.1` — the container cannot reach the host's loopback interface.
+
+Port defaults to `5555` via Docker Compose. Override with `PIXDASH_PORT` in your `.env`.
+
 ### Office Layout
 
 The office map is defined in `assets/office-layout.json` with a corresponding collision grid in `assets/collision-grid.json`. Waypoints (desks, restrooms, etc.) are configured in `packages/backend/src/data/waypoints.ts`.

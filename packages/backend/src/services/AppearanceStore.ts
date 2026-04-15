@@ -31,9 +31,36 @@ export class AppearanceStore {
     this.cache.set(agentId, {
       updatedAt: new Date().toISOString(),
       appearance: structuredClone(validated),
+      appearanceSaved: true,
+      displayName: this.cache.get(agentId)?.displayName ?? undefined,
     });
     await this.persist();
     return structuredClone(validated);
+  }
+
+  async getDisplayName(agentId: string, realName: string): Promise<string> {
+    if (this.cache.size === 0) await this.load();
+    const record = this.cache.get(agentId);
+    if (record?.displayName) return record.displayName;
+    return realName;
+  }
+
+  async setDisplayName(agentId: string, name: string | null): Promise<string | null> {
+    const existing = this.cache.get(agentId) ?? {
+      updatedAt: new Date().toISOString(),
+      appearance: structuredClone(DEFAULT_APPEARANCE),
+      appearanceSaved: false,
+    };
+    existing.displayName = name;
+    existing.updatedAt = new Date().toISOString();
+    this.cache.set(agentId, existing);
+    await this.persist();
+    return name;
+  }
+
+  hasSavedAppearance(agentId: string): boolean {
+    const record = this.cache.get(agentId);
+    return Boolean(record && (record.appearanceSaved ?? true));
   }
 
   async merge(agentId: string, patch: AppearancePatch): Promise<Appearance> {
@@ -64,6 +91,8 @@ export class AppearanceStore {
         this.cache.set(agentId, {
           updatedAt: entry.updatedAt,
           appearance: assertValid(validateAppearance, entry.appearance, `Invalid appearance in store for ${agentId}`),
+          appearanceSaved: entry.appearanceSaved ?? true,
+          displayName: entry.displayName ?? undefined,
         });
       }
     } catch (error) {

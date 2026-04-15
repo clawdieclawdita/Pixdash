@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSprites } from '@/hooks/useSprites';
 import { useAllSpritePreviews } from '@/hooks/useAllSpritePreviews';
 import {
@@ -154,13 +154,31 @@ export const CustomizerModal = ({
   const { spriteSheet, isLoading } = useSprites(draft);
   const allPreviews = useAllSpritePreviews();
   const [frame, setFrame] = useState(0);
+  const wasOpenRef = useRef(false);
+  const lastOpenStateKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
-    const preset = getPresetFromBodyType(baseAppearance.bodyType);
-    setSelectedPreset(preset);
-    setDraft(baseAppearance);
-  }, [baseAppearance, isOpen]);
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+
+    const openStateKey = JSON.stringify({
+      agentId: agent?.id ?? null,
+      appearance: baseAppearance,
+    });
+
+    const shouldReset = !wasOpenRef.current || lastOpenStateKeyRef.current !== openStateKey;
+
+    if (shouldReset) {
+      const nextDraft = cloneAppearance(baseAppearance);
+      setDraft(nextDraft);
+      setSelectedPreset(getPresetFromBodyType(nextDraft.bodyType));
+      lastOpenStateKeyRef.current = openStateKey;
+    }
+
+    wasOpenRef.current = true;
+  }, [agent?.id, baseAppearance, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -173,11 +191,15 @@ export const CustomizerModal = ({
   if (!isOpen) return null;
 
   const handlePresetSelect = (preset: CharacterPreset) => {
+    const nextBodyType = preset.bodyType as Appearance['bodyType'];
     setSelectedPreset(preset.id);
-    setDraft((current) => ({
-      ...current,
-      bodyType: preset.bodyType as Appearance['bodyType']
-    }));
+    setDraft((current) => {
+      if (current.bodyType === nextBodyType) return current;
+      return {
+        ...current,
+        bodyType: nextBodyType
+      };
+    });
     clearSpriteTemplateCache();
   };
 

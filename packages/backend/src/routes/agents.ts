@@ -70,6 +70,18 @@ const agentRoutes: FastifyPluginAsync = async (app) => {
     const appearance = await app.pixdash.agentStateManager.upsertAppearance(id, patch);
     return { success: true, appearance };
   });
+
+  app.patch('/api/v1/agents/:id/displayName', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const agent = app.pixdash.agentStateManager.getAgent(id);
+    if (!agent) {
+      return reply.code(404).send({ error: 'Agent not found' });
+    }
+    const body = request.body as { displayName?: string | null } | undefined;
+    const displayName = typeof body?.displayName === 'string' ? body.displayName : null;
+    const result = await app.pixdash.agentStateManager.setDisplayName(id, displayName);
+    return { success: true, displayName: result };
+  });
 };
 
 export default agentRoutes;

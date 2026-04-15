@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { OfficeCanvas } from '@/components/canvas/OfficeCanvas';
 import { invalidateRendererSpriteCache } from '@/components/canvas/AgentRenderer';
 import { clearSpriteCache } from '@/hooks/useSprites';
@@ -8,6 +9,8 @@ import { AgentStatus } from '@/components/ui/AgentStatus';
 import { useTimezone } from '@/hooks/useTimezone';
 import { agentsStore, useAgentsStore } from '@/store/agentsStore';
 import { uiStore, useUIStore } from '@/store/uiStore';
+import { NavigationSwitch, type ViewMode } from '@/components/staff/NavigationSwitch';
+import { StaffView } from '@/components/staff/StaffView';
 import type { AgentPosition } from '@/types';
 import type { Appearance } from '@pixdash/shared';
 
@@ -35,6 +38,14 @@ export const AppLayout = ({
   const { agents: storeAgents, selectedAgentId } = useAgentsStore();
   const { isCustomizerOpen, panelOpen } = useUIStore();
   const { timezone, changeTimezone } = useTimezone();
+
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    return (localStorage.getItem('pixdash-view') as ViewMode) ?? 'office';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pixdash-view', viewMode);
+  }, [viewMode]);
 
   const onlineAgentCount = agents.filter((agent) => agent.status !== 'offline').length;
   const totalAgentCount = agents.length;
@@ -64,11 +75,13 @@ export const AppLayout = ({
   const handleSaveAppearance = async (appearance: Appearance) => {
     if (!selectedAgentId) return;
     try {
-      await updateAppearance(selectedAgentId, appearance);
+      const response = await updateAppearance(selectedAgentId, appearance);
+      const nextAppearance = response.appearance ?? appearance;
       agentsStore.updateAgent({
         id: selectedAgentId,
-        appearance,
-        color: appearance.outfit.color
+        appearance: nextAppearance,
+        bodyType: nextAppearance.bodyType,
+        color: nextAppearance.outfit.color
       });
       invalidateRendererSpriteCache();
       clearSpriteCache();
@@ -91,6 +104,7 @@ export const AppLayout = ({
               </p>
               <h1 className="font-display text-3xl font-bold tracking-[-0.04em] text-white">PixDash</h1>
             </div>
+            <NavigationSwitch value={viewMode} onChange={setViewMode} />
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-stretch gap-4">
@@ -118,6 +132,9 @@ export const AppLayout = ({
           </div>
         </header>
 
+        {viewMode === 'staff' ? (
+          <StaffView />
+        ) : (
         <section className="grid gap-6 xl:grid-cols-[1fr_320px]">
           <div className="relative h-[70vh]">
             <>
@@ -246,6 +263,7 @@ export const AppLayout = ({
           </aside>
           )}
         </section>
+        )}
       </div>
 
       <CustomizerModal agent={selectedAgent} isOpen={isCustomizerOpen} onClose={handleCloseCustomizer} onSave={handleSaveAppearance} />

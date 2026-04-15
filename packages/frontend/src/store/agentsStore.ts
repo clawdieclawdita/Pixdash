@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type Direction, type Position, type MovementAuthorityState } from '@pixdash/shared';
+import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type BodyType, type Direction, type Position, type MovementAuthorityState } from '@pixdash/shared';
 import type { Agent } from '@/lib/api';
+import { updateDisplayName } from '@/lib/api';
 import { getArrivalStateForMovementType, pixelToTile, tileToPixelCenter } from '@/lib/movement';
 import { createWaypointSet, getAllWaypoints, type WaypointClaim } from '@/lib/waypoints';
 import type { AgentPathNode, MovementState } from '@/types';
@@ -24,6 +25,7 @@ export type StoreAgent = Agent & {
   positionSource: 'backend' | 'fallback';
   interpolatedX?: number;
   interpolatedY?: number;
+  bodyType: BodyType;
 };
 
 const initialWaypointSet = createWaypointSet();
@@ -166,6 +168,7 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
     waypointDirection: backendMovement?.waypointDirection,
     movement: backendMovement,
     positionSource,
+    bodyType: appearance?.bodyType ?? DEFAULT_APPEARANCE.bodyType,
   };
 }
 
@@ -176,6 +179,7 @@ interface AgentsState {
   updateAgent: (agent: Partial<StoreAgent> & Pick<StoreAgent, 'id'>) => void;
   selectAgent: (agentId: string | null) => void;
   clearSelection: () => void;
+  setDisplayName: (agentId: string, name: string | null) => Promise<void>;
 }
 
 export const useAgentsStore = create<AgentsState>((set) => ({
@@ -247,6 +251,7 @@ export const useAgentsStore = create<AgentsState>((set) => ({
           y: agentUpdate.position?.y ?? agentUpdate.y ?? agent.y,
           color: agentUpdate.appearance?.outfit?.color ?? agentUpdate.color ?? nextAppearance.outfit.color,
           appearance: nextAppearance,
+          bodyType: agentUpdate.bodyType ?? nextAppearance.bodyType,
           movementState: agentUpdate.movementState ?? agent.movementState,
           targetX: agentUpdate.targetX === undefined ? agent.targetX : agentUpdate.targetX,
           targetY: agentUpdate.targetY === undefined ? agent.targetY : agentUpdate.targetY,
@@ -260,6 +265,14 @@ export const useAgentsStore = create<AgentsState>((set) => ({
     })),
   selectAgent: (selectedAgentId) => set({ selectedAgentId }),
   clearSelection: () => set({ selectedAgentId: null }),
+  setDisplayName: async (agentId, name) => {
+    const result = await updateDisplayName(agentId, name);
+    set((state) => ({
+      agents: state.agents.map((a) =>
+        a.id === agentId ? { ...a, displayName: result.displayName ?? undefined } : a
+      ),
+    }));
+  },
 }));
 
 export const agentsStore = {

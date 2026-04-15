@@ -69,6 +69,7 @@ export interface AgentTask {
 export interface Agent {
   id: string;
   name: string;
+  displayName?: string;
   status: AgentStatus;
   lastSeen: string;
   position: Position;
