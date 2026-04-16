@@ -176,6 +176,15 @@ The office map is defined in `assets/office-layout.json` with a corresponding co
 | `restroom` | Self-explanatory |
 | `dining` | Break room / kitchen area |
 
+## 📚 Documentation
+
+| Doc | Description |
+|-----|-------------|
+| [Installation Guide](docs/INSTALLATION.md) | Install, configure, and run PixDash |
+| [Administrator Guide](docs/ADMINISTRATOR.md) | Architecture, data flow, deployment, security, API reference |
+| [Gateway Integration](docs/GATEWAY-INTEGRATION.md) | **OpenClaw WebSocket auth & events — replicate the connection** |
+| [Developer Guide](docs/DEVELOPER.md) | Codebase overview, state management, extending PixDash |
+
 ## 🤝 Contributing
 
 1. Fork the repo
