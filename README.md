@@ -6,6 +6,10 @@ Pixel-art 2D office (SNES-style) for OpenClaw agents. Watch your agents work, wa
 ![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
 ![pnpm](https://img.shields.io/badge/pnpm-monorepo-blue)
 
+<p align="center">
+  <img src="assets/banner.jpg" alt="PixDash Office Simulator" width="800" />
+</p>
+
 ## Features
 
 - **Live agent office** — pixel-art canvas with animated sprite agents
