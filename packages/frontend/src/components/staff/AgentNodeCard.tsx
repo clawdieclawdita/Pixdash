@@ -162,7 +162,7 @@ function InlineEdit({
         if (e.key === 'Escape') cancel();
       }}
       className={cn(
-        'w-full rounded border border-[#d1a45a]/60 bg-[#0f0e10] px-1 py-0 text-[11px] text-slate-200 outline-none focus:border-[#d1a45a]',
+        'nodrag nopan w-full rounded border border-[#d1a45a]/60 bg-[#0f0e10] px-1 py-0 text-[11px] text-slate-200 outline-none focus:border-[#d1a45a]',
         inputClassName,
       )}
     />
@@ -237,12 +237,12 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
             {config.label}
           </span>
 
-          <div className="mt-1">
+          <div className="mt-1 nodrag nopan">
             <label className="text-[8px] uppercase tracking-wider text-[#9c907f]/50">Reports to</label>
             <select
               value={currentParent ?? ''}
               onChange={handleParentChange}
-              className="block w-full mt-0.5 rounded border border-[#d1a45a]/20 bg-[#0f0e10] px-1 py-0 text-[9px] text-[#b7aa96] outline-none"
+              className="block w-full mt-0.5 rounded border border-[#d1a45a]/20 bg-[#0f0e10] px-1 py-0 text-[9px] text-[#b7aa96] outline-none cursor-pointer"
             >
               <option value="">None (Root)</option>
               {parentOptions.map((opt) => (
