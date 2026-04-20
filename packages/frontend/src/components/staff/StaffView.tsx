@@ -29,21 +29,14 @@ const nodeTypes: NodeTypes = {
   agent: AgentNodeCard,
 };
 
-type AgentFlowNode = Node<{ agent: StoreAgent; role: string; allAgents: StoreAgent[]; currentParent: string | null; onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>; onUpdateRole: (agentId: string, role: string) => Promise<boolean>; onUpdateParent: (child: string, newParent: string | null) => Promise<boolean> }, 'agent'>;
-
-function getParentForAgent(agentId: string, hierarchy: Array<{ parent: string; child: string }>): string | null {
-  const edge = hierarchy.find((e) => e.child === agentId);
-  return edge?.parent ?? null;
-}
+type AgentFlowNode = Node<{ agent: StoreAgent; role: string; onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>; onUpdateRole: (agentId: string, role: string) => Promise<boolean> }, 'agent'>;
 
 function buildGraph(
   agents: StoreAgent[],
   roles: Record<string, string>,
   hierarchy: Array<{ parent: string; child: string }>,
-  allAgents: StoreAgent[],
   onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>,
   onUpdateRole: (agentId: string, role: string) => Promise<boolean>,
-  onUpdateParent: (child: string, newParent: string | null) => Promise<boolean>,
 ): { nodes: AgentFlowNode[]; edges: Edge[] } {
   const agentIds = new Set(agents.map((a) => a.id));
 
@@ -73,11 +66,8 @@ function buildGraph(
       data: {
         agent,
         role: roles[agent.id] ?? agent.title ?? 'Agent',
-        allAgents,
-        currentParent: getParentForAgent(agent.id, hierarchy),
         onUpdateDisplayName,
         onUpdateRole,
-        onUpdateParent,
       },
     };
   });
@@ -101,7 +91,7 @@ function StaffFlow({ initialNodes, initialEdges }: { initialNodes: AgentFlowNode
         const updated = initialNodes.find((in_) => in_.id === n.id);
         if (!updated) return n;
         // Only update if something actually changed
-        const dataChanged = updated.data.agent !== n.data.agent || updated.data.currentParent !== n.data.currentParent;
+        const dataChanged = updated.data.agent !== n.data.agent || updated.data.role !== n.data.role;
         const posChanged = updated.position.x !== n.position.x || updated.position.y !== n.position.y;
         if (dataChanged || posChanged) {
           return { ...n, data: updated.data, position: updated.position };
@@ -151,7 +141,7 @@ function StaffFlow({ initialNodes, initialEdges }: { initialNodes: AgentFlowNode
 
 export function StaffView() {
   const { agents } = useAgentsStore();
-  const { config, updateDisplayName, updateRole, updateHierarchy, resetToDefaults } = useConfigStore();
+  const { config, updateDisplayName, updateRole, resetToDefaults } = useConfigStore();
   const [mounted, setMounted] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -160,8 +150,8 @@ export function StaffView() {
   }, []);
 
   const { nodes, edges } = useMemo(
-    () => buildGraph(agents, config.roles, config.hierarchy, agents, updateDisplayName, updateRole, updateHierarchy),
-    [agents, config.roles, config.hierarchy, updateDisplayName, updateRole, updateHierarchy],
+    () => buildGraph(agents, config.roles, config.hierarchy, updateDisplayName, updateRole),
+    [agents, config.roles, config.hierarchy, updateDisplayName, updateRole],
   );
   const [fitSignal, setFitSignal] = useState(0);
 

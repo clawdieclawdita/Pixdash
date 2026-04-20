@@ -7,11 +7,8 @@ import { spriteUrls } from './spriteUrls';
 type AgentNodeData = {
   agent: StoreAgent;
   role: string;
-  allAgents: StoreAgent[];
-  currentParent: string | null;
   onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>;
   onUpdateRole: (agentId: string, role: string) => Promise<boolean>;
-  onUpdateParent: (child: string, newParent: string | null) => Promise<boolean>;
 };
 
 type AgentFlowNode = Node<AgentNodeData, 'agent'>;
@@ -177,30 +174,7 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
   const displayName = agent.displayName ?? agent.name ?? agent.id ?? '?';
   const config = statusConfig[status] ?? statusConfig.offline;
   const bodyType = agent.bodyType ?? 'michael';
-  const currentParent = data.currentParent;
-  const allAgents = data.allAgents;
-  const [showParentPicker, setShowParentPicker] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
 
-  // Close popover on click outside
-  useEffect(() => {
-    if (!showParentPicker) return;
-    const handler = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as globalThis.Node)) {
-        setShowParentPicker(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showParentPicker]);
-
-  // Parent options: all agents except self + "None"
-  const parentOptions = allAgents
-    .filter((a) => a.id !== agent.id)
-    .map((a) => ({
-      value: a.id,
-      label: a.displayName ?? a.name ?? a.id,
-    }));
 
   const handleDisplayNameSave = useCallback(
     (val: string) => { data.onUpdateDisplayName(agent.id, val); },
@@ -210,14 +184,6 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
   const handleRoleSave = useCallback(
     (val: string) => { data.onUpdateRole(agent.id, val); },
     [agent.id, data.onUpdateRole],
-  );
-
-  const handleParentChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const val = e.target.value;
-      data.onUpdateParent(agent.id, val === '' ? null : val);
-    },
-    [agent.id, data.onUpdateParent],
   );
 
   return (
@@ -251,43 +217,7 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
             {config.label}
           </span>
 
-          <div ref={pickerRef} className="relative mt-1 nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-            <label className="text-[8px] uppercase tracking-wider text-[#9c907f]/50">Reports to</label>
-            <button
-              type="button"
-              onClick={() => setShowParentPicker(!showParentPicker)}
-              className="block w-full mt-0.5 rounded border border-[#d1a45a]/20 bg-[#0f0e10] px-1 py-0 text-[9px] text-[#b7aa96] outline-none cursor-pointer hover:border-[#d1a45a]/40"
-            >
-              {currentParent ? parentOptions.find(o => o.value === currentParent)?.label ?? currentParent : 'None (Root)'}
-            </button>
-            {showParentPicker && (
-              <div className="absolute left-0 right-0 bottom-full mb-1 z-50 max-h-40 overflow-y-auto rounded border border-[#d1a45a]/30 bg-[#1a1714] shadow-lg">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleParentChange({ target: { value: '' } } as React.ChangeEvent<HTMLSelectElement>);
-                    setShowParentPicker(false);
-                  }}
-                  className="block w-full px-2 py-1 text-left text-[9px] text-[#b7aa96] hover:bg-[#2a2520]"
-                >
-                  None (Root)
-                </button>
-                {parentOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => {
-                      handleParentChange({ target: { value: opt.value } } as React.ChangeEvent<HTMLSelectElement>);
-                      setShowParentPicker(false);
-                    }}
-                    className="block w-full px-2 py-1 text-left text-[9px] text-[#b7aa96] hover:bg-[#2a2520]"
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+
         </div>
       </div>
     </div>

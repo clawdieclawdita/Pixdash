@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSprites } from '@/hooks/useSprites';
 import { useAllSpritePreviews } from '@/hooks/useAllSpritePreviews';
 import {
@@ -8,6 +8,8 @@ import {
 } from '@/lib/sprite-generator';
 import type { AgentProfile } from '@/types';
 import { type SpriteTemplate, clearSpriteTemplateCache } from '@/lib/spriteSheets';
+import { useConfigStore } from '@/store/configStore';
+import { useAgentsStore } from '@/store/agentsStore';
 
 interface CustomizerModalProps {
   agent: AgentProfile | null;
@@ -154,8 +156,14 @@ export const CustomizerModal = ({
   const { spriteSheet, isLoading } = useSprites(draft);
   const allPreviews = useAllSpritePreviews();
   const [frame, setFrame] = useState(0);
+  const { config, updateRole, updateHierarchy } = useConfigStore();
+  const { agents } = useAgentsStore();
   const wasOpenRef = useRef(false);
   const lastOpenStateKeyRef = useRef<string | null>(null);
+
+  // Role title draft
+  const [roleDraft, setRoleDraft] = useState('');
+  const [parentDraft, setParentDraft] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -174,6 +182,11 @@ export const CustomizerModal = ({
       const nextDraft = cloneAppearance(baseAppearance);
       setDraft(nextDraft);
       setSelectedPreset(getPresetFromBodyType(nextDraft.bodyType));
+      // Sync role + parent drafts from config
+      const currentRole = agent ? (config.roles[agent.id] ?? agent.title ?? 'Agent') : 'Agent';
+      setRoleDraft(currentRole);
+      const currentParent = agent ? getParentForAgent(agent.id, config.hierarchy) : null;
+      setParentDraft(currentParent);
       lastOpenStateKeyRef.current = openStateKey;
     }
 
@@ -203,7 +216,39 @@ export const CustomizerModal = ({
     clearSpriteTemplateCache();
   };
 
+  // Parent lookup helper
+  const getParentForAgent = (agentId: string, hierarchy: Array<{ parent: string; child: string }>): string | null => {
+    const edge = hierarchy.find((e) => e.child === agentId);
+    return edge?.parent ?? null;
+  };
+
+  const handleRoleBlur = useCallback(() => {
+    if (!agent) return;
+    const currentRole = config.roles[agent.id] ?? agent.title ?? 'Agent';
+    if (roleDraft !== currentRole) {
+      updateRole(agent.id, roleDraft);
+    }
+  }, [agent, roleDraft, config.roles, updateRole]);
+
+  const handleParentChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      if (!agent) return;
+      const val = e.target.value;
+      const newParent = val === '' ? null : val;
+      setParentDraft(newParent);
+      updateHierarchy(agent.id, newParent);
+    },
+    [agent, updateHierarchy],
+  );
+
   const handleSave = () => {
+    // Persist role if changed
+    if (agent) {
+      const currentRole = config.roles[agent.id] ?? agent.title ?? 'Agent';
+      if (roleDraft !== currentRole) {
+        updateRole(agent.id, roleDraft);
+      }
+    }
     if (onSave) {
       onSave(draft);
       return;
@@ -306,6 +351,38 @@ export const CustomizerModal = ({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Role Title & Reports To */}
+            <div className="mt-3 flex flex-col gap-3 shrink-0">
+              <div className="pixel-frame rounded-[12px] bg-[#131015] p-3">
+                <label className="block text-[10px] uppercase tracking-[0.24em] text-[#9c907f] mb-1">Role title</label>
+                <input
+                  type="text"
+                  value={roleDraft}
+                  onChange={(e) => setRoleDraft(e.target.value)}
+                  onBlur={handleRoleBlur}
+                  className="w-full rounded border border-[#d1a45a]/40 bg-[#0f0e10] px-2 py-1.5 text-sm text-slate-200 outline-none focus:border-[#d1a45a] transition"
+                  placeholder="Agent"
+                />
+              </div>
+              <div className="pixel-frame rounded-[12px] bg-[#131015] p-3">
+                <label className="block text-[10px] uppercase tracking-[0.24em] text-[#9c907f] mb-1">Reports to</label>
+                <select
+                  value={parentDraft ?? ''}
+                  onChange={handleParentChange}
+                  className="w-full rounded border border-[#d1a45a]/40 bg-[#0f0e10] px-2 py-1.5 text-sm text-slate-200 outline-none focus:border-[#d1a45a] transition"
+                >
+                  <option value="">None (Root Level)</option>
+                  {agents
+                    .filter((a) => agent && a.id !== agent.id)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.displayName ?? a.name ?? a.id}
+                      </option>
+                    ))}
+                </select>
               </div>
             </div>
 
