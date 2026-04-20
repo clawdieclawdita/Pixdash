@@ -179,6 +179,20 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
   const bodyType = agent.bodyType ?? 'michael';
   const currentParent = data.currentParent;
   const allAgents = data.allAgents;
+  const [showParentPicker, setShowParentPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Close popover on click outside
+  useEffect(() => {
+    if (!showParentPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as globalThis.Node)) {
+        setShowParentPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showParentPicker]);
 
   // Parent options: all agents except self + "None"
   const parentOptions = allAgents
@@ -237,18 +251,42 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
             {config.label}
           </span>
 
-          <div className="mt-1 nodrag nopan">
+          <div ref={pickerRef} className="relative mt-1 nodrag nopan" onPointerDown={(e) => e.stopPropagation()}>
             <label className="text-[8px] uppercase tracking-wider text-[#9c907f]/50">Reports to</label>
-            <select
-              value={currentParent ?? ''}
-              onChange={handleParentChange}
-              className="block w-full mt-0.5 rounded border border-[#d1a45a]/20 bg-[#0f0e10] px-1 py-0 text-[9px] text-[#b7aa96] outline-none cursor-pointer"
+            <button
+              type="button"
+              onClick={() => setShowParentPicker(!showParentPicker)}
+              className="block w-full mt-0.5 rounded border border-[#d1a45a]/20 bg-[#0f0e10] px-1 py-0 text-[9px] text-[#b7aa96] outline-none cursor-pointer hover:border-[#d1a45a]/40"
             >
-              <option value="">None (Root)</option>
-              {parentOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+              {currentParent ? parentOptions.find(o => o.value === currentParent)?.label ?? currentParent : 'None (Root)'}
+            </button>
+            {showParentPicker && (
+              <div className="absolute left-0 right-0 bottom-full mb-1 z-50 max-h-40 overflow-y-auto rounded border border-[#d1a45a]/30 bg-[#1a1714] shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleParentChange({ target: { value: '' } } as React.ChangeEvent<HTMLSelectElement>);
+                    setShowParentPicker(false);
+                  }}
+                  className="block w-full px-2 py-1 text-left text-[9px] text-[#b7aa96] hover:bg-[#2a2520]"
+                >
+                  None (Root)
+                </button>
+                {parentOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      handleParentChange({ target: { value: opt.value } } as React.ChangeEvent<HTMLSelectElement>);
+                      setShowParentPicker(false);
+                    }}
+                    className="block w-full px-2 py-1 text-left text-[9px] text-[#b7aa96] hover:bg-[#2a2520]"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

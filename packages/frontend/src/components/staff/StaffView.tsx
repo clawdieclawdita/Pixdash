@@ -92,13 +92,19 @@ function StaffFlow({ initialNodes, initialEdges }: { initialNodes: AgentFlowNode
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const hasFitted = useRef(false);
 
-  // Update node data (agent status/bodyType) without changing positions
+  // Update node data and positions when initialNodes change.
+  // Positions must also sync (e.g. when hierarchy loads and dagre recomputes),
+  // otherwise the initial flat-row layout from pre-hierarchy render is locked in.
   useEffect(() => {
     setNodes((nds) =>
       nds.map((n) => {
         const updated = initialNodes.find((in_) => in_.id === n.id);
-        if (updated && updated.data.agent !== n.data.agent) {
-          return { ...n, data: updated.data };
+        if (!updated) return n;
+        // Only update if something actually changed
+        const dataChanged = updated.data.agent !== n.data.agent || updated.data.currentParent !== n.data.currentParent;
+        const posChanged = updated.position.x !== n.position.x || updated.position.y !== n.position.y;
+        if (dataChanged || posChanged) {
+          return { ...n, data: updated.data, position: updated.position };
         }
         return n;
       }),
