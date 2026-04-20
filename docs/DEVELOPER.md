@@ -675,7 +675,7 @@ import { isDebug, isDebugAgent, debugAgent } from '@/lib/debug';
 
 Set `window.__PIXDASH_DEBUG = true` in browser console to enable verbose logging including per-frame render logs and movement state tracking.
 
-To debug a specific agent: `window.__PIXDASH_DEBUG_AGENT = 'agent:devo'`
+To debug a specific agent: `window.__PIXDASH_DEBUG_AGENT = 'agent:agent-two'`
 
 ### Build Process
 

@@ -593,27 +593,27 @@ docker compose up -d --build</code></pre>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre><code class="language-json">{
   "displayNames": {
-    "main": "Clawdie",
-    "devo": "Devo",
-    "cornelio": "Cornelio",
-    "docclaw": "DocClaw",
-    "infralover": "InfraLover",
-    "forbidden": "Forbidden"
+    "agent-one": "Agent One",
+    "agent-two": "Agent Two",
+    "agent-three": "Agent Three",
+    "agent-four": "Agent Four",
+    "agent-five": "Agent Five",
+    "agent-six": "Agent Six"
   },
   "roles": {
-    "main": "CEO",
-    "devo": "CDO",
-    "cornelio": "CISO",
-    "infralover": "IM",
-    "docclaw": "DM",
-    "forbidden": "Analyst"
+    "agent-one": "Executive",
+    "agent-two": "Lead",
+    "agent-three": "Security",
+    "agent-five": "Infrastructure",
+    "agent-four": "Data",
+    "agent-six": "Analyst"
   },
   "hierarchy": [
-    { "parent": "main", "child": "devo" },
-    { "parent": "main", "child": "cornelio" },
-    { "parent": "devo", "child": "infralover" },
-    { "parent": "devo", "child": "docclaw" },
-    { "parent": "infralover", "child": "forbidden" }
+    { "parent": "agent-one", "child": "agent-two" },
+    { "parent": "agent-one", "child": "agent-three" },
+    { "parent": "agent-two", "child": "agent-five" },
+    { "parent": "agent-two", "child": "agent-four" },
+    { "parent": "agent-five", "child": "agent-six" }
   ],
   "reservedWaypoints": {
     "main": "reception-front"
@@ -1075,7 +1075,7 @@ Frontend updates agent appearance in Canvas</code></pre></div>
   },
   "hierarchy": [
     // ... existing edges ...
-    { "parent": "devo", "child": "newagent" }
+    { "parent": "agent-two", "child": "newagent" }
   ],
   "reservedWaypoints": {
     // Optional: assign a specific desk
@@ -1364,9 +1364,9 @@ docker compose build --no-cache &amp;&amp; docker compose up -d</code></pre>
     <pre><code class="language-json">{
   "agents": [
     {
-      "id": "main",
-      "name": "Clawdie",
-      "displayName": "Clawdie",
+      "id": "agent-one",
+      "name": "Agent One",
+      "displayName": "Agent One",
       "status": "online",
       "lastSeen": "2025-01-01T00:00:00.000Z",
       "position": { "x": 31, "y": 22, "direction": "south" },
@@ -1476,14 +1476,14 @@ curl "http://localhost:3000/api/v1/agents/main/logs?limit=20&amp;offset=0&amp;le
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre><code class="language-bash">curl -X PATCH http://localhost:3000/api/v1/agents/main/displayName \
   -H "Content-Type: application/json" \
-  -d '{"displayName":"Clawdie Boss"}'</code></pre>
+  -d '{"displayName":"Agent One Boss"}'</code></pre>
   </div>
 
   <p>Response:</p>
   <div class="code-wrapper">
     <span class="code-lang">json</span>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre><code class="language-json">{ "success": true, "displayName": "Clawdie Boss" }</code></pre>
+    <pre><code class="language-json">{ "success": true, "displayName": "Agent One Boss" }</code></pre>
   </div>
 
   <p>Set to <code>null</code> to clear and revert to config-based display name.</p>
@@ -1543,9 +1543,9 @@ curl "http://localhost:3000/api/v1/agents/main/logs?limit=20&amp;offset=0&amp;le
     <span class="code-lang">json</span>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre><code class="language-json">{
-  "displayNames": { "main": "Clawdie" },
-  "roles": { "main": "CEO" },
-  "hierarchy": [{ "parent": "main", "child": "devo" }]
+  "displayNames": { "agent-one": "Agent One" },
+  "roles": { "agent-one": "Executive" },
+  "hierarchy": [{ "parent": "agent-one", "child": "agent-two" }]
 }</code></pre>
   </div>
 
@@ -2020,7 +2020,7 @@ const signature = Buffer.from(sig)
   "type": "req",
   "id": "req_004",
   "method": "sessions.messages.subscribe",
-  "params": { "key": "agent:devo:telegram:group:-1003723628918:topic:673" }
+  "params": { "key": "agent:agent-two:telegram:group:-100XXXXX:topic:XXX" }
 }</code></pre>
   </div>
 
@@ -2028,8 +2028,8 @@ const signature = Buffer.from(sig)
   <div class="diagram-block"><pre><code>agent:&lt;agentId&gt;:&lt;channel&gt;:&lt;channelType&gt;:&lt;channelId&gt;[:topic:&lt;topicId&gt;]</code></pre></div>
   <p>Examples:</p>
   <ul>
-    <li><code>agent:devo:telegram:group:-1003723628918:topic:673</code></li>
-    <li><code>agent:main:telegram:private:123456789</code></li>
+    <li><code>agent:agent-two:telegram:group:-100XXXXX:topic:XXX</code></li>
+    <li><code>agent:agent-one:telegram:private:XXXXXXXXX</code></li>
   </ul>
 
   <h3>4.4 Session discovery</h3>
@@ -2250,11 +2250,11 @@ ws.on('error', (err) =&gt; console.error('Socket error:', err.message));</code><
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
     <pre><code>WebSocket open — waiting for challenge...
 ✅ Authenticated! Device token: eyJhbGciOiJIUzI1...
-Subscribed to session: agent:devo:telegram:group:-1003723628918:topic:673
-Subscribed to session: agent:main:telegram:group:-1003723628918:topic:673
+Subscribed to session: agent:agent-two:telegram:group:-100XXXXX:topic:XXX
+Subscribed to session: agent:agent-one:telegram:group:-100XXXXX:topic:XXX
 [EVENT] health: {"agents":[...]}
-[EVENT] session.message: {"sessionKey":"agent:devo:...","message":{"role":"assistant",...}}
-[EVENT] session.tool: {"sessionKey":"agent:devo:...","data":{"name":"read",...}}</code></pre>
+[EVENT] session.message: {"sessionKey":"agent:agent-two:...","message":{"role":"assistant",...}}
+[EVENT] session.tool: {"sessionKey":"agent:agent-two:...","data":{"name":"read",...}}</code></pre>
   </div>
 
   <h2 id="gateway-troubleshooting">7. Troubleshooting</h2>
@@ -3030,7 +3030,7 @@ pnpm dev
     <pre><code class="language-typescript">import { isDebug, isDebugAgent, debugAgent } from '@/lib/debug';</code></pre>
   </div>
   <p>Set <code>window.__PIXDASH_DEBUG = true</code> in browser console to enable verbose logging including per-frame render logs and movement state tracking.</p>
-  <p>To debug a specific agent: <code>window.__PIXDASH_DEBUG_AGENT = 'agent:devo'</code></p>
+  <p>To debug a specific agent: <code>window.__PIXDASH_DEBUG_AGENT = 'agent:agent-two'</code></p>
 
   <h3>Build Process</h3>
   <div class="code-wrapper">

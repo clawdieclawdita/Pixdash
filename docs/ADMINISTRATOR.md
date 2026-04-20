@@ -268,7 +268,7 @@ Frontend updates agent appearance in Canvas
   },
   "hierarchy": [
     // ... existing edges ...
-    { "parent": "devo", "child": "newagent" }
+    { "parent": "agent-two", "child": "newagent" }
   },
   "reservedWaypoints": {
     // Optional: assign a specific desk
@@ -539,9 +539,9 @@ Response:
 {
   "agents": [
     {
-      "id": "main",
-      "name": "Clawdie",
-      "displayName": "Clawdie",
+      "id": "agent-one",
+      "name": "Agent One",
+      "displayName": "Agent One",
       "status": "online",
       "lastSeen": "2025-01-01T00:00:00.000Z",
       "position": { "x": 31, "y": 22, "direction": "south" },
@@ -559,7 +559,7 @@ Response:
 **GET /api/v1/agents/:id**
 
 ```bash
-curl http://localhost:3000/api/v1/agents/main
+curl http://localhost:3000/api/v1/agents/agent-one
 ```
 
 Returns a single agent object. 404 if not found.
@@ -568,10 +568,10 @@ Returns a single agent object. 404 if not found.
 
 ```bash
 # Default: 100 most recent logs
-curl http://localhost:3000/api/v1/agents/main/logs
+curl http://localhost:3000/api/v1/agents/agent-one/logs
 
 # Paginated
-curl "http://localhost:3000/api/v1/agents/main/logs?limit=20&offset=0&level=info"
+curl "http://localhost:3000/api/v1/agents/agent-one/logs?limit=20&offset=0&level=info"
 ```
 
 Query params: `limit` (number), `offset` (number), `level` (`debug`, `info`, `warn`, `error`)
@@ -590,7 +590,7 @@ Response:
 **GET /api/v1/agents/:id/tasks**
 
 ```bash
-curl http://localhost:3000/api/v1/agents/main/tasks
+curl http://localhost:3000/api/v1/agents/agent-one/tasks
 ```
 
 Response:
@@ -605,7 +605,7 @@ Response:
 **PATCH /api/v1/agents/:id/appearance**
 
 ```bash
-curl -X PATCH http://localhost:3000/api/v1/agents/main/appearance \
+curl -X PATCH http://localhost:3000/api/v1/agents/agent-one/appearance \
   -H "Content-Type: application/json" \
   -d '{"bodyType":"jim","hair":{"style":"spiky","color":"#E6CEA8"},"outfit":{"type":"formal","color":"#2ECC71"}}'
 ```
@@ -618,14 +618,14 @@ Response:
 **PATCH /api/v1/agents/:id/displayName**
 
 ```bash
-curl -X PATCH http://localhost:3000/api/v1/agents/main/displayName \
+curl -X PATCH http://localhost:3000/api/v1/agents/agent-one/displayName \
   -H "Content-Type: application/json" \
-  -d '{"displayName":"Clawdie Boss"}'
+  -d '{"displayName":"Agent One Boss"}'
 ```
 
 Response:
 ```json
-{ "success": true, "displayName": "Clawdie Boss" }
+{ "success": true, "displayName": "Agent One Boss" }
 ```
 
 Set to `null` to clear and revert to config-based display name.
@@ -659,9 +659,9 @@ curl http://localhost:3000/api/v1/config
 Response:
 ```json
 {
-  "displayNames": { "main": "Clawdie" },
-  "roles": { "main": "CEO" },
-  "hierarchy": [{ "parent": "main", "child": "devo" }]
+  "displayNames": { "agent-one": "Agent One" },
+  "roles": { "agent-one": "Executive" },
+  "hierarchy": [{ "parent": "agent-one", "child": "agent-two" }]
 }
 ```
 
@@ -676,33 +676,33 @@ All config mutations are persisted to `pixdash.json` on disk and broadcast to co
 ```bash
 curl -X PATCH http://localhost:3000/api/v1/config/displayNames \
   -H "Content-Type: application/json" \
-  -d '{"agentId":"main","displayName":"Clawdie Boss"}'
+  -d '{"agentId":"agent-one","displayName":"Agent One Boss"}'
 ```
 
-Response: `{"success":true,"displayNames":{"main":"Clawdie Boss",...}}`
+Response: `{"success":true,"displayNames":{"agent-one":"Agent One Boss",...}}`
 
 **PATCH `/api/v1/config/roles`** — Set an agent's role title:
 
 ```bash
 curl -X PATCH http://localhost:3000/api/v1/config/roles \
   -H "Content-Type: application/json" \
-  -d '{"agentId":"main","role":"CTO"}'
+  -d '{"agentId":"agent-one","role":"CTO"}'
 ```
 
-Response: `{"success":true,"roles":{"main":"CTO",...}}`
+Response: `{"success":true,"roles":{"agent-one":"CTO",...}}`
 
 **PATCH `/api/v1/config/hierarchy`** — Reassign an agent's parent:
 
 ```bash
-# Move 'forbidden' to report to 'cornelio'
+# Move 'agent-six' to report to 'agent-three'
 curl -X PATCH http://localhost:3000/api/v1/config/hierarchy \
   -H "Content-Type: application/json" \
-  -d '{"child":"forbidden","newParent":"cornelio"}'
+  -d '{"child":"agent-six","newParent":"agent-three"}'
 
 # Remove from hierarchy entirely
 curl -X PATCH http://localhost:3000/api/v1/config/hierarchy \
   -H "Content-Type: application/json" \
-  -d '{"child":"forbidden","newParent":null}'
+  -d '{"child":"agent-six","newParent":null}'
 ```
 
 Response: `{"success":true,"hierarchy":[...]}`
@@ -757,8 +757,8 @@ On connection, server sends:
 ```json
 // Request
 { "type": "req", "id": "1", "method": "sync" }
-{ "type": "req", "id": "2", "method": "updateAppearance", "params": { "agentId": "main", "appearance": { "bodyType": "pam" } } }
-{ "type": "req", "id": "3", "method": "moveAgent", "params": { "agentId": "main", "waypointId": "desk-a1" } }
+{ "type": "req", "id": "2", "method": "updateAppearance", "params": { "agentId": "agent-one", "appearance": { "bodyType": "pam" } } }
+{ "type": "req", "id": "3", "method": "moveAgent", "params": { "agentId": "agent-one", "waypointId": "desk-a1" } }
 
 // Response
 { "type": "res", "id": "1", "ok": true, "payload": { "agents": [...], "officeLayout": {...} } }
@@ -782,6 +782,6 @@ The server pushes these events to all connected clients:
 | `agent:conference` | `{ agentIds, sessionKey, source, timestamp }` | Agents in conference |
 
 ```json
-{ "type": "event", "event": "agent:status", "payload": { "agentId": "main", "status": "working", "timestamp": "..." } }
-{ "type": "event", "event": "agent:movement", "payload": { "agentId": "main", "movement": { "status": "moving", "path": [...], "progress": 0.5, "fractionalX": 1008, "fractionalY": 720 }, "position": { "x": 31, "y": 22, "direction": "east" } } }
+{ "type": "event", "event": "agent:status", "payload": { "agentId": "agent-one", "status": "working", "timestamp": "..." } }
+{ "type": "event", "event": "agent:movement", "payload": { "agentId": "agent-one", "movement": { "status": "moving", "path": [...], "progress": 0.5, "fractionalX": 1008, "fractionalY": 720 }, "position": { "x": 31, "y": 22, "direction": "east" } } }
 ```

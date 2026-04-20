@@ -122,30 +122,21 @@ Controls agent display names, roles, organizational hierarchy, reserved waypoint
 ```json
 {
   "displayNames": {
-    "main": "Clawdie",
-    "devo": "Devo",
-    "cornelio": "Cornelio",
-    "docclaw": "DocClaw",
-    "infralover": "InfraLover",
-    "forbidden": "Forbidden"
+    "agent-one": "Agent One",
+    "agent-two": "Agent Two",
+    "agent-three": "Agent Three"
   },
   "roles": {
-    "main": "CEO",
-    "devo": "CDO",
-    "cornelio": "CISO",
-    "infralover": "IM",
-    "docclaw": "DM",
-    "forbidden": "Analyst"
+    "agent-one": "Executive",
+    "agent-two": "Lead",
+    "agent-three": "Security"
   },
   "hierarchy": [
-    { "parent": "main", "child": "devo" },
-    { "parent": "main", "child": "cornelio" },
-    { "parent": "devo", "child": "infralover" },
-    { "parent": "devo", "child": "docclaw" },
-    { "parent": "infralover", "child": "forbidden" }
+    { "parent": "agent-one", "child": "agent-two" },
+    { "parent": "agent-two", "child": "agent-three" }
   ],
   "reservedWaypoints": {
-    "main": "reception-front"
+    "agent-one": "reception-front"
   },
   "spawnPositions": [
     { "x": 3, "y": 22 },

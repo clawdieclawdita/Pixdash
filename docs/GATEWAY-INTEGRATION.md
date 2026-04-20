@@ -373,7 +373,7 @@ For each agent's recent sessions (discovered via `agents.list` response or `heal
   "type": "req",
   "id": "req_004",
   "method": "sessions.messages.subscribe",
-  "params": { "key": "agent:devo:telegram:group:-1003723628918:topic:673" }
+  "params": { "key": "agent:agent-two:telegram:group:-100XXXXX:topic:XXX" }
 }
 ```
 
@@ -384,8 +384,8 @@ agent:<agentId>:<channel>:<channelType>:<channelId>[:topic:<topicId>]
 ```
 
 Examples:
-- `agent:devo:telegram:group:-1003723628918:topic:673`
-- `agent:main:telegram:private:123456789`
+- `agent:agent-two:telegram:group:-100XXXXX:topic:XXX`
+- `agent:agent-one:telegram:private:XXXXXXXXX`
 
 ### 4.4 Session discovery
 
@@ -603,11 +603,11 @@ ws.on('error', (err) => console.error('Socket error:', err.message));
 ```
 WebSocket open — waiting for challenge...
 ✅ Authenticated! Device token: eyJhbGciOiJIUzI1...
-Subscribed to session: agent:devo:telegram:group:-1003723628918:topic:673
-Subscribed to session: agent:main:telegram:group:-1003723628918:topic:673
+Subscribed to session: agent:agent-two:telegram:group:-100XXXXX:topic:XXX
+Subscribed to session: agent:agent-one:telegram:group:-100XXXXX:topic:XXX
 [EVENT] health: {"agents":[...]}
-[EVENT] session.message: {"sessionKey":"agent:devo:...","message":{"role":"assistant",...}}
-[EVENT] session.tool: {"sessionKey":"agent:devo:...","data":{"name":"read",...}}
+[EVENT] session.message: {"sessionKey":"agent:agent-two:...","message":{"role":"assistant",...}}
+[EVENT] session.tool: {"sessionKey":"agent:agent-two:...","data":{"name":"read",...}}
 ```
 
 ---
