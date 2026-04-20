@@ -1,5 +1,3 @@
-import type { CollisionMapData } from '@/lib/collisionMap';
-
 export interface PathNode {
   x: number;
   y: number;
@@ -22,15 +20,15 @@ const DIRECTIONS: Array<[number, number]> = [
 const getKey = (x: number, y: number) => `${x},${y}`;
 const heuristic = (from: PathNode, to: PathNode) => Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
 
-export const isWalkableTile = (collisionMap: CollisionMapData, x: number, y: number) => Boolean(collisionMap.cells[y]?.[x]?.walkable);
+export const isWalkable = (walkable: boolean[][], x: number, y: number): boolean => Boolean(walkable[y]?.[x]);
 
 export const findPath = (
   start: PathNode,
   goal: PathNode,
-  collisionMap: CollisionMapData,
+  walkable: boolean[][],
   noGoTiles: Set<string> = new Set(),
 ): PathNode[] => {
-  if (!isWalkableTile(collisionMap, start.x, start.y) || !isWalkableTile(collisionMap, goal.x, goal.y)) {
+  if (!isWalkable(walkable, start.x, start.y) || !isWalkable(walkable, goal.x, goal.y)) {
     return [];
   }
 
@@ -70,7 +68,7 @@ export const findPath = (
       const nextY = current.y + dy;
       const nextKey = getKey(nextX, nextY);
 
-      if (closed.has(nextKey) || !isWalkableTile(collisionMap, nextX, nextY)) {
+      if (closed.has(nextKey) || !isWalkable(walkable, nextX, nextY)) {
         continue;
       }
 

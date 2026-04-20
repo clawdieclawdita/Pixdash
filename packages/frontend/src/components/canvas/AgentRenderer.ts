@@ -1,5 +1,7 @@
 import type { AgentPosition } from '@/types';
+import type { Direction } from '@pixdash/shared';
 import { getWalkFrameIndex } from '@/lib/movement';
+import { isDebug, isDebugAgent } from '@/lib/debug';
 import { loadSpriteTemplate, pickSpriteTemplateFromAppearance, clearSpriteTemplateCache, type SpriteSheetFrames } from '@/lib/spriteSheets';
 
 const SPRITE_DRAW_WIDTH = 235;
@@ -165,7 +167,7 @@ const drawRoundedRect = (
 };
 
 const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px: number, py: number) => {
-  const label = (agent.name ?? agent.id).trim();
+  const label = (agent.displayName ?? agent.name ?? agent.id).trim();
   if (!label) return;
 
   const transform = ctx.getTransform();
@@ -174,7 +176,7 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.font = "24px 'Press Start 2P', monospace";
+  ctx.font = "bold 28px 'Space Mono', monospace";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -189,14 +191,28 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
   drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 6);
   ctx.fill();
 
-  ctx.fillStyle = `rgba(255, 255, 255, ${0.92 * opacity})`;
+  ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, opacity * 1.3)})`;
   ctx.fillText(label, px, labelY + labelHeight / 2 + 0.5);
   ctx.restore();
 };
 
+type AgentRenderOverride = { x: number; y: number; direction?: Direction; isMoving?: boolean };
+
 export class AgentRenderer {
-  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null) {
-    const ordered = [...agents].sort((a, b) => a.y - b.y);
+  render(ctx: CanvasRenderingContext2D, agents: AgentPosition[], selectedAgentId?: string | null, renderOverrides?: Map<string, AgentRenderOverride>, showLabels = true) {
+    const ordered = [...agents].sort((a, b) => {
+      const ay = renderOverrides?.get(a.id)?.y ?? a.interpolatedY ?? a.y;
+      const by = renderOverrides?.get(b.id)?.y ?? b.interpolatedY ?? b.y;
+      return ay - by;
+    });
+    // DEBUG: verify render is called
+    if (isDebug()) {
+      const t = performance.now();
+      if (!(window as any).__renderLogT || t - (window as any).__renderLogT > 1000) {
+        (window as any).__renderLogT = t;
+        console.log(`[pixdash] render() called: ${ordered.length} agents, overrides=${renderOverrides?.size ?? 0}`);
+      }
+    }
     const now = performance.now();
 
     ordered.forEach((agent) => {
@@ -204,15 +220,54 @@ export class AgentRenderer {
       const frames = getSpriteFrames(agent);
       if (!frames) return;
 
-      const px = agent.x;
-      const py = agent.y;
-      const direction = agent.direction ?? 'south';
-      const isMoving = agent.movementState === 'walking' || (agent.path?.length ?? 0) > 0;
+      const override = renderOverrides?.get(agent.id);
+      const px = override ? override.x : (agent.interpolatedX ?? agent.x);
+      const py = override ? override.y : (agent.interpolatedY ?? agent.y);
+      // Skip rendering if position is clearly invalid (negative/off-map)
+      if (px < -100 || py < -100 || px > 2500 || py > 1900) return;
+      // Use override-driven isMoving (real-time from smooth targets, not throttled Zustand)
+      // Fallback: only treat as moving if backend path exists AND we have position data
+      // AND agent is NOT at a claimed waypoint (seated agents can still have stale path in Zustand)
+      const hasPath = (agent.path?.length ?? 0) > 0;
+      const hasPosition = override != null || agent.interpolatedX != null;
+      const isAtClaimedSeat = !override?.isMoving && !!agent.claimedWaypointId;
+      const isMoving = isAtClaimedSeat ? false : (override?.isMoving ?? (hasPath && hasPosition));
+      // DEBUG: log when isMoving disagrees with visual expectation
+      if (isDebug()) {
+        const zustandMoving = agent.movementState === 'walking' || hasPath;
+        if (isMoving !== zustandMoving) {
+          console.log(`[pixdash] ${agent.name} isMoving=${isMoving} (override=${override?.isMoving} hasPath=${hasPath} hasPosition=${hasPosition}) zustand=${agent.movementState} pathLen=${agent.path?.length ?? 0}`);
+        }
+      }
+      const direction = override?.direction ?? agent.direction ?? 'south';
+      if (isDebugAgent(agent.id)) {
+        console.log('[pixdash][draw]', agent.id, {
+          isMoving,
+          direction,
+          px,
+          py,
+          override,
+          movementState: agent.movementState,
+          pathLen: agent.path?.length ?? 0,
+          claimedWaypointId: agent.claimedWaypointId,
+        });
+      }
       const sprite = frames[direction][getWalkFrameIndex(isMoving)];
       if (!sprite) return;
+      // DEBUG
+      if (isDebug()) {
+        const now = performance.now();
+        if (!(window as any).__pixdashDebugLast || now - (window as any).__pixdashDebugLast > 500) {
+          (window as any).__pixdashDebugLast = now;
+          const frameIdx = getWalkFrameIndex(isMoving);
+          const spriteRow = ['south','north','west','east'].indexOf(direction);
+          console.log(`[pixdash] DRAW ${agent.name} moving=${isMoving} dir=${direction}(${spriteRow}) frame=${frameIdx} pos=(${px.toFixed(0)},${py.toFixed(0)}) mvState=${agent.movementState} pathLen=${agent.path?.length ?? 0} seatType=${agent.claimedWaypointId?.split('-')[0] ?? '-'}`);
+        }
+      }
 
       // When seated, shift sprite visually to appear ON the chair
-      const isSeated = agent.movementState?.startsWith('seated');
+      // Only apply offset if movementState confirms seated (not just claimedWaypointId)
+      const isSeated = !isMoving && !!agent.claimedWaypointId && agent.movementState?.startsWith('seated');
       const offsetPx = isSeated ? (agent.visualOffsetX ?? 0) : 0;
       const offsetPy = isSeated ? (agent.visualOffsetY ?? 0) : 0;
       const renderX = px + offsetPx;
@@ -236,16 +291,25 @@ export class AgentRenderer {
       }
 
       ctx.drawImage(sprite, drawX, drawY, SPRITE_DRAW_WIDTH, SPRITE_DRAW_HEIGHT);
-      drawAgentLabel(ctx, agent, renderX, renderY);
+      if (showLabels) drawAgentLabel(ctx, agent, renderX, renderY);
       ctx.restore();
     });
   }
 
-  getAgentAtWorldPosition(worldX: number, worldY: number, agents: AgentPosition[]): AgentPosition | null {
-    const ordered = [...agents].sort((a, b) => b.y - a.y);
+  getAgentAtWorldPosition(
+    worldX: number,
+    worldY: number,
+    agents: AgentPosition[],
+    renderOverrides?: Map<string, AgentRenderOverride>
+  ): AgentPosition | null {
+    const ordered = [...agents].sort((a, b) => {
+      const ay = this.getRenderPosition(a, renderOverrides).y;
+      const by = this.getRenderPosition(b, renderOverrides).y;
+      return by - ay;
+    });
 
     for (const agent of ordered) {
-      const bounds = this.getAgentBounds(agent);
+      const bounds = this.getAgentBounds(agent, renderOverrides);
       if (worldX >= bounds.left && worldX <= bounds.right && worldY >= bounds.top && worldY <= bounds.bottom) {
         return agent;
       }
@@ -254,12 +318,28 @@ export class AgentRenderer {
     return null;
   }
 
-  private getAgentBounds(agent: AgentPosition) {
-    const isSeated = agent.movementState?.startsWith('seated');
+  private getRenderPosition(agent: AgentPosition, renderOverrides?: Map<string, AgentRenderOverride>) {
+    const override = renderOverrides?.get(agent.id);
+    const px = override?.x ?? agent.interpolatedX ?? agent.x;
+    const py = override?.y ?? agent.interpolatedY ?? agent.y;
+    const hasPath = (agent.path?.length ?? 0) > 0;
+    const hasPosition = override != null || agent.interpolatedX != null;
+    const isAtClaimedSeat = !override?.isMoving && !!agent.claimedWaypointId;
+    const isMoving = isAtClaimedSeat ? false : (override?.isMoving ?? (hasPath && hasPosition));
+    const isSeated = !isMoving && !!agent.claimedWaypointId && agent.movementState?.startsWith('seated');
     const offsetPx = isSeated ? (agent.visualOffsetX ?? 0) : 0;
     const offsetPy = isSeated ? (agent.visualOffsetY ?? 0) : 0;
-    const spriteLeft = agent.x + offsetPx + SPRITE_OFFSET_X;
-    const spriteTop = agent.y + offsetPy + SPRITE_OFFSET_Y;
+
+    return {
+      x: px + offsetPx,
+      y: py + offsetPy,
+    };
+  }
+
+  private getAgentBounds(agent: AgentPosition, renderOverrides?: Map<string, AgentRenderOverride>) {
+    const position = this.getRenderPosition(agent, renderOverrides);
+    const spriteLeft = position.x + SPRITE_OFFSET_X;
+    const spriteTop = position.y + SPRITE_OFFSET_Y;
 
     return {
       left: spriteLeft,

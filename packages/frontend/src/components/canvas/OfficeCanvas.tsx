@@ -6,12 +6,16 @@ import { CameraController } from './CameraController';
 import { useCanvas } from '@/hooks/useCanvas';
 import { useMovementStore } from '@/store/movementStore';
 import { agentsStore } from '@/store/agentsStore';
+import { debugAgent } from '@/lib/debug';
+import { smoothPositionTargets } from '@/hooks/useAgents';
 import { OFFICE_HEIGHT, OFFICE_WIDTH } from '@/lib/officeScene';
+import type { Direction } from '@pixdash/shared';
 
 interface OfficeCanvasProps {
   agents: AgentPosition[];
   onAgentSelect?: (agent: AgentPosition | null) => void;
   selectedAgentId?: string | null;
+  showLabels?: boolean;
 }
 
 const VIEWPORT = { width: 1280, height: 840 };
@@ -25,7 +29,8 @@ const loadImage = (src: string) =>
     image.src = src;
   });
 
-export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeCanvasProps) => {
+
+export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId, showLabels = true }: OfficeCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef(VIEWPORT);
@@ -36,10 +41,16 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
 
   const agentRenderer = useMemo(() => new AgentRenderer(), []);
   const agentsRef = useRef(agents);
+  const onAgentSelectRef = useRef(onAgentSelect);
+  const renderOverridesRef = useRef<Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>>(new Map());
 
   useEffect(() => {
     agentsRef.current = agents;
   }, [agents]);
+
+  useEffect(() => {
+    onAgentSelectRef.current = onAgentSelect;
+  }, [onAgentSelect]);
 
   const syncCanvasSize = useCallback((recenter = false) => {
     const canvas = canvasRef.current;
@@ -49,14 +60,17 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     const rect = host.getBoundingClientRect();
     const width = Math.max(1, Math.floor(rect.width));
     const height = Math.max(1, Math.floor(rect.height));
+    const dpr = window.devicePixelRatio || 1;
+    const expectedPixelWidth = Math.round(width * dpr);
+    const expectedPixelHeight = Math.round(height * dpr);
+    const sizeChanged = viewportRef.current.width !== width || viewportRef.current.height !== height;
+    const dprChanged = canvas.width !== expectedPixelWidth || canvas.height !== expectedPixelHeight;
 
-    if (viewportRef.current.width === width && viewportRef.current.height === height) return;
+    if (!sizeChanged && !dprChanged) return;
 
     viewportRef.current = { width, height };
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
+    canvas.width = expectedPixelWidth;
+    canvas.height = expectedPixelHeight;
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
     const ctx = canvas.getContext('2d');
@@ -90,8 +104,34 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     syncCanvasSize(true);
 
     const onResize = () => syncCanvasSize(false);
+    let resolutionMediaQuery: MediaQueryList | null = null;
+    let removeResolutionListener: (() => void) | null = null;
+
+    const bindResolutionListener = () => {
+      removeResolutionListener?.();
+      resolutionMediaQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+
+      const handleResolutionChange = () => {
+        syncCanvasSize(false);
+        bindResolutionListener();
+      };
+
+      if (typeof resolutionMediaQuery.addEventListener === 'function') {
+        resolutionMediaQuery.addEventListener('change', handleResolutionChange);
+        removeResolutionListener = () => resolutionMediaQuery?.removeEventListener('change', handleResolutionChange);
+        return;
+      }
+
+      resolutionMediaQuery.addListener(handleResolutionChange);
+      removeResolutionListener = () => resolutionMediaQuery?.removeListener(handleResolutionChange);
+    };
+
+    bindResolutionListener();
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      removeResolutionListener?.();
+      window.removeEventListener('resize', onResize);
+    };
   }, [syncCanvasSize]);
 
   useEffect(() => {
@@ -112,8 +152,6 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
     canvas.addEventListener('wheel', handleWheel, { passive: false });
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, []);
-
-  const tickMovement = useMovementStore((state) => state.tick);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -145,12 +183,49 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       ctx.fillRect(0, 0, OFFICE_WIDTH, OFFICE_HEIGHT);
     }
 
-    agentRenderer.render(ctx, currentAgents, selectedAgentId);
-    ctx.restore();
-  }, [agentRenderer, backgroundImage, selectedAgentId]);
+    // Per-frame smooth interpolation toward backend targets with extrapolation
+    const renderOverrides = new Map<string, { x: number; y: number; direction?: Direction; isMoving?: boolean }>();
 
-  useCanvas((deltaMs) => {
-    tickMovement(deltaMs);
+    for (const agent of currentAgents) {
+      const target = smoothPositionTargets.get(agent.id);
+      const isMoving = !!target?.moving;
+
+      if (!isMoving) {
+        const override = {
+          x: agent.interpolatedX ?? agent.x,
+          y: agent.interpolatedY ?? agent.y,
+          direction: agent.waypointDirection ?? agent.direction ?? undefined,
+          isMoving: false,
+        };
+        renderOverrides.set(agent.id, override);
+        debugAgent(agent.id, '[pixdash][override] ' + agent.id, { source: 'store', override, movementState: agent.movementState, pathLen: agent.path?.length ?? 0 });
+        continue;
+      }
+
+      const override = {
+        x: Math.max(0, Math.min(target.x, 2400)),
+        y: Math.max(0, Math.min(target.y, 1792)),
+        direction: target.direction,
+        isMoving: true,
+      };
+      renderOverrides.set(agent.id, override);
+      debugAgent(agent.id, '[pixdash][override] ' + agent.id, {
+          source: 'smooth-target',
+          override,
+          target,
+          movementState: agent.movementState,
+          pathLen: agent.path?.length ?? 0,
+          storeXY: { x: agent.x, y: agent.y },
+          interpXY: { x: agent.interpolatedX, y: agent.interpolatedY },
+        });
+    }
+
+    renderOverridesRef.current = renderOverrides;
+    agentRenderer.render(ctx, currentAgents, selectedAgentId, renderOverrides, showLabels);
+    ctx.restore();
+  }, [agentRenderer, backgroundImage, selectedAgentId, showLabels]);
+
+  useCanvas(() => {
     draw();
   });
 
@@ -236,21 +311,14 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         const worldPoint = worldPosition(point.x, point.y);
         const tileX = Math.floor(worldPoint.x / 32);
         const tileY = Math.floor(worldPoint.y / 32);
-        const camState = cameraRef.current.getSnapshot();
-        const { width: vpWidth, height: vpHeight } = viewportRef.current;
-        const rect = canvasRef.current?.getBoundingClientRect();
-        console.log('=== CLICK DEBUG ===');
-        console.log('clientX/Y:', event.clientX, event.clientY);
-        console.log('rect:', rect?.left, rect?.top, rect?.width, rect?.height);
-        console.log('viewportRef:', vpWidth, vpHeight);
-        console.log('camera state:', camState);
-        console.log('pointerPosition:', point);
-        console.log('worldPosition:', worldPoint);
-        console.log('tile:', tileX, tileY);
-        console.log('===================');
         setClickCoords({ px: Math.round(worldPoint.x), py: Math.round(worldPoint.y), tileX, tileY });
-        const clickedAgent = agentRenderer.getAgentAtWorldPosition(worldPoint.x, worldPoint.y, agentsRef.current);
-        onAgentSelect?.(clickedAgent);
+        const clickedAgent = agentRenderer.getAgentAtWorldPosition(
+          worldPoint.x,
+          worldPoint.y,
+          agentsRef.current,
+          renderOverridesRef.current
+        );
+        onAgentSelectRef.current?.(clickedAgent);
       }
 
       if (activePointerId !== null && canvas.hasPointerCapture(activePointerId)) {
@@ -279,10 +347,10 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
       window.removeEventListener('pointerup', endPointerInteraction);
       window.removeEventListener('pointercancel', endPointerInteraction);
     };
-  }, [pointerPosition, worldPosition, agentRenderer, onAgentSelect]);
+  }, [pointerPosition, worldPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div ref={hostRef} className="relative h-full overflow-hidden rounded-[28px] border border-white/10 bg-black/30 shadow-panel shadow-black/40">
+    <div ref={hostRef} className="pixel-frame crt-panel relative h-full overflow-hidden rounded-[18px] bg-black/30">
       <canvas
         ref={canvasRef}
         className="block cursor-grab touch-none active:cursor-grabbing"
@@ -304,7 +372,7 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
           cameraRef.current.centerOnMap(OFFICE_WIDTH, OFFICE_HEIGHT, width, height);
           setCameraState(cameraRef.current.getSnapshot());
         }}
-        className="pointer-events-auto absolute top-4 right-4 flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-xs font-medium text-white/80 backdrop-blur-md transition-colors hover:bg-black/60 hover:text-white active:scale-95"
+        className="pixel-button pointer-events-auto absolute right-4 top-4 flex items-center gap-1.5 rounded-[10px] bg-[#15110d]/90 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[#f0d6a5] backdrop-blur-md transition-colors hover:brightness-110 active:scale-95"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/>
@@ -312,22 +380,22 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId }: OfficeC
         Fit
       </button>
 
-        <div className="pointer-events-none absolute left-4 bottom-[6.5rem] rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
-          <div className="font-semibold text-white">Click</div>
+        <div className="pixel-frame pointer-events-none absolute bottom-[6.5rem] left-4 rounded-[12px] bg-[#100d11]/90 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+          <div className="font-display text-[11px] text-white">Click</div>
           <div>Pixel {clickCoords.px}, {clickCoords.py}</div>
           <div>Tile ({clickCoords.tileX}, {clickCoords.tileY})</div>
           <div className="mt-2 text-white/50">VP: {viewportRef.current.width}×{viewportRef.current.height}</div>
         </div>
-      <div className="pointer-events-none absolute bottom-4 left-4 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
-        <div className="font-semibold text-white">Camera</div>
+      <div className="pixel-frame pointer-events-none absolute bottom-4 left-4 rounded-[12px] bg-[#100d11]/90 px-4 py-3 text-xs text-fog/90 backdrop-blur-md">
+        <div className="font-display text-[11px] text-white">Camera</div>
         <div>Zoom {cameraState.zoom.toFixed(2)}×</div>
         <div>Pan {Math.round(cameraState.x)}, {Math.round(cameraState.y)}</div>
       </div>
 
       {selectedAgentId && (
-        <div className="pointer-events-none absolute bottom-4 right-4 rounded-2xl border border-white/10 bg-black/35 px-4 py-3 text-xs text-[#9fd28f]/90 backdrop-blur-md">
-          <div className="font-semibold text-white">Selected</div>
-          <div className="text-sm text-[#9fd28f]">{agents.find((agent) => agent.id === selectedAgentId)?.name ?? 'Unknown'}</div>
+        <div className="pixel-frame pointer-events-none absolute bottom-4 right-4 rounded-[12px] bg-[#100d11]/90 px-4 py-3 text-xs text-[#00d4aa]/90 backdrop-blur-md">
+          <div className="font-display text-[11px] text-white">Selected</div>
+          <div className="text-sm text-[#00d4aa]">{agents.find((agent) => agent.id === selectedAgentId)?.name ?? 'Unknown'}</div>
         </div>
       )}
     </div>

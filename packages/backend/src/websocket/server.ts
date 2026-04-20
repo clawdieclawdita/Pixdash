@@ -34,7 +34,8 @@ export class PixDashWebSocketServer {
           });
           socket.send(JSON.stringify(response));
         } catch (error) {
-          socket.send(JSON.stringify({ type: 'res', id: 'unknown', ok: false, error: (error as Error).message }));
+          console.error('[WebSocket] Request error:', error);
+          socket.send(JSON.stringify({ type: 'res', id: 'unknown', ok: false, error: 'Internal error' }));
         }
       });
 
@@ -46,8 +47,13 @@ export class PixDashWebSocketServer {
 
   broadcast<TPayload>(event: WsEventMessage<TPayload>): void {
     const payload = JSON.stringify(event);
-    for (const client of this.clients.values()) {
-      client.socket.send(payload);
+    for (const [id, client] of this.clients) {
+      try {
+        client.socket.send(payload);
+      } catch (err) {
+        console.warn(`[WebSocket] Broadcast failed for client ${id}, removing: ${(err as Error).message}`);
+        this.clients.delete(id);
+      }
     }
   }
 }

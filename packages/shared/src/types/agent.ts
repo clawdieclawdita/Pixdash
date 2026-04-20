@@ -69,6 +69,7 @@ export interface AgentTask {
 export interface Agent {
   id: string;
   name: string;
+  displayName?: string;
   status: AgentStatus;
   lastSeen: string;
   position: Position;
@@ -78,6 +79,7 @@ export interface Agent {
   logs?: AgentLog[];
   tasks?: AgentTask[];
   soul?: string;
+  movement?: import('./movement.js').MovementAuthorityState;
   identity?: {
     creature?: string;
     vibe?: string;

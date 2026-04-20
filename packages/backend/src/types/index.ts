@@ -7,6 +7,7 @@ import type {
   AgentTask,
   Appearance,
   AppearancePatch,
+  MoveAgentRequest,
   FrontendEventName,
   FrontendEventPayload,
   Tilemap,
@@ -129,6 +130,8 @@ export interface AgentStateManagerLike {
   getTasks(id: string): AgentTask[];
   recordActivity(id: string, timestamp?: number): void;
   upsertAppearance(id: string, patch: AppearancePatch): Promise<Appearance>;
+  setDisplayName(id: string, name: string | null): Promise<string | null>;
+  requestMove(request: MoveAgentRequest): { ok: true; agent: Agent };
 }
 
 export interface PixDashServices {
@@ -144,6 +147,8 @@ export interface PixDashFastifyInstance extends FastifyInstance {
 export interface AppearanceStoreRecord {
   updatedAt: string;
   appearance: Appearance;
+  appearanceSaved?: boolean;
+  displayName?: string | null;
 }
 
 export type WsHandlerResult = WsResponseMessage;

@@ -14,3 +14,11 @@ QAUDIT.md
 TRACK5_COMPLETION.md
 PROJECT_LOG.md
 packages/backend/src/.tmp-*
+scripts/live-qa-*.js
+REVIEWS/
+ARCHITECTURE.md
+QA_*.md
+*AUDIT*.md
+*_REPORT*.md
+*_RETEST*.md
+docs/*.md

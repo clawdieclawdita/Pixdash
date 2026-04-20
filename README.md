@@ -1,10 +1,8 @@
-# PixDash — Business Office Simulator
+# 🏢 PixDash
 
-Pixel-art 2D office (SNES-style) for OpenClaw agents. Watch your agents work, walk, and live in real-time.
+> A pixel-art office simulator that brings your OpenClaw AI agents to life on screen.
 
-![Alpha](https://img.shields.io/badge/status-alpha-orange)
-![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
-![pnpm](https://img.shields.io/badge/pnpm-monorepo-blue)
+PixDash renders a 2D isometric office where your agents walk around, sit at desks, attend meetings, grab coffee, and wander the halls — all driven in real-time by activity from the OpenClaw Gateway.
 
 <p align="center">
   <img src="assets/banner.jpg" alt="PixDash Office Simulator" width="800" />
@@ -12,84 +10,192 @@ Pixel-art 2D office (SNES-style) for OpenClaw agents. Watch your agents work, wa
 
 ## Features
 
-- **Live agent office** — pixel-art canvas with animated sprite agents
-- **Real-time Gateway connection** — authenticates via Ed25519 challenge-response, subscribes to agent events
-- **Click to inspect** — select any agent to see status, config, logs, and tasks
-- **Pan & zoom** — drag to pan, scroll to zoom the office floor
-- **Appearance customization** — per-agent pixel-art appearances with customizable body, hair, outfit, and accessories
-- **WebSocket live updates** — session messages, tool calls, and status changes stream in real-time
+---
 
-## Tech Stack
+> 🎮 *Imagine a SNES-era office simulator — but the characters are your actual AI agents.*
 
-| Layer | Tech |
-|-------|------|
-| Frontend | React 18, Vite 5, Tailwind CSS, shadcn/ui, Zustand, HTML5 Canvas |
-| Backend | Fastify, WebSocket, Node.js |
-| Shared | TypeScript types, JSON schemas, constants |
-| Runtime | pnpm monorepo (3 packages) |
+---
 
-## Prerequisites
+<p align="center">
+  <img src="assets/banner.jpg" alt="PixDash Office Simulator" width="800" />
+</p>
 
-- Node.js ≥ 18
-- pnpm ≥ 8
-- OpenClaw Gateway running (for live agent data)
+## ✨ Features
 
-## Quick Start
+- **Live Agent Visualization** — 6 OpenClaw agents rendered as SNES-style pixel-art sprites
+- **Backend-Authoritative A\* Pathfinding** — agents navigate the office using real pathfinding with collision avoidance
+- **Smooth Sub-Tile Movement** — buttery 50ms tick interpolation at 5 tiles/second
+- **Status-Driven Routing** — agents route to desks, conference rooms, restrooms, dining, and reception based on their real-time status
+- **Idle Wandering** — agents periodically wander to random waypoints when idle (weighted by type)
+- **Reserved Seats** — each agent can have a dedicated desk
+- **Conference Room** — agents walk in and sit down for meetings
+- **Character Customization** — per-agent sprite presets with directional animations
+- **Real-Time Sync** — WebSocket connection to the OpenClaw Gateway for live state updates
 
-```bash
-# Install dependencies
-pnpm install
+## 🏗 Architecture
 
-# Build all packages
-pnpm build
-
-# Start the backend (serves frontend too)
-node packages/backend/dist/server.js
-
-# Open http://localhost:3000
-```
-
-## Configuration
-
-| Env Variable | Default | Description |
-|---|---|---|
-| `PIXDASH_GATEWAY_URL` | `ws://127.0.0.1:18789` | OpenClaw Gateway WebSocket URL |
-| `PIXDASH_GATEWAY_TOKEN` | — | Gateway auth token |
-| `PIXDASH_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
-| `PIXDASH_HOST` | `0.0.0.0` | Backend bind address |
-| `PIXDASH_PORT` | `3000` | Backend listen port |
-
-Tokens are resolved in order: `OPENCLAW_GATEWAY_TOKEN` → `PIXDASH_GATEWAY_TOKEN` → config → `~/.openclaw/openclaw.json`.
-
-## Docker
-
-```bash
-docker compose up -d
-```
-
-Mounts `~/.openclaw:ro` for Gateway token access.
-
-## Architecture
+PixDash is a **pnpm monorepo** with three packages:
 
 ```
 pixdash/
 ├── packages/
-│   ├── frontend/   # React + Canvas UI
-│   ├── backend/    # Fastify + WebSocket + Gateway client
-│   └── shared/     # TypeScript types & schemas
-├── assets/         # Office layout & palettes
-├── docker-compose.yml
-└── Dockerfile
+│   ├── frontend/    # React 18 + Vite 5 + Zustand + HTML5 Canvas
+│   ├── backend/     # Fastify + WebSocket + sharp (sprite generation)
+│   └── shared/      # Shared TypeScript types and constants
+├── assets/
+│   ├── sprites/         # SNES-style character sprite sheets
+│   ├── palettes/        # Color palettes for sprite generation
+│   ├── office-layout.json
+│   └── collision-grid.json
+├── .env.example
+└── package.json
 ```
 
-## Project Structure
+| Package | Role |
+|---------|------|
+| **frontend** | Canvas renderer, UI overlay (shadcn/ui + Tailwind), Zustand state |
+| **backend** | Gateway bridge, movement engine, pathfinding, sprite pipeline |
+| **shared** | `AgentStatus`, `Direction`, and other cross-package types |
 
-- `AgentRenderer` — Canvas sprite rendering with selection glow
-- `GatewayClient` — Ed25519 device auth, event subscription, agent list
-- `AgentStateManager` — In-memory agent state with collision detection
-- `OfficeCanvas` — Interactive pan/zoom/click canvas with camera controller
-- `TilemapRenderer` — Multi-layer tilemap rendering (floor, walls, furniture)
+## 🧑‍💼 Agent Roster
 
-## License
+| Agent | Description |
+|-------|-------------|
+| **Clawdie** | The boss — reserved seat at the corner desk |
+| **Devo** | Full-stack orchestrator — always near the monitors |
+| **DocClaw** | Documentation specialist — clean desk, organized |
+| **Forbidden** | Security specialist — seat near the server room |
+| **InfraLover** | DevOps guru — debugging at all hours |
+| **Cornelio** | The new hire — eager and everywhere |
+
+Each agent has a unique sprite preset with 4-directional walk animations rendered on HTML5 Canvas.
+
+## 📋 Prerequisites
+
+- **Node.js** 20+
+- **pnpm** 10+
+- **OpenClaw Gateway** running (provides the WebSocket feed)
+
+## 🚀 Quick Start
+
+```bash
+# Clone the repo
+git clone https://github.com/clawdieclawdita/Pixdash.git
+cd Pixdash
+
+# Install dependencies
+pnpm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env — set PIXDASH_GATEWAY_URL to your Gateway WebSocket address
+
+# Build all packages
+pnpm build
+
+# Start development mode (frontend + backend)
+pnpm dev
+```
+
+Open **http://localhost:5173** (or whatever Vite assigns) and watch your agents come to life.
+
+## ⚙️ Configuration
+
+All settings live in `.env` (see `.env.example`):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PIXDASH_HOST` | `0.0.0.0` | Backend bind address |
+| `PIXDASH_PORT` | `3000` | Backend HTTP/WebSocket port |
+| `PIXDASH_GATEWAY_URL` | `ws://127.0.0.1:18789` | OpenClaw Gateway WebSocket URL |
+| `PIXDASH_DEBUG` | `false` | Enable verbose frontend logging |
+
+## 🎨 Agent Sprites
+
+Sprites live in `assets/sprites/` with per-agent directories. Each character has:
+
+- **4 directional sheets** — north, south, east, west
+- **Walk cycle frames** — 3+ frames per direction
+- **Seated variants** — for desk/conference/restroom poses
+- **Palette-driven generation** via `sharp` — colors defined in `assets/palettes/`
+
+To add a new agent:
+
+1. Create a sprite directory under `assets/sprites/<agent-name>/`
+2. Add directional sheet PNGs
+3. Define the character preset in the shared types
+4. Add a waypoint entry in `packages/backend/src/data/waypoints.ts`
+
+## 🛠 Development
+
+```bash
+# Dev mode (hot reload for frontend, --watch for backend)
+pnpm dev
+
+# Build all packages
+pnpm build
+
+# Build a single package
+pnpm --filter backend build
+pnpm --filter frontend build
+pnpm --filter @pixdash/shared build
+```
+
+### Docker
+
+```bash
+# Start (builds and runs)
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+
+# Rebuild after code changes
+docker compose up -d --build
+```
+
+**Important:** When running in Docker, `PIXDASH_GATEWAY_URL` in `.env` **must** use the host's LAN IP (e.g. `ws://192.168.1.200:18789`), **not** `localhost` or `127.0.0.1` — the container cannot reach the host's loopback interface.
+
+Port defaults to `5555` via Docker Compose. Override with `PIXDASH_PORT` in your `.env`.
+
+### Office Layout
+
+The office map is defined in `assets/office-layout.json` with a corresponding collision grid in `assets/collision-grid.json`. Waypoints (desks, restrooms, etc.) are configured in `packages/backend/src/data/waypoints.ts`.
+
+### Waypoint Types
+
+| Type | Behavior |
+|------|----------|
+| `desk` | Agent sits and works (direction-dependent sprite offset) |
+| `reception` | Front desk seating |
+| `conference` | Meeting room chairs |
+| `restroom` | Self-explanatory |
+| `dining` | Break room / kitchen area |
+
+## 📚 Documentation
+
+| Doc | Description |
+|-----|-------------|
+| [Installation Guide](docs/INSTALLATION.md) | Install, configure, and run PixDash |
+| [Administrator Guide](docs/ADMINISTRATOR.md) | Architecture, data flow, deployment, security, API reference |
+| [Gateway Integration](docs/GATEWAY-INTEGRATION.md) | **OpenClaw WebSocket auth & events — replicate the connection** |
+| [Developer Guide](docs/DEVELOPER.md) | Codebase overview, state management, extending PixDash |
+
+## 🤝 Contributing
+
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make your changes and test locally
+4. Commit with clear messages: `git commit -m "Add coffee machine waypoint"`
+5. Push and open a Pull Request
+
+## 📜 License
 
 MIT
+
+---
+
+Built with ❤️ and way too much attention to pixel detail.

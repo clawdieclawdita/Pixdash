@@ -1,213 +1,27 @@
 import { create } from 'zustand';
-import type { AgentStatus, Direction } from '@pixdash/shared';
+import type { AgentStatus } from '@pixdash/shared';
 import { agentsStore, type StoreAgent } from '@/store/agentsStore';
-import { loadCollisionMap, type CollisionMapData } from '@/lib/collisionMap';
 import {
-  advanceAgentAlongPath,
-  findNearestWalkableTile,
-  getArrivalStateForMovementType,
-  pixelToTile,
-  tileToPixelCenter,
-} from '@/lib/movement';
-import { findPath, isWalkableTile } from '@/lib/pathfinding';
-import {
-  claimWaypoint,
-  createNoGoSet,
-  distanceBetweenTiles,
   createWaypointSet,
   findWaypointById,
-  pickNearestAvailableWaypoint,
   releaseWaypointClaim,
-  type WaypointClaim,
   type WaypointSet,
 } from '@/lib/waypoints';
-import type { MovementState } from '@/types';
-
-/** Collect waypoint IDs currently targeted by other walking agents (not this one) */
-const getOtherWalkingTargets = (agents: StoreAgent[], excludeAgentId: string): Set<string> => {
-  const ids = new Set<string>();
-  for (const a of agents) {
-    if (a.id !== excludeAgentId && a.movementState === 'walking' && a.claimedWaypointId) {
-      ids.add(a.claimedWaypointId);
-    }
-  }
-  return ids;
-};
-
-const AGENT_HOME_BASES: Record<string, { type: WaypointClaim['type']; preferredWaypointIds?: string[] }> = {
-  main: { type: 'reception', preferredWaypointIds: ['reception-clawdie'] },
-};
-
-// Waypoint IDs reserved for specific agents — never offered to others
-const RESERVED_WAYPOINT_IDS = new Set(
-  Object.values(AGENT_HOME_BASES).flatMap((hb) => hb.preferredWaypointIds ?? []),
-);
-
-const IDLE_WANDER_MIN_MS = 60_000;
-const IDLE_WANDER_MAX_MS = 90_000;
-const wanderTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-const clearWanderTimer = (agentId: string) => {
-  const timer = wanderTimers.get(agentId);
-  if (timer) {
-    clearTimeout(timer);
-    wanderTimers.delete(agentId);
-  }
-};
-
-const scheduleIdleWander = (agentId: string) => {
-  // Don't reset if a wander timer is already running, prevents heartbeat
-  // from indefinitely pushing back the wander time.
-  if (wanderTimers.has(agentId)) {
-    return;
-  }
-  const delay = IDLE_WANDER_MIN_MS + Math.random() * (IDLE_WANDER_MAX_MS - IDLE_WANDER_MIN_MS);
-  const timer = setTimeout(async () => {
-    wanderTimers.delete(agentId);
-    const movementState = useMovementStore.getState();
-    const agent = agentsStore.getState().agents.find((a) => a.id === agentId);
-    if (!agent || (agent.status !== 'idle' && agent.status !== 'online')) return;
-    // If agent is no longer seated (e.g. started walking from a status change), skip
-    if (!agent.movementState?.startsWith('seated')) return;
-    await movementState.handleStatusChange(agentId, 'idle', { forceWander: true });
-  }, delay);
-  wanderTimers.set(agentId, timer);
-};
-
-/** True if this waypoint is reserved for a home-base agent OTHER than the given agentId. */
-const isReservedForOther = (agentId: string, wp: WaypointClaim) =>
-  RESERVED_WAYPOINT_IDS.has(wp.id) && !(AGENT_HOME_BASES[agentId]?.preferredWaypointIds?.includes(wp.id) ?? false);
-
-const pickIdleWaypoint = (agentId: string, currentTile: { x: number; y: number }, waypoints: WaypointSet, excludeIds?: Set<string>) => {
-  // Conference room is EXCLUSIVELY for session_send / multi-agent conversations
-  // Never pick conference chairs during idle wander.
-  // Also exclude reserved home-base seats (unless this agent owns them).
-  const allCandidates: WaypointClaim[] = [
-    ...waypoints.receptionChairs,
-    ...waypoints.restRoomChairs,
-    ...waypoints.desks,
-    ...waypoints.waterDispenser,
-    ...waypoints.dining,
-  ];
-
-  // Home base agents get weighted selection, but idle behavior should still
-  // roam across the office instead of snapping back home most of the time.
-  const homeBase = AGENT_HOME_BASES[agentId];
-  if (homeBase) {
-    const preferredHomeIds = new Set(homeBase.preferredWaypointIds ?? []);
-    const receptionCandidates = waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp));
-    const preferredHomeCandidates = receptionCandidates.filter((wp) => preferredHomeIds.has(wp.id));
-    const secondaryReceptionCandidates = receptionCandidates.filter((wp) => !preferredHomeIds.has(wp.id));
-
-    const weightedGroups = [
-      { weight: 0.18, candidates: preferredHomeCandidates.length > 0 ? preferredHomeCandidates : receptionCandidates },
-      { weight: 0.27, candidates: waypoints.desks },
-      { weight: 0.20, candidates: secondaryReceptionCandidates.length > 0 ? secondaryReceptionCandidates : receptionCandidates },
-      { weight: 0.15, candidates: waypoints.restRoomChairs },
-      { weight: 0.10, candidates: waypoints.waterDispenser },
-      { weight: 0.10, candidates: waypoints.dining },
-    ];
-
-    const roll = Math.random();
-    let threshold = 0;
-    for (const group of weightedGroups) {
-      threshold += group.weight;
-      if (roll <= threshold) {
-        const wp = pickNearestAvailableWaypoint(group.candidates, currentTile, agentId, excludeIds);
-        if (wp) return wp;
-        break;
-      }
-    }
-    // Fallback: pick from all candidates, excluding seats reserved for others.
-    return pickNearestAvailableWaypoint(allCandidates.filter((wp) => !isReservedForOther(agentId, wp)), currentTile, agentId, excludeIds);
-  }
-
-  // No home base: pick randomly from all chair types (spread agents around)
-  // Exclude reserved home-base seats
-  const filteredReception = waypoints.receptionChairs.filter((wp) => !isReservedForOther(agentId, wp));
-  const roll = Math.random();
-  let threshold = 0;
-  const groups = [
-    { weight: 0.30, candidates: waypoints.desks },
-    { weight: 0.30, candidates: filteredReception },
-    { weight: 0.20, candidates: waypoints.restRoomChairs },
-    { weight: 0.10, candidates: waypoints.waterDispenser },
-    { weight: 0.10, candidates: waypoints.dining },
-  ];
-  for (const group of groups) {
-    threshold += group.weight;
-    if (roll <= threshold) {
-      const wp = pickNearestAvailableWaypoint(group.candidates, currentTile, agentId, excludeIds);
-      if (wp) return wp;
-      break;
-    }
-  }
-  // Fallback: nearest from all (but still exclude reserved seats)
-  const fallbackCandidates = allCandidates.filter((w) => !isReservedForOther(agentId, w));
-  return pickNearestAvailableWaypoint(fallbackCandidates, currentTile, agentId, excludeIds);
-};
-
-const seatedStateForStatus = (status: AgentStatus, type: WaypointClaim['type'] | null): MovementState => {
-  if (status === 'conference' || type === 'conference') {
-    return 'seated-conference';
-  }
-  if (type === 'watercooler') {
-    return 'at-watercooler';
-  }
-  if (type === 'reception') {
-    return 'seated-idle';
-  }
-  if (status === 'working') {
-    return 'seated-working';
-  }
-  // 'idle' and 'online' are functionally the same — agent is at a seat
-  if (type === 'restroom' || status === 'idle' || status === 'online') {
-    return 'seated-idle';
-  }
-  return 'standing';
-};
-
-const waypointTypeMatchesStatus = (type: WaypointClaim['type'], status: AgentStatus): boolean => {
-  if (status === 'working' || status === 'online') return type === 'desk';
-  if (status === 'conference') return type === 'conference';
-  if (status === 'idle') return type !== 'conference'; // any non-conference seat is fine for idle
-  return false;
-};
-
-// Higher number = higher priority. Conference interrupts everything.
-const statusPriority = (type: WaypointClaim['type']): number => {
-  switch (type) {
-    case 'conference': return 3;
-    case 'desk': return 2;
-    default: return 1; // reception, restroom, watercooler
-  }
-};
-
-// Map a status to the waypoint type it would target, for priority comparison.
-const statusToTargetType = (status: AgentStatus): WaypointClaim['type'] => {
-  if (status === 'working' || status === 'online') return 'desk';
-  if (status === 'conference') return 'conference';
-  return 'desk'; // idle falls through to any type, use desk as baseline
-};
-
-const nextStandingDirection = (direction?: Direction) => direction ?? 'south';
 
 interface MovementStoreState {
-  collisionMap: CollisionMapData | null;
   initialized: boolean;
   loadingPromise: Promise<void> | null;
   waypoints: WaypointSet;
   ensureInitialized: () => Promise<void>;
   syncAgents: (agents: StoreAgent[]) => void;
   placeAgentsOnLoad: (agents: StoreAgent[]) => Promise<void>;
-  handleStatusChange: (agentId: string, status: AgentStatus, options?: { forceWander?: boolean }) => Promise<void>;
+  handleStatusChange: (agentId: string, status: AgentStatus) => Promise<void>;
   handleConference: (agentIds: string[]) => Promise<void>;
   removeAgent: (agentId: string) => void;
   tick: (deltaMs: number) => void;
 }
 
 export const useMovementStore = create<MovementStoreState>((set, get) => ({
-  collisionMap: null,
   initialized: false,
   loadingPromise: null,
   waypoints: createWaypointSet(),
@@ -218,8 +32,8 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       return;
     }
 
-    const loadingPromise = loadCollisionMap().then((collisionMap) => {
-      set({ collisionMap, initialized: true });
+    const loadingPromise = Promise.resolve().then(() => {
+      set({ initialized: true });
     });
 
     set({ loadingPromise });
@@ -250,433 +64,53 @@ export const useMovementStore = create<MovementStoreState>((set, get) => ({
       }
     }
   },
-  placeAgentsOnLoad: async (agents) => {
-    await get().ensureInitialized();
-    const { collisionMap, waypoints } = get();
-    if (!collisionMap) {
-      console.log(`[PixDash Debug] placeAgentsOnLoad: collision map not loaded`);
-      return;
-    }
-    console.log(`[PixDash Debug] placeAgentsOnLoad: ${agents.length} agents`);
-
-    // Sort agents so home-base agents get placed first (claim their preferred seat)
-    const sortedAgents = [...agents].sort((a, b) => {
-      const aHasHome = !!AGENT_HOME_BASES[a.id];
-      const bHasHome = !!AGENT_HOME_BASES[b.id];
-      if (aHasHome && !bHasHome) return -1;
-      if (!aHasHome && bHasHome) return 1;
-      return 0;
-    });
-
-    for (const agent of sortedAgents) {
-      const agentTile = pixelToTile(agent.x, agent.y);
-
-      // Ensure spawn position is on a walkable, non-blocked tile
-      const noGoTiles = createNoGoSet(waypoints);
-      let safeTile = agentTile;
-      if (!isWalkableTile(collisionMap, safeTile.x, safeTile.y) || noGoTiles.has(`${safeTile.x},${safeTile.y}`)) {
-        const nearest = findNearestWalkableTile(collisionMap, safeTile, noGoTiles);
-        if (nearest) {
-          safeTile = nearest;
-        } else {
-          console.warn('[PixDash Debug] placeAgentsOnLoad: no walkable tile found near spawn for', agent.id);
-          continue;
-        }
-      }
-
-      let waypoint: WaypointClaim | null = null;
-
-      if (agent.status === 'idle' || agent.status === 'online') {
-        waypoint = pickIdleWaypoint(agent.id, safeTile, waypoints);
-      } else if (agent.status === 'working') {
-        waypoint = pickNearestAvailableWaypoint(waypoints.desks, safeTile, agent.id);
-      }
-
-      if (!waypoint) {
-        console.log('[PixDash Debug] placeAgentsOnLoad: no waypoint for', JSON.stringify({ agentId: agent.id, status: agent.status, tile: agentTile }));
-        continue;
-      }
-
-      console.log('[PixDash Debug] placeAgentsOnLoad:', JSON.stringify({ agentId: agent.id, waypoint: { id: waypoint.id, x: waypoint.x, y: waypoint.y, type: waypoint.type, dir: waypoint.direction } }));
-
-      claimWaypoint(waypoint, agent.id);
-      const destination = tileToPixelCenter(waypoint);
-
-      agentsStore.updateAgent({
-        id: agent.id,
-        x: destination.x,
-        y: destination.y,
-        direction: waypoint.direction ?? agent.direction,
-        movementState: getArrivalStateForMovementType(waypoint.type),
-        claimedWaypointId: waypoint.id,
-            visualOffsetX: waypoint.visualOffsetX ?? 0,
-            visualOffsetY: waypoint.visualOffsetY ?? 0,
-        path: [],
-        targetX: null,
-        targetY: null,
-      });
-
-      if (agent.status === 'idle' || agent.status === 'online') {
-        void scheduleIdleWander(agent.id);
-      }
-    }
+  placeAgentsOnLoad: async (_agents) => {
+    // Server-authoritative migration: local placement is disabled.
+    // Backend provides canonical positions for all agents via HTTP GET
+    // and WebSocket broadcasts. The agentsStore normalizer handles
+    // fallback positioning when backend data is absent.
+    console.warn('[PixDash] placeAgentsOnLoad: skipped (server-authoritative mode)');
   },
-  handleStatusChange: async (agentId, status, options) => {
-    console.log('[PixDash Debug] handleStatusChange', JSON.stringify({ agentId, status, forceWander: options?.forceWander ?? false }));
-    await get().ensureInitialized();
-    const { collisionMap, waypoints } = get();
-    if (!collisionMap) {
-      console.log(`[PixDash Debug] missing collision map`, { agentId, status });
-      return;
-    }
-
+  handleStatusChange: async (agentId, status) => {
+    // Server-authoritative migration: local status-change movement is disabled.
+    // Backend handles all movement in response to status changes.
+    // Frontend only updates the agent's status field.
     const agent = agentsStore.getState().agents.find((entry) => entry.id === agentId);
-    if (!agent) {
-      console.log(`[PixDash Debug] missing agent`, { agentId, status });
-      return;
-    }
-
-    const currentWaypoint = agent.claimedWaypointId
-      ? findWaypointById(waypoints, agent.claimedWaypointId)
-      : null;
-    const currentWaypointType = currentWaypoint?.type ?? null;
-
-    // Guard: only proceed if the status actually requires a change in behavior.
-    // 'online' after 'idle' means the agent likely got a task.
-    // Dining is intentionally a temporary idle stop, so keep its wander timer alive
-    // instead of treating it like a permanently seated location.
-    if (status === 'online') {
-      const isAtDesk = currentWaypointType === 'desk';
-      const homeBase = AGENT_HOME_BASES[agentId];
-      const isAtHomeBase = homeBase && currentWaypoint
-        ? currentWaypoint.type === homeBase.type && (homeBase.preferredWaypointIds?.includes(currentWaypoint.id) ?? false)
-        : false;
-      if (currentWaypointType === 'dining' && agent.movementState === 'seated-idle') {
-        agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
-        void scheduleIdleWander(agentId);
-        return;
-      }
-      if (isAtDesk || isAtHomeBase || agent.movementState === 'seated-working') {
-        // Already at a desk or was working — just update status, stay put
-        agentsStore.updateAgent({ id: agentId, status });
-        // Keep wander timer alive so agent can eventually roam on next idle
-        if (agent.movementState?.startsWith('seated')) {
-          void scheduleIdleWander(agentId);
-        }
-        return;
-      }
-      // Not at a desk — fall through to walk to a desk (treat like 'working')
-    }
-
-    // 'busy' — stay where you are
-    if (status === 'busy') {
-      agentsStore.updateAgent({ id: agentId, status });
-      return;
-    }
-
-    // If already walking toward the correct destination type for this status, skip.
-    // Prevents duplicate handleStatusChange calls (heartbeat re-broadcast every 1s)
-    // from re-routing the agent mid-walk.
-    if (agent.movementState === 'walking' && agent.claimedWaypointId) {
-      if (currentWaypoint) {
-        const matches = waypointTypeMatchesStatus(currentWaypoint.type, status);
-        const currentPriority = statusPriority(currentWaypoint.type);
-        const newPriority = statusPriority(statusToTargetType(status));
-        if (matches || newPriority < currentPriority) {
-          // Already walking to the right kind of seat, or current destination
-          // is higher priority than the new status — just update status, don't reroute
-          agentsStore.updateAgent({ id: agentId, status });
-          console.log('[PixDash Debug] skipping walk reroute', JSON.stringify({ agentId, status, waypointType: currentWaypoint.type, reason: matches ? 'match' : 'lower-priority' }));
-          return;
-        }
-      }
-    }
-
-    // If already in the correct seated state for this status, skip (heartbeat re-broadcast).
-    // For idle/online seated states, still make sure an idle wander timer exists so
-    // reception/home-base agents do not get stranded if the timer was lost on load.
-    const expectedSeated = seatedStateForStatus(status, null);
-    if (!options?.forceWander && agent.movementState === expectedSeated) {
-      if ((status === 'idle' || status === 'online') && agent.movementState === 'seated-idle') {
-        agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
-        void scheduleIdleWander(agentId);
-        return;
-      }
-      console.log('[PixDash Debug] skipping seated', JSON.stringify({ agentId, status, ms: agent.movementState }));
-      return;
-    }
-
-    // Home-base agent already at their home seat? Just update status, don't reroute or clear wander timer.
-    if (!options?.forceWander && (status === 'working' || status === 'online')) {
-      const homeBase = AGENT_HOME_BASES[agentId];
-      if (homeBase && agent.claimedWaypointId && homeBase.preferredWaypointIds?.includes(agent.claimedWaypointId) && agent.movementState?.startsWith('seated')) {
-        agentsStore.updateAgent({ id: agentId, status, movementState: expectedSeated });
-        console.log('[PixDash Debug] skipping home-base reroute', JSON.stringify({ agentId, status, seat: agent.claimedWaypointId }));
-        return;
-      }
-    }
-
-    // Any seated state → idle: agent stays where they are, no teleport.
-    // Wander timer will eventually move them. This covers:
-    // seated-working → idle (finished task)
-    // seated-conference → idle (conference ended)
-    // at-watercooler → idle (water break done)
-    // seated-bio → idle (restroom done)
-    // seated-idle → idle (heartbeat re-broadcast)
-    if (!options?.forceWander && status === 'idle' && agent.movementState?.startsWith('seated')) {
-      agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
-      // Re-schedule wander if it was cleared (e.g., agent was working)
-      void scheduleIdleWander(agentId);
-      return;
-    }
-    if (!options?.forceWander && status === 'idle' && agent.movementState === 'at-watercooler') {
-      agentsStore.updateAgent({ id: agentId, status, movementState: 'seated-idle' });
-      void scheduleIdleWander(agentId);
-      return;
-    }
-
-    // Only release waypoint if the agent needs a different seat for this status.
-    // idle/online: handled by early return above, never reaches here
-    // working: needs a desk
-    // conference: needs a conference chair
-    // offline: clears everything
-    const needsNewSeat = status === 'offline' || status === 'conference' || status === 'working' || (status === 'idle' && options?.forceWander);
-
-    if (needsNewSeat) {
-      releaseWaypointClaim(waypoints, agentId);
-      clearWanderTimer(agentId);
-    }
-
-    if (status === 'offline') {
-      agentsStore.updateAgent({
-        id: agentId,
-        status,
-        movementState: 'standing',
-        claimedWaypointId: null,
-        path: [],
-        targetX: null,
-        targetY: null,
-      });
-      return;
-    }
-
-    const currentTile = pixelToTile(agent.x, agent.y);
-    const noGoTiles = createNoGoSet(waypoints);
-
-    // If agent is on a blocked or no-go tile, find nearest walkable tile first
-    let safeTile = currentTile;
-    if (!isWalkableTile(collisionMap, safeTile.x, safeTile.y) || noGoTiles.has(`${safeTile.x},${safeTile.y}`)) {
-      const nearest = findNearestWalkableTile(collisionMap, safeTile, noGoTiles);
-      if (nearest) {
-        safeTile = nearest;
-        // Teleport to safe tile immediately
-        const safePixel = tileToPixelCenter(nearest);
-        agentsStore.updateAgent({ id: agentId, x: safePixel.x, y: safePixel.y });
-      } else {
-        console.warn('[PixDash Debug] handleStatusChange: no walkable tile near agent', agentId);
-        return;
-      }
-    }
-
-    const agentTileWalkable = true; // Already validated above
-    // Exclude waypoints already targeted by other walking agents to prevent stacking
-    const otherTargets = getOtherWalkingTargets(agentsStore.getState().agents, agentId);
-    console.log('[PixDash Debug] agent tile', JSON.stringify({
-      agentId,
-      status,
-      position: { x: agent.x, y: agent.y },
-      tile: safeTile,
-      walkable: agentTileWalkable,
-    }));
-
-    let waypoint: WaypointClaim | null = null;
-
-    if (status === 'working' || status === 'online') {
-      // Both 'working' and 'online' (when not at a desk) should target a desk.
-      // Home-base agents go to their preferred home base seat instead.
-      const homeBase = AGENT_HOME_BASES[agentId];
-      if (homeBase) {
-        const homeCandidates = (() => {
-          switch (homeBase.type) {
-            case 'desk':
-              return waypoints.desks;
-            case 'restroom':
-              return waypoints.restRoomChairs;
-            case 'conference':
-              return waypoints.conferenceRoomChairs;
-            case 'reception':
-              return waypoints.receptionChairs;
-            case 'watercooler':
-              return waypoints.waterDispenser;
-            case 'dining':
-              return waypoints.dining;
-          }
-        })();
-        const preferredCandidates = homeBase.preferredWaypointIds?.length
-          ? homeCandidates.filter((wp) => homeBase.preferredWaypointIds!.includes(wp.id))
-          : homeCandidates;
-        waypoint = pickNearestAvailableWaypoint(preferredCandidates, safeTile, agentId, otherTargets);
-        if (!waypoint && homeCandidates.length > 0) {
-          waypoint = pickNearestAvailableWaypoint(homeCandidates, safeTile, agentId, otherTargets);
-        }
-      }
-      if (!waypoint) {
-        waypoint = pickNearestAvailableWaypoint(waypoints.desks, safeTile, agentId, otherTargets);
-      }
-      if (!waypoint && waypoints.desks.length > 0) {
-        waypoint = [...waypoints.desks].sort(
-          (left, right) => distanceBetweenTiles(safeTile, left) - distanceBetweenTiles(safeTile, right),
-        )[0] ?? null;
-      }
-    } else if (status === 'conference') {
-      waypoint = pickNearestAvailableWaypoint(waypoints.conferenceRoomChairs, safeTile, agentId, otherTargets);
-    } else if (status === 'idle') {
-      waypoint = pickIdleWaypoint(agentId, safeTile, waypoints, otherTargets);
-    }
-
-    if (!waypoint) {
-      console.log('[PixDash Debug] no waypoint', JSON.stringify({ agentId, status, tile: safeTile }));
-      agentsStore.updateAgent({
-        id: agentId,
-        status,
-        movementState: 'standing',
-        claimedWaypointId: null,
-        path: [],
-        targetX: null,
-        targetY: null,
-      });
-      return;
-    }
-
-    claimWaypoint(waypoint, agentId);
-    const waypointWalkable = isWalkableTile(collisionMap, waypoint.x, waypoint.y);
-    const path = findPath(safeTile, { x: waypoint.x, y: waypoint.y }, collisionMap, noGoTiles).slice(1);
-    const destination = tileToPixelCenter(waypoint);
-    console.log('[PixDash Debug] path result', JSON.stringify({
-      agentId,
-      status,
-      waypoint: { id: waypoint.id, x: waypoint.x, y: waypoint.y, type: waypoint.type },
-      waypointWalkable,
-      pathLength: path.length,
-      hasPath: path.length > 0,
-    }));
-
-    if (path.length === 0 && (currentTile.x !== waypoint.x || currentTile.y !== waypoint.y)) {
-      const nearestWalkable = findNearestWalkableTile(collisionMap, currentTile, noGoTiles);
-      if (nearestWalkable) {
-        const retryPath = findPath(nearestWalkable, { x: waypoint.x, y: waypoint.y }, collisionMap, noGoTiles).slice(1);
-        if (retryPath.length > 0) {
-          // Build a smooth path from current pixel position through walkable tile to destination
-          // Agent walks from their current visual position — no snap/teleport
-          const pathWithOrigin = [
-            { x: nearestWalkable.x, y: nearestWalkable.y },
-            ...retryPath,
-          ];
-          agentsStore.updateAgent({
-            id: agentId, status, movementState: 'walking',
-            x: agent.x, y: agent.y, // Keep current pixel position
-            claimedWaypointId: waypoint.id, path: pathWithOrigin,
-            targetX: destination.x, targetY: destination.y,
-            direction: waypoint.direction ?? agent.direction,
-          });
-          return;
-        }
-      }
-
-      console.log('[PixDash Debug] empty path', JSON.stringify({
-        agentId,
-        status,
-        from: currentTile,
-        to: { x: waypoint.x, y: waypoint.y },
-        agentTileWalkable,
-        waypointWalkable,
-      }));
-      waypoint.claimedBy = null;
-      agentsStore.updateAgent({
-        id: agentId,
-        status,
-        movementState: 'standing',
-        claimedWaypointId: null,
-        path: [],
-        targetX: null,
-        targetY: null,
-      });
-      return;
-    }
-
-    const nextState = path.length === 0 ? seatedStateForStatus(status, waypoint.type) : 'walking';
-    // Only apply visual offset when arriving at destination (not while walking)
-    const isArriving = path.length === 0;
-    agentsStore.updateAgent({
-      id: agentId,
-      status,
-      movementState: nextState,
-      claimedWaypointId: waypoint.id,
-      ...(isArriving ? { visualOffsetX: waypoint.visualOffsetX ?? 0, visualOffsetY: waypoint.visualOffsetY ?? 0 } : { visualOffsetX: 0, visualOffsetY: 0 }),
-      path,
-      targetX: destination.x,
-      targetY: destination.y,
-      direction: waypoint.direction ?? agent.direction,
-      x: path.length === 0 ? destination.x : agent.x,
-      y: path.length === 0 ? destination.y : agent.y,
-    });
-
+    if (!agent) return;
+    agentsStore.updateAgent({ id: agentId, status });
+    console.warn('[PixDash] handleStatusChange: status-only update (server-authoritative)', JSON.stringify({ agentId, status }));
   },
   handleConference: async (agentIds) => {
-    console.log('[PixDash Debug] handleConference', JSON.stringify({ agentIds }));
-    for (const agentId of agentIds) {
-      await get().handleStatusChange(agentId, 'conference');
-    }
+    // Server-authoritative migration: local conference placement is disabled.
+    // Backend handles conference seat assignment and movement.
+    console.warn('[PixDash] handleConference: no-op (server-authoritative)', JSON.stringify({ agentIds }));
   },
   removeAgent: (agentId) => {
-    clearWanderTimer(agentId);
     releaseWaypointClaim(get().waypoints, agentId);
   },
-  tick: (deltaMs) => {
-    const { waypoints } = get();
+  tick: (_deltaMs) => {
     const agents = agentsStore.getState().agents;
 
     for (const agent of agents) {
-      if (agent.movementState !== 'walking') {
-        continue;
-      }
-
-      const moved = advanceAgentAlongPath(agent, deltaMs);
-      const waypoint = findWaypointById(waypoints, agent.claimedWaypointId);
-
-      if ((moved.path?.length ?? 0) === 0) {
-        const destination = waypoint ? tileToPixelCenter(waypoint) : { x: moved.x, y: moved.y };
-        agentsStore.updateAgent({
-          id: agent.id,
-          x: destination.x,
-          y: destination.y,
-          path: [],
-          targetX: null,
-          targetY: null,
-          direction: waypoint?.direction ?? nextStandingDirection(moved.direction),
-          movementState: waypoint ? getArrivalStateForMovementType(waypoint.type) : 'standing',
-          visualOffsetX: waypoint?.visualOffsetX ?? 0,
-          visualOffsetY: waypoint?.visualOffsetY ?? 0,
-        });
-
-        if (agent.status !== 'idle') {
-          clearWanderTimer(agent.id);
-        } else {
-          void scheduleIdleWander(agent.id);
+      if (agent.movement?.status === 'moving' && agent.movement.fractionalX != null && agent.movement.fractionalY != null) {
+        if (agent.interpolatedX !== agent.movement.fractionalX || agent.interpolatedY !== agent.movement.fractionalY) {
+          agentsStore.updateAgent({
+            id: agent.id,
+            interpolatedX: agent.movement.fractionalX,
+            interpolatedY: agent.movement.fractionalY,
+            direction: agent.direction,
+          });
         }
         continue;
       }
 
-      agentsStore.updateAgent({
-        id: agent.id,
-        x: moved.x,
-        y: moved.y,
-        path: moved.path,
-        targetX: moved.targetX,
-        targetY: moved.targetY,
-        direction: moved.direction,
-        movementState: 'walking',
-      });
+      if (agent.interpolatedX != null || agent.interpolatedY != null) {
+        agentsStore.updateAgent({
+          id: agent.id,
+          interpolatedX: undefined,
+          interpolatedY: undefined,
+        });
+      }
     }
   },
 }));

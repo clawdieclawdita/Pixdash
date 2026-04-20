@@ -1,12 +1,27 @@
 services:
   pixdash:
     build: .
-    ports:
-      - "3000:3000"
+    network_mode: host
     volumes:
-      - ~/.openclaw:/root/.openclaw:ro
+      - ./assets:/app/assets:ro
+      - ./.env:/app/.env:ro
+      # OpenClaw config (Gateway token) + device key (Ed25519 identity)
+      - ~/.openclaw/openclaw.json:/root/.openclaw/openclaw.json:ro
+      - ~/.openclaw/pixdash:/root/.openclaw/pixdash:ro
     environment:
       - NODE_ENV=production
       - PIXDASH_HOST=0.0.0.0
-      - PIXDASH_PORT=3000
+      - PIXDASH_PORT=${PIXDASH_PORT:-5555}
+      # network_mode: host means 127.0.0.1 inside the container IS the host's loopback
+      - PIXDASH_GATEWAY_URL=${PIXDASH_GATEWAY_URL:-ws://127.0.0.1:18789}
+      # Container runs as root, so config is at /root/.openclaw/openclaw.json
+      - PIXDASH_OPENCLAW_CONFIG=/root/.openclaw/openclaw.json
+      # Office layout + collision assets live in /app/assets
+      - PIXDASH_OFFICE_LAYOUT_PATH=/app/assets/office-layout.json
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:${PIXDASH_PORT:-5555}/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

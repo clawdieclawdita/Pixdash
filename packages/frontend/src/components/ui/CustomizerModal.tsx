@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSprites } from '@/hooks/useSprites';
 import { useAllSpritePreviews } from '@/hooks/useAllSpritePreviews';
 import {
@@ -8,6 +8,8 @@ import {
 } from '@/lib/sprite-generator';
 import type { AgentProfile } from '@/types';
 import { type SpriteTemplate, clearSpriteTemplateCache } from '@/lib/spriteSheets';
+import { useConfigStore } from '@/store/configStore';
+import { useAgentsStore } from '@/store/agentsStore';
 
 interface CustomizerModalProps {
   agent: AgentProfile | null;
@@ -154,13 +156,48 @@ export const CustomizerModal = ({
   const { spriteSheet, isLoading } = useSprites(draft);
   const allPreviews = useAllSpritePreviews();
   const [frame, setFrame] = useState(0);
+  const { config, updateRole, updateHierarchy } = useConfigStore();
+  const { agents } = useAgentsStore();
+  const wasOpenRef = useRef(false);
+  const lastOpenStateKeyRef = useRef<string | null>(null);
+
+  // Role title draft
+  const [roleDraft, setRoleDraft] = useState('');
+  const [parentDraft, setParentDraft] = useState<string | null>(null);
+
+  // Parent lookup helper
+  const getParentForAgent = (agentId: string, hierarchy: Array<{ parent: string; child: string }>): string | null => {
+    const edge = hierarchy.find((e) => e.child === agentId);
+    return edge?.parent ?? null;
+  };
 
   useEffect(() => {
-    if (!isOpen) return;
-    const preset = getPresetFromBodyType(baseAppearance.bodyType);
-    setSelectedPreset(preset);
-    setDraft(baseAppearance);
-  }, [baseAppearance, isOpen]);
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+
+    const openStateKey = JSON.stringify({
+      agentId: agent?.id ?? null,
+      appearance: baseAppearance,
+    });
+
+    const shouldReset = !wasOpenRef.current || lastOpenStateKeyRef.current !== openStateKey;
+
+    if (shouldReset) {
+      const nextDraft = cloneAppearance(baseAppearance);
+      setDraft(nextDraft);
+      setSelectedPreset(getPresetFromBodyType(nextDraft.bodyType));
+      // Sync role + parent drafts from config
+      const currentRole = agent ? (config.roles[agent.id] ?? agent.title ?? 'Agent') : 'Agent';
+      setRoleDraft(currentRole);
+      const currentParent = agent ? getParentForAgent(agent.id, config.hierarchy) : null;
+      setParentDraft(currentParent);
+      lastOpenStateKeyRef.current = openStateKey;
+    }
+
+    wasOpenRef.current = true;
+  }, [agent?.id, baseAppearance, isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -170,18 +207,48 @@ export const CustomizerModal = ({
     return () => window.clearInterval(timer);
   }, [isOpen]);
 
+  const handleRoleBlur = useCallback(() => {
+    if (!agent) return;
+    const currentRole = config.roles[agent.id] ?? agent.title ?? 'Agent';
+    if (roleDraft !== currentRole) {
+      updateRole(agent.id, roleDraft);
+    }
+  }, [agent, roleDraft, config.roles, updateRole]);
+
+  const handleParentChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      if (!agent) return;
+      const val = e.target.value;
+      const newParent = val === '' ? null : val;
+      setParentDraft(newParent);
+      updateHierarchy(agent.id, newParent);
+    },
+    [agent, updateHierarchy],
+  );
+
   if (!isOpen) return null;
 
   const handlePresetSelect = (preset: CharacterPreset) => {
+    const nextBodyType = preset.bodyType as Appearance['bodyType'];
     setSelectedPreset(preset.id);
-    setDraft((current) => ({
-      ...current,
-      bodyType: preset.bodyType as Appearance['bodyType']
-    }));
+    setDraft((current) => {
+      if (current.bodyType === nextBodyType) return current;
+      return {
+        ...current,
+        bodyType: nextBodyType
+      };
+    });
     clearSpriteTemplateCache();
   };
 
   const handleSave = () => {
+    // Persist role if changed
+    if (agent) {
+      const currentRole = config.roles[agent.id] ?? agent.title ?? 'Agent';
+      if (roleDraft !== currentRole) {
+        updateRole(agent.id, roleDraft);
+      }
+    }
     if (onSave) {
       onSave(draft);
       return;
@@ -190,17 +257,17 @@ export const CustomizerModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-3xl border border-white/10 bg-[#0f1014] shadow-2xl shadow-black/60">
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+      <div className="pixel-frame crt-panel flex max-h-[85vh] w-full max-w-3xl flex-col rounded-[18px] bg-[#0f0b10] shadow-2xl shadow-black/60">
+        <div className="flex items-center justify-between border-b border-[#d1a45a]/20 px-6 py-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.28em] text-[#9c907f]">Appearance editor</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">{agent?.name ?? 'Agent'} customizer</h2>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-[#9c907f]">Appearance editor</p>
+            <h2 className="mt-3 font-display text-lg leading-relaxed text-white">{agent?.name ?? 'Agent'} customizer</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:bg-white/10"
+            className="pixel-button rounded-[10px] bg-[#1a140f] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-[#f0d6a5] transition hover:brightness-110"
           >
             Cancel
           </button>
@@ -208,7 +275,7 @@ export const CustomizerModal = ({
 
         <div className="grid flex-1 min-h-0 gap-5 overflow-hidden px-6 py-4 lg:grid-cols-[260px_1fr]">
           {/* Live preview */}
-          <div className="rounded-2xl border border-white/10 bg-[#13151b] p-3 overflow-y-auto">
+          <div className="pixel-frame rounded-[14px] bg-[#131015] p-3 overflow-y-auto">
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <div className="text-xs uppercase tracking-[0.24em] text-[#9c907f]">Live preview</div>
@@ -221,9 +288,9 @@ export const CustomizerModal = ({
               {previewDirections.map((direction) => {
                 const currentFrame = spriteSheet?.[direction]?.[frame];
                 return (
-                  <div key={direction} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                  <div key={direction} className="pixel-inset rounded-[12px] bg-black/20 p-3">
                     <div className="mb-1 text-[10px] uppercase tracking-[0.24em] text-[#9c907f]">{direction}</div>
-                    <div className="flex aspect-square items-center justify-center rounded-lg border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_65%)]">
+                    <div className="pixel-inset flex aspect-square items-center justify-center rounded-[10px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_65%)]">
                       {currentFrame ? (
                         <img
                           src={currentFrame.toDataURL()}
@@ -242,7 +309,7 @@ export const CustomizerModal = ({
 
           {/* Preset selector */}
           <div className="flex min-h-0 flex-col">
-            <div className="rounded-2xl border border-white/10 bg-[#13151b] p-3 overflow-y-auto flex-1 min-h-0">
+            <div className="pixel-frame rounded-[14px] bg-[#131015] p-3 overflow-y-auto flex-1 min-h-0">
               <div className="mb-2 text-xs uppercase tracking-[0.22em] text-[#9c907f]">Character preset</div>
               <div className="grid gap-2">
                 {PRESETS.map((preset) => {
@@ -252,14 +319,14 @@ export const CustomizerModal = ({
                       key={preset.id}
                       type="button"
                       onClick={() => handlePresetSelect(preset)}
-                      className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                      className={`pixel-frame flex items-center gap-3 rounded-[12px] px-3 py-2 text-left transition ${
                         isSelected
-                          ? 'border-[#d1a45a]/50 bg-[#d1a45a]/10'
-                          : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.06]'
+                          ? 'bg-[#d1a45a]/10'
+                          : 'bg-white/[0.03] hover:bg-white/[0.06]'
                       }`}
                     >
                       {/* Mini preview */}
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/30">
+                      <div className="pixel-inset flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-black/30">
                         {allPreviews[preset.id] ? (
                           <img
                             src={allPreviews[preset.id]!.toDataURL()}
@@ -277,7 +344,7 @@ export const CustomizerModal = ({
                         <div className="text-xs text-[#9c907f]">{preset.description}</div>
                       </div>
                       {isSelected && (
-                        <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-[#d1a45a]/20 text-[10px] text-[#d1a45a]">
+                        <div className="ml-auto flex h-5 w-5 items-center justify-center bg-[#d1a45a]/20 text-[10px] text-[#d1a45a] pixel-inset">
                           ✓
                         </div>
                       )}
@@ -287,18 +354,50 @@ export const CustomizerModal = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-white/10 pt-3 mt-3 shrink-0">
+            {/* Role Title & Reports To */}
+            <div className="mt-3 flex flex-col gap-3 shrink-0">
+              <div className="pixel-frame rounded-[12px] bg-[#131015] p-3">
+                <label className="block text-[10px] uppercase tracking-[0.24em] text-[#9c907f] mb-1">Role title</label>
+                <input
+                  type="text"
+                  value={roleDraft}
+                  onChange={(e) => setRoleDraft(e.target.value)}
+                  onBlur={handleRoleBlur}
+                  className="w-full rounded border border-[#d1a45a]/40 bg-[#0f0e10] px-2 py-1.5 text-sm text-slate-200 outline-none focus:border-[#d1a45a] transition"
+                  placeholder="Agent"
+                />
+              </div>
+              <div className="pixel-frame rounded-[12px] bg-[#131015] p-3">
+                <label className="block text-[10px] uppercase tracking-[0.24em] text-[#9c907f] mb-1">Reports to</label>
+                <select
+                  value={parentDraft ?? ''}
+                  onChange={handleParentChange}
+                  className="w-full rounded border border-[#d1a45a]/40 bg-[#0f0e10] px-2 py-1.5 text-sm text-slate-200 outline-none focus:border-[#d1a45a] transition"
+                >
+                  <option value="">None (Root Level)</option>
+                  {agents
+                    .filter((a) => agent && a.id !== agent.id)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.displayName ?? a.name ?? a.id}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-end gap-3 border-t border-[#d1a45a]/15 pt-3 shrink-0">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
+                className="pixel-button rounded-[10px] bg-[#100d11] px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-white transition hover:brightness-110"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSave}
-                className="rounded-xl border border-[#d1a45a]/35 bg-[#d1a45a]/15 px-4 py-2 text-sm font-medium text-[#f2dfba] transition hover:bg-[#d1a45a]/20"
+                className="pixel-button rounded-[10px] bg-[#d1a45a]/15 px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-[#f2dfba] transition hover:brightness-110"
               >
                 Save appearance
               </button>

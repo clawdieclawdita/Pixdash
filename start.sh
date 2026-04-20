@@ -3,18 +3,34 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-PID_FILE="/tmp/pixdash.pid"
-LOG_FILE="/tmp/pixdash.log"
-HOST="192.168.1.200"
-PORT="3000"
+# Load .env if present
+ENV_FILE=".env"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  source "$ENV_FILE"
+  set +a
+fi
+
+PIXDASH_DIR="$HOME/.openclaw/pixdash"
+mkdir -p "$PIXDASH_DIR"
+PID_FILE="$PIXDASH_DIR/pixdash.pid"
+LOG_FILE="$PIXDASH_DIR/pixdash.log"
+HOST="${PIXDASH_HOST:-192.168.1.200}"
+PORT="${PIXDASH_PORT:-3000}"
 
 ./stop.sh
 sleep 1
 
 pnpm -r build
 
+# Conditional --watch flag: enabled when PIXDASH_DEV_MODE=true, default is production (no watch)
+NODE_FLAGS=""
+if [ "${PIXDASH_DEV_MODE:-}" = "true" ]; then
+  NODE_FLAGS="--watch --enable-source-maps"
+fi
+
 pushd packages/backend >/dev/null
-nohup node --watch --enable-source-maps dist/server.js > "$LOG_FILE" 2>&1 &
+PIXDASH_PORT="$PORT" PIXDASH_HOST="$HOST" nohup node $NODE_FLAGS dist/server.js > "$LOG_FILE" 2>&1 &
 PID=$!
 popd >/dev/null
 

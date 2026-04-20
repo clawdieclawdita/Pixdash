@@ -6,7 +6,7 @@ import {
   sign as signMessage,
   type KeyObject,
 } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -93,6 +93,7 @@ export class GatewayClient {
   private reconnectAttempt = 0;
   private manuallyStopped = false;
   private readonly deviceKeys = this.loadOrCreateDeviceKeys();
+  private readonly subscribedSessionKeys = new Set<string>();
   private deviceToken?: string;
   private pendingConnectRequestId?: string;
   private pendingPresenceRequestId?: string;
@@ -265,6 +266,7 @@ export class GatewayClient {
         'Gateway authentication succeeded',
       );
       this.subscribeToEvents();
+      this.subscribedSessionKeys.clear();
       this.requestAgentList();
       return;
     }
@@ -322,11 +324,12 @@ export class GatewayClient {
         continue;
       }
 
-      const agentId = this.pickString((entry as Record<string, unknown>).agentId, (entry as Record<string, unknown>).id);
-      const status = this.pickString((entry as Record<string, unknown>).status);
+      const entryRecord = entry as Record<string, unknown>;
+      const agentId = this.pickString(entryRecord.agentId, entryRecord.id);
+      const status = this.pickString(entryRecord.status);
       const timestamp = this.pickString(
-        (entry as Record<string, unknown>).timestamp,
-        (entry as Record<string, unknown>).lastSeen,
+        entryRecord.timestamp,
+        entryRecord.lastSeen,
       ) ?? new Date().toISOString();
 
       if (!agentId || !status || !this.isSupportedStatus(status)) {
@@ -338,6 +341,36 @@ export class GatewayClient {
         status,
         timestamp,
         source: 'presence_snapshot',
+      });
+
+      // Subscribe to this agent's recent sessions for real-time activity tracking.
+      // This ensures we receive session.message/session.tool events for ALL agents,
+      // not just the agent PixDash authenticates as.
+      this.subscribeToAgentSessions(entryRecord);
+    }
+  }
+
+  private subscribeToAgentSessions(entry: Record<string, unknown>): void {
+    const sessions = entry.sessions;
+    if (!sessions || typeof sessions !== 'object') return;
+
+    const recentSessions = (sessions as Record<string, unknown>).recent;
+    if (!Array.isArray(recentSessions) || recentSessions.length === 0) return;
+
+    for (const session of recentSessions as Array<Record<string, unknown>>) {
+      const sessionKey = this.pickString(session.sessionKey, session.key);
+      if (!sessionKey) continue;
+
+      // Avoid re-subscribing to sessions we already track
+      if (this.subscribedSessionKeys.has(sessionKey)) continue;
+      this.subscribedSessionKeys.add(sessionKey);
+
+      logger.info({ sessionKey }, 'Subscribing to agent session messages');
+      this.send({
+        type: 'req',
+        id: this.nextRequestId(),
+        method: 'sessions.messages.subscribe',
+        params: { key: sessionKey },
       });
     }
   }
@@ -399,6 +432,26 @@ export class GatewayClient {
         status,
         timestamp: lastSeen,
         source: 'health_snapshot',
+      });
+
+      // Subscribe to this agent's sessions for real-time activity
+      if (Array.isArray(recentSessions)) {
+        this.subscribeToAgentSessionsFromHealth(recentSessions as Array<Record<string, unknown>>);
+      }
+    }
+  }
+
+  private subscribeToAgentSessionsFromHealth(recentSessions: Array<Record<string, unknown>>): void {
+    for (const session of recentSessions) {
+      const sessionKey = this.pickString(session.sessionKey, session.key);
+      if (!sessionKey || this.subscribedSessionKeys.has(sessionKey)) continue;
+      this.subscribedSessionKeys.add(sessionKey);
+      logger.info({ sessionKey }, 'Subscribing to agent session messages (from health)');
+      this.send({
+        type: 'req',
+        id: this.nextRequestId(),
+        method: 'sessions.messages.subscribe',
+        params: { key: sessionKey },
       });
     }
   }
@@ -555,7 +608,7 @@ export class GatewayClient {
   }
 
   private forwardEvent(event: string, payload: unknown): void {
-    logger.debug({ event }, 'Gateway event received');
+    logger.info({ event }, 'Gateway event received');
 
     switch (event) {
       case 'agent.status':
@@ -657,6 +710,7 @@ export class GatewayClient {
         // Re-derive and store if deviceId changed
         if (stored.deviceId !== deviceId) {
           writeFileSync(DEVICE_KEY_PATH, JSON.stringify(keys, null, 2), 'utf8');
+          chmodSync(DEVICE_KEY_PATH, 0o600);
         }
         return keys;
       }
@@ -675,6 +729,7 @@ export class GatewayClient {
     };
 
     writeFileSync(DEVICE_KEY_PATH, JSON.stringify(keys, null, 2), 'utf8');
+    chmodSync(DEVICE_KEY_PATH, 0o600);
     return keys;
   }
 

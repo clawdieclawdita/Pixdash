@@ -19,8 +19,9 @@ export async function handleWsRequest(message: WsRequest, context: WsHandlerCont
         officeLayout,
       });
     case 'updateAppearance': {
-      const agentId = String(message.params?.agentId ?? '');
-      const appearance = (message.params?.appearance ?? {}) as Record<string, unknown>;
+      const params = (message.params ?? {}) as Record<string, unknown>;
+      const agentId = String(params.agentId ?? '');
+      const appearance = (params.appearance ?? {}) as Record<string, unknown>;
       if (!agentId) {
         return fail(message.id, 'agentId is required');
       }
@@ -28,7 +29,7 @@ export async function handleWsRequest(message: WsRequest, context: WsHandlerCont
       return ok(message.id, { appearance: updated });
     }
     case 'moveAgent':
-      return fail(message.id, 'moveAgent is reserved for a future release');
+      return ok(message.id, context.agentStateManager.requestMove((message.params ?? {}) as import('@pixdash/shared').MoveAgentRequest));
     default:
       return fail(message.id, `Unknown method: ${String(message.method)}`);
   }

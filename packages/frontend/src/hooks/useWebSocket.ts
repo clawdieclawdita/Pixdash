@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 
-type SupportedEvent = 'agent.status' | 'agent.log' | 'agent.task' | 'agent:status' | 'agent:log' | 'agent:task' | 'agent:appearance' | 'agent:config' | 'agent:conference';
+type SupportedEvent =
+  | 'agent.status'
+  | 'agent.log'
+  | 'agent.task'
+  | 'agent:status'
+  | 'agent:log'
+  | 'agent:task'
+  | 'agent:appearance'
+  | 'agent:config'
+  | 'agent:conference'
+  | 'agent:position'
+  | 'agent:movement';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 
@@ -31,7 +42,8 @@ function resolveWsUrl() {
 
 const WS_URL = resolveWsUrl();
 const HEARTBEAT_SEND_INTERVAL_MS = 15_000;
-const HEARTBEAT_STALE_AFTER_MS = 30_000;
+const HEARTBEAT_STALE_AFTER_MS = 45_000;
+const CONNECT_TIMEOUT_MS = 10_000;
 const SUPPORTED_EVENTS = new Set<string>([
   'agent.status',
   'agent.log',
@@ -41,14 +53,18 @@ const SUPPORTED_EVENTS = new Set<string>([
   'agent:task',
   'agent:appearance',
   'agent:config',
-  'agent:conference'
+  'agent:conference',
+  'agent:position',
+  'agent:movement'
 ]);
 
 export function useWebSocket() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
-  const [lastEvent, setLastEvent] = useState<WebSocketEvent | null>(null);
+  const [eventsVersion, setEventsVersion] = useState(0);
+  const eventQueueRef = useRef<WebSocketEvent[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const connectTimeoutRef = useRef<number | null>(null);
   const heartbeatIntervalRef = useRef<number | null>(null);
   const staleCheckIntervalRef = useRef<number | null>(null);
   const lastReceivedAtRef = useRef<number>(Date.now());
@@ -58,6 +74,10 @@ export function useWebSocket() {
 
   useEffect(() => {
     const clearHeartbeatTimers = () => {
+      if (connectTimeoutRef.current !== null) {
+        window.clearTimeout(connectTimeoutRef.current);
+        connectTimeoutRef.current = null;
+      }
       if (heartbeatIntervalRef.current !== null) {
         window.clearInterval(heartbeatIntervalRef.current);
         heartbeatIntervalRef.current = null;
@@ -73,6 +93,12 @@ export function useWebSocket() {
       const socket = new WebSocket(WS_URL);
       socketRef.current = socket;
       lastReceivedAtRef.current = Date.now();
+      connectTimeoutRef.current = window.setTimeout(() => {
+        if (socket.readyState === WebSocket.CONNECTING) {
+          setLastError('WebSocket connect timed out. Retrying…');
+          socket.close();
+        }
+      }, CONNECT_TIMEOUT_MS);
 
       socket.addEventListener('open', () => {
         reconnectAttemptRef.current = 0;
@@ -96,6 +122,10 @@ export function useWebSocket() {
       });
 
       socket.addEventListener('message', (messageEvent) => {
+        if (connectTimeoutRef.current !== null) {
+          window.clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         lastReceivedAtRef.current = Date.now();
         try {
           const parsed = JSON.parse(messageEvent.data as string) as {
@@ -105,7 +135,8 @@ export function useWebSocket() {
           } & Record<string, unknown>;
 
           if (parsed.type === 'event' && parsed.event && SUPPORTED_EVENTS.has(parsed.event) && 'payload' in parsed) {
-            setLastEvent(parsed as unknown as WebSocketEvent);
+            eventQueueRef.current.push(parsed as unknown as WebSocketEvent);
+            setEventsVersion((version) => version + 1);
           }
         } catch {
           // Ignore malformed messages.
@@ -125,6 +156,10 @@ export function useWebSocket() {
       });
 
       socket.addEventListener('error', () => {
+        if (connectTimeoutRef.current !== null) {
+          window.clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         setLastError('WebSocket connection failed. Retrying…');
         setConnectionState('disconnected');
         socket.close();
@@ -138,6 +173,9 @@ export function useWebSocket() {
 
       if (reconnectTimeoutRef.current !== null) {
         window.clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (connectTimeoutRef.current !== null) {
+        window.clearTimeout(connectTimeoutRef.current);
       }
 
       if (heartbeatIntervalRef.current !== null) {
@@ -154,7 +192,12 @@ export function useWebSocket() {
   return {
     connected: connectionState === 'connected',
     connectionState,
-    lastEvent,
+    eventsVersion,
+    drainEvents: () => {
+      const events = eventQueueRef.current;
+      eventQueueRef.current = [];
+      return events;
+    },
     lastError
   };
 }

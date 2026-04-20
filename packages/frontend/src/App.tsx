@@ -11,6 +11,7 @@ function App() {
       agents.map((agent) => ({
         id: agent.id,
         name: agent.name,
+        displayName: agent.displayName,
         x: agent.x,
         y: agent.y,
         color: agent.color,

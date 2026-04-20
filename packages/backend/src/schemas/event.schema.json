@@ -3,7 +3,7 @@
   "type": "object",
   "properties": {
     "type": { "type": "string", "enum": ["event"] },
-    "event": { "type": "string", "enum": ["agent:status", "agent:log", "agent:task", "agent:appearance", "agent:position", "agent:config"] },
+    "event": { "type": "string", "enum": ["agent:status", "agent:log", "agent:task", "agent:appearance", "agent:position", "agent:config", "agent:conference", "agent:movement"] },
     "payload": { "type": "object" }
   },
   "required": ["type", "event", "payload"],

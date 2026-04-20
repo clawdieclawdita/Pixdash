@@ -1,3 +1,9 @@
+export interface PixdashConfig {
+  displayNames: Record<string, string>;
+  roles: Record<string, string>;
+  hierarchy: Array<{ parent: string; child: string }>;
+}
+
 export interface TilemapData {
   version: number;
   width: number;
@@ -25,6 +31,7 @@ export interface AgentPathNode {
 export interface AgentPosition {
   id: string;
   name: string;
+  displayName?: string;
   x: number;
   y: number;
   color: string;
@@ -38,6 +45,8 @@ export interface AgentPosition {
   claimedWaypointId?: string | null;
   visualOffsetX?: number;
   visualOffsetY?: number;
+  interpolatedX?: number;
+  interpolatedY?: number;
 }
 
 export interface AgentProfile extends AgentPosition {

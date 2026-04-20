@@ -67,9 +67,54 @@ declare module '@pixdash/shared' {
     metadata?: Record<string, unknown>;
   }
 
+  export type CanonicalWaypointType = 'spawn' | 'parking' | 'desk' | 'reception' | 'restroom' | 'conference' | 'dining';
+  export type MovementAuthorityStatus = 'idle' | 'moving' | 'seated';
+
+  export interface CanonicalWaypoint {
+    id: string;
+    x: number;
+    y: number;
+    type: CanonicalWaypointType;
+    claimedBy?: string | null;
+  }
+
+  export interface MovementPathNode {
+    x: number;
+    y: number;
+  }
+
+  export interface MovementAuthorityState {
+    status: MovementAuthorityStatus;
+    claimedWaypointId?: string | null;
+    destination?: MovementPathNode | null;
+    path: MovementPathNode[];
+    lastUpdatedAt: string;
+    progress?: number;
+    fractionalX?: number;
+    fractionalY?: number;
+    visualOffsetX?: number;
+    visualOffsetY?: number;
+    waypointType?: string;
+    waypointDirection?: Direction;
+  }
+
+  export interface MoveAgentRequest {
+    agentId: string;
+    waypointId?: string;
+    destination?: MovementPathNode;
+    direction?: Direction;
+  }
+
+  export interface AgentMovementEventPayload {
+    agentId: string;
+    movement: MovementAuthorityState;
+    position: Position;
+  }
+
   export interface Agent {
     id: string;
     name: string;
+    displayName?: string;
     status: AgentStatus;
     lastSeen: string;
     position: Position;
@@ -79,6 +124,7 @@ declare module '@pixdash/shared' {
     logs?: AgentLog[];
     tasks?: AgentTask[];
     soul?: string;
+    movement?: MovementAuthorityState;
     identity?: {
       creature?: string;
       vibe?: string;
@@ -109,7 +155,7 @@ declare module '@pixdash/shared' {
   }
 
   export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task' | 'health' | 'session.message' | 'session.tool';
-  export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference';
+  export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference' | 'agent:movement';
 
   export interface AgentStatusEventPayload {
     agentId: string;
@@ -157,7 +203,8 @@ declare module '@pixdash/shared' {
     | AgentAppearanceEventPayload
     | AgentPositionEventPayload
     | AgentConfigEventPayload
-    | AgentConferenceEventPayload;
+    | AgentConferenceEventPayload
+    | AgentMovementEventPayload;
 
   export interface WsConnectedMessage {
     type: 'connected';
@@ -169,7 +216,7 @@ declare module '@pixdash/shared' {
     type: 'req';
     id: string;
     method: 'sync' | 'updateAppearance' | 'moveAgent';
-    params?: Record<string, unknown>;
+    params?: Record<string, unknown> | MoveAgentRequest;
   }
 
   export interface WsResponseMessage {

@@ -1,48 +1,23 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
-import type { Tilemap, WsEventMessage } from '@pixdash/shared';
+import type { WsEventMessage } from '@pixdash/shared';
 import { loadConfig } from './config/index.js';
 import { AppearanceStore } from './services/AppearanceStore.js';
 import { AgentStateManager } from './services/AgentStateManager.js';
+import { loadOfficeLayoutWithCollisionGrid } from './services/CollisionGridLoader.js';
 import { ConfigWatcher } from './services/ConfigWatcher.js';
 import { GatewayClient } from './services/GatewayClient.js';
 import agentRoutes from './routes/agents.js';
 import healthRoutes from './routes/health.js';
 import officeRoutes from './routes/office.js';
+import configRoutes from './routes/config.js';
 import { PixDashWebSocketServer } from './websocket/server.js';
 import { createLogger } from './utils/logger.js';
 import type { PixDashFastifyInstance } from './types/index.js';
-
-function fallbackOfficeLayout(): Tilemap {
-  const width = 20;
-  const height = 15;
-  return {
-    version: 1,
-    width,
-    height,
-    tileSize: 32,
-    layers: {
-      floor: Array.from({ length: height }, () => Array.from({ length: width }, () => 1)),
-      furniture: Array.from({ length: height }, () => Array.from({ length: width }, () => 0)),
-      walls: Array.from({ length: height }, (_, y) =>
-        Array.from({ length: width }, (_, x) => (y === 0 || y === height - 1 || x === 0 || x === width - 1 ? 10 : 0)),
-      ),
-    },
-    spawnPoints: [{ x: 2, y: 2 }, { x: 5, y: 2 }, { x: 8, y: 2 }],
-    walkable: Array.from({ length: height }, () => Array.from({ length: width }, () => true)),
-  };
-}
-
-function loadOfficeLayout(filePath: string): Tilemap {
-  if (!existsSync(filePath)) {
-    return fallbackOfficeLayout();
-  }
-  return JSON.parse(readFileSync(filePath, 'utf8')) as Tilemap;
-}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -54,8 +29,8 @@ async function buildServer(): Promise<PixDashFastifyInstance> {
 
   const appearanceStore = new AppearanceStore(config.appearancesPath);
   await appearanceStore.init();
-  const agentStateManager = new AgentStateManager(appearanceStore);
-  const officeLayout = loadOfficeLayout(config.officeLayoutPath);
+  const officeLayout = await loadOfficeLayoutWithCollisionGrid(config.officeLayoutPath);
+  const agentStateManager = new AgentStateManager(appearanceStore, officeLayout);
 
   app.decorate('pixdash', {
     config,
@@ -81,6 +56,7 @@ async function buildServer(): Promise<PixDashFastifyInstance> {
   await app.register(healthRoutes);
   await app.register(agentRoutes);
   await app.register(officeRoutes);
+  await app.register(configRoutes);
 
   // Serve frontend static files in production
   const frontendDist = path.join(__dirname, '../../frontend/dist');
@@ -92,6 +68,7 @@ async function buildServer(): Promise<PixDashFastifyInstance> {
   }
 
   app.addHook('onClose', async () => {
+    agentStateManager.shutdown();
     gatewayClient.stop();
     await configWatcher.stop();
   });

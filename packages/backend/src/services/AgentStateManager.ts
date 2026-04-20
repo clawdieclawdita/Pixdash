@@ -1,33 +1,43 @@
 import { EventEmitter } from 'node:events';
-import type { Agent, AgentLog, AgentTask, Appearance, AppearancePatch, FrontendEventName, FrontendEventPayload } from '@pixdash/shared';
-import { DEFAULT_APPEARANCE, DEFAULT_POSITION } from '@pixdash/shared';
+import type { Agent, AgentLog, AgentTask, Appearance, AppearancePatch, FrontendEventName, FrontendEventPayload, MoveAgentRequest, MovementAuthorityState, Tilemap } from '@pixdash/shared';
+import { DEFAULT_APPEARANCE } from '@pixdash/shared';
+import type { BackendWaypoint } from '../data/waypoints.js';
+import { cloneBackendWaypoints } from '../data/waypoints.js';
+import { createNoGoTiles } from '../data/noGoTiles.js';
 import type { ConfigAgentSnapshot, GatewayConferenceEvent, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent } from '../types/index.js';
 import { AppearanceStore } from './AppearanceStore.js';
+import { MovementEngine } from './MovementEngine.js';
 
-const AGENT_SPAWN_POSITIONS: Array<{ x: number; y: number }> = [
-  // All positions verified walkable against blocked.png (brightness > 128)
-  // Spread across main corridor (rows 21-22)
-  { x: 3, y: 22 },
-  { x: 6, y: 22 },
-  { x: 16, y: 22 },
-  { x: 20, y: 21 },
-  { x: 23, y: 22 },
-  { x: 31, y: 22 },
-  { x: 35, y: 22 },
-  { x: 48, y: 22 },
-  { x: 52, y: 22 },
-  { x: 57, y: 22 },
-  { x: 69, y: 22 },
-  { x: 72, y: 22 },
-  { x: 3, y: 21 },
-  { x: 18, y: 21 },
-  { x: 32, y: 21 },
-  { x: 38, y: 21 },
-];
+const RANDOM_BODY_TYPES = ['michael', 'angela', 'phillis', 'creed', 'ryan', 'pam', 'kelly', 'kate', 'pites', 'jim', 'clawdie'] as const;
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function randomBodyTypeForAgent(agentId: string): import('@pixdash/shared').BodyType {
+  return RANDOM_BODY_TYPES[hashString(agentId) % RANDOM_BODY_TYPES.length];
+}
+
+import { pixdashConfig } from '../config/pixdashConfig.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('trace');
 
 function derivePosition(_id: string) {
-  const index = Math.floor(Math.random() * AGENT_SPAWN_POSITIONS.length);
-  const spawnPos = AGENT_SPAWN_POSITIONS[index];
+  const spawnPositions = pixdashConfig.getSpawnPositions();
+  const index = Math.floor(Math.random() * spawnPositions.length);
+  const spawnPos = spawnPositions[index];
+  // Hardening: reject near-origin coordinates (indicates corruption)
+  if (!spawnPos || spawnPos.x < 3 || spawnPos.y < 10) {
+    logger.warn({ agentId: _id, spawnPos, index }, '[derivePosition] suspicious spawn position — using safe fallback');
+    const fallback = pixdashConfig.getSpawnPositions()[0] ?? { x: 31, y: 22 };
+    return { x: fallback.x, y: fallback.y, direction: 'south' as const };
+  }
   return {
     x: spawnPos.x,
     y: spawnPos.y,
@@ -35,9 +45,23 @@ function derivePosition(_id: string) {
   };
 }
 
-const IDLE_THRESHOLD_MS = 300_000; // 5 minutes
-const WORKING_GRACE_MS = 10_000; // 10 seconds, activity within this window = working
+const IDLE_THRESHOLD_MS = 300_000;
+const WORKING_GRACE_MS = 10_000;
 const STATUS_REEVALUATION_INTERVAL_MS = 30_000;
+const MOVEMENT_TICK_INTERVAL_MS = 50;
+const TILE_SIZE_PX = 32;
+const TILE_CENTER_OFFSET_PX = TILE_SIZE_PX / 2;
+
+function createInitialMovementState(): MovementAuthorityState {
+  return {
+    status: 'idle',
+    claimedWaypointId: null,
+    destination: null,
+    path: [],
+    lastUpdatedAt: new Date().toISOString(),
+    progress: 0,
+  };
+}
 
 type AgentPresenceState = {
   explicitOffline: boolean;
@@ -45,14 +69,18 @@ type AgentPresenceState = {
   lastActivityAt?: number;
 };
 
-function createInitialAgent(id: string, name = id): Agent {
+type StatefulAgent = Agent & {
+  displayName?: string;
+};
+
+function createInitialAgent(id: string, name = id): StatefulAgent {
   return {
     id,
     name,
     status: 'idle',
     lastSeen: new Date().toISOString(),
-    position: derivePosition(id) ?? { ...DEFAULT_POSITION },
-    appearance: structuredClone(DEFAULT_APPEARANCE),
+    position: derivePosition(id) ?? (() => { const fb = pixdashConfig.getSpawnPositions()[0] ?? { x: 31, y: 22 }; return { x: fb.x, y: fb.y, direction: 'south' as const }; })(),
+    appearance: { ...structuredClone(DEFAULT_APPEARANCE), bodyType: randomBodyTypeForAgent(id) },
     config: {},
     stats: {
       messagesProcessed: 0,
@@ -65,22 +93,85 @@ function createInitialAgent(id: string, name = id): Agent {
 }
 
 export class AgentStateManager {
-  private readonly agents = new Map<string, Agent>();
+  private readonly agents = new Map<string, StatefulAgent>();
   private readonly events = new EventEmitter();
   private readonly presence = new Map<string, AgentPresenceState>();
   private readonly activityDecayTimers = new Map<string, NodeJS.Timeout>();
+  private readonly movementInterval: NodeJS.Timeout;
   private readonly statusInterval: NodeJS.Timeout;
+  private readonly settledBroadcastInterval: NodeJS.Timeout;
+  private readonly lastMovementBroadcast = new Map<string, number>();
+  private readonly waypoints: BackendWaypoint[];
+  private readonly gridWidth: number;
+  private readonly gridHeight: number;
+  private readonly movementEngine: MovementEngine;
 
-  constructor(private readonly appearanceStore: AppearanceStore) {
+  constructor(private readonly appearanceStore: AppearanceStore, officeLayout: Tilemap) {
+    this.waypoints = cloneBackendWaypoints();
+    this.gridWidth = officeLayout.width;
+    this.gridHeight = officeLayout.height;
+    this.movementEngine = new MovementEngine(
+      officeLayout.walkable ?? [],
+      this.waypoints,
+      createNoGoTiles(this.waypoints),
+      this,
+    );
+
+    this.movementInterval = setInterval(() => {
+      this.movementEngine.movementTick();
+    }, MOVEMENT_TICK_INTERVAL_MS);
+    this.movementInterval.unref?.();
+
     this.statusInterval = setInterval(() => {
       this.reevaluateStatuses();
     }, STATUS_REEVALUATION_INTERVAL_MS);
     this.statusInterval.unref?.();
+
+    this.settledBroadcastInterval = setInterval(() => {
+      this.broadcastSettledStates();
+    }, 5_000);
+    this.settledBroadcastInterval.unref?.();
+  }
+
+  /** Remove an agent and all associated state. Safe to call multiple times. */
+  removeAgent(id: string): void {
+    const agent = this.agents.get(id);
+    if (agent) {
+      logger.info({ agentId: id, position: agent.position, status: agent.status, movementStatus: agent.movement?.status }, '[removeAgent] removing agent');
+    }
+    this.agents.delete(id);
+    this.presence.delete(id);
+    const timer = this.activityDecayTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.activityDecayTimers.delete(id);
+    }
+    this.lastMovementBroadcast.delete(id);
+    this.movementEngine.removeAgent(id);
+  }
+
+  /** Gracefully shut down all intervals and timers. */
+  shutdown(): void {
+    clearInterval(this.movementInterval);
+    clearInterval(this.statusInterval);
+    clearInterval(this.settledBroadcastInterval);
+    for (const timer of this.activityDecayTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.activityDecayTimers.clear();
   }
 
   async hydrateAppearance(agentId: string): Promise<void> {
     const agent = this.ensureAgent(agentId);
     agent.appearance = await this.appearanceStore.get(agentId);
+    // If appearance store has no saved entry, use random bodyType
+    if (!this.appearanceStore.hasSavedAppearance(agentId)) {
+      agent.appearance.bodyType = randomBodyTypeForAgent(agentId);
+    }
+    // Resolve displayName: user-set > default map
+    const savedDisplayName = await this.appearanceStore.getDisplayName(agentId, agent.name);
+    const configName = pixdashConfig.getDisplayName(agentId, agent.name);
+    agent.displayName = savedDisplayName !== agent.name ? savedDisplayName : configName;
   }
 
   subscribe(listener: (event: { event: FrontendEventName; payload: FrontendEventPayload }) => void): () => void {
@@ -122,23 +213,52 @@ export class AgentStateManager {
     agent.config = snapshot.config;
     agent.soul = snapshot.soul;
     agent.identity = snapshot.identity;
+    agent.movement ??= createInitialMovementState();
     agent.appearance = await this.appearanceStore.get(snapshot.id);
-    this.broadcast('agent:config', { agentId: snapshot.id, agent: structuredClone(agent) });
+    if (!this.appearanceStore.hasSavedAppearance(snapshot.id)) {
+      agent.appearance.bodyType = randomBodyTypeForAgent(snapshot.id);
+    }
+    // Resolve displayName
+    const savedDisplayName = await this.appearanceStore.getDisplayName(snapshot.id, snapshot.name);
+    const configName = pixdashConfig.getDisplayName(snapshot.id, snapshot.name);
+    agent.displayName = savedDisplayName !== snapshot.name ? savedDisplayName : configName;
+    const safeAgent = structuredClone(agent) as unknown as Record<string, unknown>;
+    delete safeAgent.soul;
+    delete safeAgent.identity;
+    const cfg = safeAgent.config as Record<string, unknown> | undefined;
+    if (cfg) {
+      delete cfg.workspace;
+      delete cfg.agentDir;
+      delete cfg.source;
+      delete cfg.model;
+    }
+    this.broadcast('agent:config', { agentId: snapshot.id, agent: safeAgent } as unknown as FrontendEventPayload);
   }
 
   applyStatusEvent(event: GatewayStatusEvent): void {
+    // Short-circuit: if this is an offline event for a non-existent agent,
+    // there's nothing to remove. Avoid creating a new agent just to delete it.
+    if (event.status === 'offline') {
+      const existing = this.agents.get(event.agentId);
+      if (!existing) return;
+      const presence = this.ensurePresence(event.agentId);
+      presence.explicitOffline = true;
+      logger.info({ agentId: event.agentId, position: existing.position, movementStatus: existing.movement?.status, source: event.source }, '[applyStatusEvent] agent going offline — removing');
+      this.removeAgent(event.agentId);
+      return;
+    }
+
     const agent = this.ensureAgent(event.agentId);
     const presence = this.ensurePresence(event.agentId);
+    const previousStatus = agent.status;
     const isSyntheticSnapshot = event.source === 'presence_snapshot' || event.source === 'health_snapshot';
     const hasFreshActivity = typeof presence.lastActivityAt === 'number'
       && Math.max(0, Date.now() - presence.lastActivityAt) < WORKING_GRACE_MS;
-    const shouldPreserveWorking = isSyntheticSnapshot && hasFreshActivity && event.status !== 'offline';
+    const shouldPreserveWorking = isSyntheticSnapshot && hasFreshActivity;
 
     if (!shouldPreserveWorking) {
-      presence.explicitOffline = event.status === 'offline';
-      if (!presence.explicitOffline) {
-        presence.baselineStatus = event.status === 'idle' ? 'idle' : 'online';
-      }
+      presence.explicitOffline = false;
+      presence.baselineStatus = event.status === 'idle' ? 'idle' : 'online';
     }
 
     agent.lastSeen = event.timestamp;
@@ -154,6 +274,8 @@ export class AgentStateManager {
       status: derivedStatus,
       timestamp: agent.lastSeen,
     });
+
+    this.movementEngine.handleStatusChange(event.agentId, derivedStatus, previousStatus);
   }
 
   applyLogEvent(event: GatewayLogEvent): void {
@@ -189,6 +311,7 @@ export class AgentStateManager {
       return;
     }
 
+    this.movementEngine.handleConference(validAgentIds);
     this.broadcast('agent:conference', {
       agentIds: validAgentIds,
       sessionKey: event.sessionKey,
@@ -200,6 +323,7 @@ export class AgentStateManager {
   recordActivity(id: string, timestamp = Date.now()): void {
     const agent = this.ensureAgent(id);
     const presence = this.ensurePresence(id);
+    const previousStatus = agent.status;
     presence.explicitOffline = false;
     presence.baselineStatus = 'online';
     presence.lastActivityAt = timestamp;
@@ -211,6 +335,7 @@ export class AgentStateManager {
       timestamp: agent.lastSeen,
     });
     this.scheduleActivityDecay(id);
+    this.movementEngine.handleStatusChange(id, 'working', previousStatus);
   }
 
   async upsertAppearance(id: string, patch: AppearancePatch): Promise<Appearance> {
@@ -221,7 +346,135 @@ export class AgentStateManager {
     return structuredClone(updated);
   }
 
-  private ensureAgent(id: string, name?: string): Agent {
+  async setDisplayName(id: string, name: string | null): Promise<string | null> {
+    const agent = this.ensureAgent(id);
+    const result = await this.appearanceStore.setDisplayName(id, name);
+    // Re-resolve: user-set takes priority, fall back to default map
+    if (result) {
+      agent.displayName = result;
+    } else {
+      agent.displayName = pixdashConfig.getDisplayName(id, agent.name) ?? undefined;
+    }
+    this.broadcast('agent:config', { agentId: id, agent: structuredClone(agent) } as unknown as FrontendEventPayload);
+    return result;
+  }
+
+  requestMove(request: MoveAgentRequest): { ok: true; agent: Agent } {
+    const agentId = String(request.agentId ?? '');
+    if (!agentId) {
+      throw new Error('agentId is required');
+    }
+
+    this.ensureAgent(agentId);
+    this.movementEngine.requestMove(agentId, request.waypointId, request.destination);
+    const agent = this.ensureAgent(agentId);
+    return { ok: true, agent: structuredClone(agent) };
+  }
+
+  getMutableAgents(): StatefulAgent[] {
+    return [...this.agents.values()];
+  }
+
+  getMutableAgent(id: string): StatefulAgent | undefined {
+    return this.agents.get(id);
+  }
+
+  findWaypointById(waypointId: string | null | undefined): BackendWaypoint | null {
+    if (!waypointId) {
+      return null;
+    }
+    return this.waypoints.find((waypoint) => waypoint.id === waypointId) ?? null;
+  }
+
+  claimWaypoint(waypoint: BackendWaypoint, agentId: string): void {
+    waypoint.claimedBy = agentId;
+  }
+
+  releaseWaypointClaim(waypointId: string | null | undefined, agentId: string): void {
+    if (!waypointId) {
+      return;
+    }
+    const waypoint = this.findWaypointById(waypointId);
+    if (waypoint?.claimedBy === agentId) {
+      waypoint.claimedBy = null;
+    }
+  }
+
+  applyMovement(agent: Agent, path: Array<{ x: number; y: number }>, waypoint: BackendWaypoint | null, destination: { x: number; y: number }): void {
+    const nextDirection = path.length > 0 ? this.directionFromStep(agent.position, path[0]) : waypoint?.direction ?? agent.position.direction ?? 'south';
+    agent.position.direction = nextDirection;
+    agent.movement = {
+      status: path.length > 0 ? 'moving' : waypoint ? 'seated' : 'idle',
+      claimedWaypointId: waypoint?.id ?? null,
+      destination,
+      path,
+      lastUpdatedAt: new Date().toISOString(),
+      progress: 0,
+      fractionalX: undefined,
+      fractionalY: undefined,
+      visualOffsetX: waypoint?.visualOffsetX,
+      visualOffsetY: waypoint?.visualOffsetY,
+      waypointType: waypoint?.type,
+      waypointDirection: path.length > 0 ? undefined : waypoint?.direction,
+    };
+    this.emitMovement(agent);
+  }
+
+  broadcastPosition(agent: StatefulAgent): void {
+    this.broadcast('agent:position', {
+      agentId: agent.id,
+      position: structuredClone(agent.position),
+      direction: agent.position.direction,
+    });
+  }
+
+  emitMovement(agent: StatefulAgent): void {
+    // Clamp position to valid grid bounds before broadcasting
+    const clampedX = Math.max(0, Math.min(agent.position.x, this.gridWidth - 1));
+    const clampedY = Math.max(0, Math.min(agent.position.y, this.gridHeight - 1));
+    if (clampedX !== agent.position.x || clampedY !== agent.position.y) {
+      console.warn(`[AgentStateManager] Clamped agent ${agent.id} position from (${agent.position.x},${agent.position.y}) to (${clampedX},${clampedY})`);
+      agent.position.x = clampedX;
+      agent.position.y = clampedY;
+    }
+    // Origin-proximity guard: catch suspicious positions near grid origin
+    if (agent.position.x < 5 && agent.position.y < 5) {
+      console.warn(`[AgentStateManager] Agent ${agent.id} at suspicious origin position (${agent.position.x},${agent.position.y}), movement=${agent.movement?.status}, source=broadcast`);
+    }
+
+    const movement = structuredClone(agent.movement ?? createInitialMovementState());
+    const basePixelX = agent.position.x * TILE_SIZE_PX + TILE_CENTER_OFFSET_PX;
+    const basePixelY = agent.position.y * TILE_SIZE_PX + TILE_CENTER_OFFSET_PX;
+
+    if (movement.status === 'moving' && typeof movement.fractionalX === 'number' && typeof movement.fractionalY === 'number') {
+      movement.fractionalX = movement.fractionalX * TILE_SIZE_PX + TILE_CENTER_OFFSET_PX;
+      movement.fractionalY = movement.fractionalY * TILE_SIZE_PX + TILE_CENTER_OFFSET_PX;
+    } else {
+      movement.fractionalX = basePixelX;
+      movement.fractionalY = basePixelY;
+    }
+
+    this.lastMovementBroadcast.set(agent.id, Date.now());
+    this.broadcast('agent:movement', {
+      agentId: agent.id,
+      movement,
+      position: structuredClone(agent.position),
+    });
+  }
+
+  directionFromStep(from: { x: number; y: number; direction?: Agent['position']['direction'] }, to: { x: number; y: number }): Agent['position']['direction'] {
+    const deltaX = to.x - from.x;
+    const deltaY = to.y - from.y;
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      return deltaX >= 0 ? 'east' : 'west';
+    }
+    if (deltaY !== 0) {
+      return deltaY >= 0 ? 'south' : 'north';
+    }
+    return from.direction ?? 'south';
+  }
+
+  private ensureAgent(id: string, name?: string): StatefulAgent {
     const existing = this.agents.get(id);
     if (existing) {
       return existing;
@@ -233,21 +486,24 @@ export class AgentStateManager {
       occupied.add(`${existingAgent.position.x},${existingAgent.position.y}`);
     }
 
-    // Find an unoccupied spawn position
-    const availableSpawns = AGENT_SPAWN_POSITIONS.filter(
-      (pos) => !occupied.has(`${pos.x},${pos.y}`)
-    );
-
+    const spawnPositions = pixdashConfig.getSpawnPositions();
+    const availableSpawns = spawnPositions.filter((pos) => !occupied.has(`${pos.x},${pos.y}`));
     if (availableSpawns.length > 0) {
       const index = Math.floor(Math.random() * availableSpawns.length);
       const spawnPos = availableSpawns[index];
       agent.position.x = spawnPos.x;
       agent.position.y = spawnPos.y;
     }
-    // If all spawns are occupied, keep the derivePosition result
+    logger.info({ agentId: id, spawnPos: { x: agent.position.x, y: agent.position.y } }, '[ensureAgent] created new agent at spawn position');
+    agent.movement = createInitialMovementState();
 
     this.agents.set(id, agent);
     this.ensurePresence(id);
+    // Set default displayName for known agents
+    const configName = pixdashConfig.getDisplayName(id, agent.name);
+    if (configName) agent.displayName = configName;
+    // New agents start as idle — schedule initial wander
+    this.movementEngine.scheduleWander(id);
     return agent;
   }
 
@@ -301,6 +557,22 @@ export class AgentStateManager {
 
   private reevaluateStatuses(agentId?: string): void {
     const now = Date.now();
+
+    // Periodic cleanup: remove agents offline for >24h
+    if (!agentId) {
+      for (const [id, presence] of this.presence.entries()) {
+        if (presence.explicitOffline) {
+          const agent = this.agents.get(id);
+          if (agent) {
+            const offlineMs = Date.parse(agent.lastSeen) ? now - new Date(agent.lastSeen).getTime() : Infinity;
+            if (offlineMs > 24 * 60 * 60 * 1000) {
+              this.removeAgent(id);
+            }
+          }
+        }
+      }
+    }
+
     const ids = agentId ? [agentId] : [...this.agents.keys()];
 
     for (const id of ids) {
@@ -309,6 +581,7 @@ export class AgentStateManager {
         continue;
       }
 
+      const previousStatus = agent.status;
       const nextStatus = this.deriveStatus(id, now);
       if (agent.status === nextStatus) {
         continue;
@@ -320,6 +593,32 @@ export class AgentStateManager {
         status: nextStatus,
         timestamp: agent.lastSeen,
       });
+      this.movementEngine.handleStatusChange(id, nextStatus, previousStatus);
+    }
+  }
+
+  private broadcastSettledStates(): void {
+    const now = Date.now();
+    const cooldownMs = 4_000;
+
+    for (const agent of this.agents.values()) {
+      const lastBroadcast = this.lastMovementBroadcast.get(agent.id) ?? 0;
+      if (now - lastBroadcast < cooldownMs) {
+        continue;
+      }
+
+      if (agent.movement?.status === 'moving') {
+        continue;
+      }
+
+      this.lastMovementBroadcast.set(agent.id, now);
+      this.emitMovement(agent);
+    }
+
+    for (const id of this.lastMovementBroadcast.keys()) {
+      if (!this.agents.has(id)) {
+        this.lastMovementBroadcast.delete(id);
+      }
     }
   }
 

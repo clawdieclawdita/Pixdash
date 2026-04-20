@@ -1,11 +1,13 @@
 import { create } from 'zustand';
-import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type Direction, type Position } from '@pixdash/shared';
+import { DEFAULT_APPEARANCE, DEFAULT_POSITION, type Appearance, type BodyType, type Direction, type Position, type MovementAuthorityState } from '@pixdash/shared';
 import type { Agent } from '@/lib/api';
-import { tileToPixelCenter } from '@/lib/movement';
-import { createWaypointSet } from '@/lib/waypoints';
+import { updateDisplayName } from '@/lib/api';
+import { getArrivalStateForMovementType, pixelToTile, tileToPixelCenter } from '@/lib/movement';
+import { createWaypointSet, getAllWaypoints, type WaypointClaim } from '@/lib/waypoints';
 import type { AgentPathNode, MovementState } from '@/types';
 
 export type StoreAgent = Agent & {
+  movement?: MovementAuthorityState;
   x: number;
   y: number;
   color: string;
@@ -17,11 +19,18 @@ export type StoreAgent = Agent & {
   path: AgentPathNode[];
   claimedWaypointId: string | null;
   direction?: Direction;
+  waypointDirection?: Direction;
   visualOffsetX?: number;
   visualOffsetY?: number;
+  positionSource: 'backend' | 'fallback';
+  interpolatedX?: number;
+  interpolatedY?: number;
+  bodyType: BodyType;
 };
 
-const initialFallbackWaypoints = createWaypointSet().desks;
+const initialWaypointSet = createWaypointSet();
+const initialFallbackWaypoints = initialWaypointSet.desks;
+const allInitialWaypoints = getAllWaypoints(initialWaypointSet);
 const warnedAgentIds = new Set<string>();
 
 const warnMissingPosition = (agent: Agent) => {
@@ -46,28 +55,32 @@ const normalizeAppearance = (appearance?: Agent['appearance']): Appearance => ({
   accessories: appearance?.accessories ?? DEFAULT_APPEARANCE.accessories,
 });
 
-const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
-  if (isFiniteNumber(agent.position?.x) && isFiniteNumber(agent.position?.y)) {
-    const px = agent.position.x;
-    const py = agent.position.y;
+export const normalizeIncomingPosition = (position?: Position | null): Position | null => {
+  if (isFiniteNumber(position?.x) && isFiniteNumber(position?.y)) {
+    let px = position.x;
+    let py = position.y;
 
-    // Backend now sends collision-grid tile coords (0-75, 0-56).
-    // If values exceed the grid, treat as pixel coords.
-    if (px > 75 || py > 56 || (px > 32 && py > 32)) {
-      return {
-        x: px,
-        y: py,
-        direction: agent.position.direction ?? DEFAULT_POSITION.direction,
-      };
+    // Clamp to valid grid bounds — negative or out-of-range coordinates
+    // indicate corrupted state. Reject them rather than passing through.
+    if (px < 0 || py < 0 || px > 75 || py > 56) {
+      return null;
     }
 
-    // Collision grid tile coords → convert to pixel center
     const pixelPosition = tileToPixelCenter({ x: px, y: py });
     return {
       x: pixelPosition.x,
       y: pixelPosition.y,
-      direction: agent.position.direction ?? DEFAULT_POSITION.direction,
+      direction: position.direction ?? DEFAULT_POSITION.direction,
     };
+  }
+
+  return null;
+};
+
+const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
+  const normalizedPosition = normalizeIncomingPosition(agent.position);
+  if (normalizedPosition) {
+    return normalizedPosition;
   }
 
   warnMissingPosition(agent);
@@ -80,6 +93,21 @@ const normalizePosition = (agent: Agent, fallbackIndex: number): Position => {
   };
 };
 
+const getPositionSource = (agent: Agent): 'backend' | 'fallback' => (
+  normalizeIncomingPosition(agent.position) ? 'backend' : 'fallback'
+);
+
+export const hasBackendMovementAuthority = (
+  movement?: MovementAuthorityState | null,
+): movement is MovementAuthorityState => {
+  if (!movement) return false;
+
+  return movement.status === 'moving'
+    || movement.path.length > 0
+    || movement.destination != null
+    || movement.claimedWaypointId != null;
+};
+
 const defaultMovementState = (status: Agent['status']): MovementState => {
   if (status === 'working') return 'seated-working';
   if (status === 'conference') return 'seated-conference';
@@ -87,9 +115,36 @@ const defaultMovementState = (status: Agent['status']): MovementState => {
   return 'standing';
 };
 
+const inferWaypointFromPosition = (agent: Agent, position: Position): WaypointClaim | null => {
+  const tile = pixelToTile(position.x, position.y);
+  const exactMatch = allInitialWaypoints.find((waypoint) => waypoint.x === tile.x && waypoint.y === tile.y) ?? null;
+  if (!exactMatch) {
+    return null;
+  }
+
+  if (agent.status === 'working' && exactMatch.type !== 'desk') {
+    return null;
+  }
+
+  if (agent.status === 'conference' && exactMatch.type !== 'conference') {
+    return null;
+  }
+
+  return exactMatch;
+};
+
 function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
-  const position = normalizePosition(agent, fallbackIndex);
+  const positionSource = getPositionSource(agent);
+  const position = positionSource === 'backend'
+    ? (normalizeIncomingPosition(agent.position) as Position)
+    : normalizePosition(agent, fallbackIndex);
   const appearance = normalizeAppearance(agent.appearance);
+  const backendMovement = agent.movement;
+  const destination = backendMovement?.destination ? tileToPixelCenter(backendMovement.destination) : null;
+  const inferredWaypoint = !hasBackendMovementAuthority(backendMovement) && positionSource === 'backend'
+    ? inferWaypointFromPosition(agent, position)
+    : null;
+  const settledMovementState = inferredWaypoint ? getArrivalStateForMovementType(inferredWaypoint.type) : defaultMovementState(agent.status);
 
   return {
     ...agent,
@@ -97,16 +152,23 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
     appearance,
     x: position.x,
     y: position.y,
+    interpolatedX: backendMovement?.fractionalX,
+    interpolatedY: backendMovement?.fractionalY,
     color: appearance.outfit.color,
     title: typeof agent.config?.title === 'string' ? agent.config.title : undefined,
     notes: typeof agent.config?.notes === 'string' ? agent.config.notes : undefined,
-    movementState: defaultMovementState(agent.status),
-    targetX: null,
-    targetY: null,
-    path: [],
-    claimedWaypointId: null,
-    visualOffsetX: 0,
-    visualOffsetY: 0,
+    movementState: backendMovement?.status === 'moving' ? 'walking' : settledMovementState,
+    targetX: destination?.x ?? null,
+    targetY: destination?.y ?? null,
+    path: backendMovement?.path ?? [],
+    claimedWaypointId: backendMovement?.claimedWaypointId ?? inferredWaypoint?.id ?? null,
+    visualOffsetX: backendMovement?.visualOffsetX ?? inferredWaypoint?.visualOffsetX ?? 0,
+    visualOffsetY: backendMovement?.visualOffsetY ?? inferredWaypoint?.visualOffsetY ?? 0,
+    direction: position.direction,
+    waypointDirection: backendMovement?.waypointDirection,
+    movement: backendMovement,
+    positionSource,
+    bodyType: appearance?.bodyType ?? DEFAULT_APPEARANCE.bodyType,
   };
 }
 
@@ -117,6 +179,7 @@ interface AgentsState {
   updateAgent: (agent: Partial<StoreAgent> & Pick<StoreAgent, 'id'>) => void;
   selectAgent: (agentId: string | null) => void;
   clearSelection: () => void;
+  setDisplayName: (agentId: string, name: string | null) => Promise<void>;
 }
 
 export const useAgentsStore = create<AgentsState>((set) => ({
@@ -127,35 +190,25 @@ export const useAgentsStore = create<AgentsState>((set) => ({
       agents: agents.map((agent, index) => {
         const existing = state.agents.find((entry) => entry.id === agent.id);
         const normalized = normalizeAgent(agent, index);
-        if (existing && existing.x !== normalized.x && existing.y !== normalized.y && !(existing.movementState === 'walking' || existing.claimedWaypointId)) {
-          console.log('[PixDash Debug] setAgents position overwrite', JSON.stringify({
-            agentId: agent.id,
-            movementState: existing.movementState,
-            claimedWaypointId: existing.claimedWaypointId,
-            from: { x: existing.x, y: existing.y },
-            to: { x: normalized.x, y: normalized.y },
-          }));
-        }
+        const backendAuthorityActive = hasBackendMovementAuthority(normalized.movement);
+        const keepLocalPlacement = !backendAuthorityActive && existing?.movementState === 'walking';
 
         return existing
           ? {
               ...existing,
               ...normalized,
-              // Preserve client-side position for agents that have been placed by
-              // the movement system (walking or have a claimed waypoint).
-              // Backend only knows corridor tile coords — don't overwrite.
-              x: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.x : normalized.x,
-              y: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.y : normalized.y,
-              movementState: existing.movementState,
-              targetX: existing.targetX,
-              targetY: existing.targetY,
-              path: existing.path,
-              claimedWaypointId: existing.claimedWaypointId,
-              visualOffsetX: existing.visualOffsetX,
-              visualOffsetY: existing.visualOffsetY,
-              // Preserve client-side direction when agent has been placed by movement system.
-              // Backend always sends 'south' default — would overwrite seated/walking direction.
-              direction: (existing.movementState === 'walking' || existing.claimedWaypointId) ? existing.direction : normalized.direction,
+              x: keepLocalPlacement ? existing.x : normalized.x,
+              y: keepLocalPlacement ? existing.y : normalized.y,
+              movementState: keepLocalPlacement ? existing.movementState : normalized.movementState,
+              targetX: keepLocalPlacement ? existing.targetX : normalized.targetX,
+              targetY: keepLocalPlacement ? existing.targetY : normalized.targetY,
+              path: keepLocalPlacement ? existing.path : normalized.path,
+              claimedWaypointId: keepLocalPlacement ? existing.claimedWaypointId : normalized.claimedWaypointId,
+              visualOffsetX: keepLocalPlacement ? existing.visualOffsetX : normalized.visualOffsetX,
+              visualOffsetY: keepLocalPlacement ? existing.visualOffsetY : normalized.visualOffsetY,
+              direction: keepLocalPlacement ? existing.direction : normalized.direction,
+              interpolatedX: keepLocalPlacement ? existing.interpolatedX : normalized.interpolatedX,
+              interpolatedY: keepLocalPlacement ? existing.interpolatedY : normalized.interpolatedY,
             }
           : normalized;
       }),
@@ -198,16 +251,28 @@ export const useAgentsStore = create<AgentsState>((set) => ({
           y: agentUpdate.position?.y ?? agentUpdate.y ?? agent.y,
           color: agentUpdate.appearance?.outfit?.color ?? agentUpdate.color ?? nextAppearance.outfit.color,
           appearance: nextAppearance,
+          bodyType: agentUpdate.bodyType ?? nextAppearance.bodyType,
           movementState: agentUpdate.movementState ?? agent.movementState,
           targetX: agentUpdate.targetX === undefined ? agent.targetX : agentUpdate.targetX,
           targetY: agentUpdate.targetY === undefined ? agent.targetY : agentUpdate.targetY,
           path: agentUpdate.path ?? agent.path,
           claimedWaypointId: agentUpdate.claimedWaypointId === undefined ? agent.claimedWaypointId : agentUpdate.claimedWaypointId,
+          interpolatedX: agentUpdate.interpolatedX === undefined ? agent.interpolatedX : agentUpdate.interpolatedX,
+          interpolatedY: agentUpdate.interpolatedY === undefined ? agent.interpolatedY : agentUpdate.interpolatedY,
+          waypointDirection: agentUpdate.waypointDirection === undefined ? agent.waypointDirection : agentUpdate.waypointDirection,
         };
       }),
     })),
   selectAgent: (selectedAgentId) => set({ selectedAgentId }),
   clearSelection: () => set({ selectedAgentId: null }),
+  setDisplayName: async (agentId, name) => {
+    const result = await updateDisplayName(agentId, name);
+    set((state) => ({
+      agents: state.agents.map((a) =>
+        a.id === agentId ? { ...a, displayName: result.displayName ?? undefined } : a
+      ),
+    }));
+  },
 }));
 
 export const agentsStore = {
