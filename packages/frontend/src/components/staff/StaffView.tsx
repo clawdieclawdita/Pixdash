@@ -132,8 +132,9 @@ function StaffFlow({ initialNodes, initialEdges }: { initialNodes: AgentFlowNode
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        panOnDrag
+        panOnDrag={[1]}
         zoomOnScroll
+        selectionOnDrag={false}
         minZoom={0.45}
         maxZoom={1.8}
         proOptions={{ hideAttribution: true }}

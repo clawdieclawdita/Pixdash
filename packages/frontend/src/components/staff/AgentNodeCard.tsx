@@ -225,7 +225,7 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
       <Handle type="target" position={Position.Top} style={hiddenHandleStyle} />
       <Handle type="source" position={Position.Bottom} style={hiddenHandleStyle} />
 
-      <div className="pixel-frame group relative flex min-h-[88px] w-[260px] flex-row items-center justify-center rounded-[14px] bg-gradient-to-b from-[#1a1714] to-[#0f0e10] px-4 py-3 transition-all duration-300 hover:brightness-110" onPointerDown={(e) => e.stopPropagation()}>
+      <div className="pixel-frame group relative flex min-h-[88px] w-[260px] flex-row items-center justify-center rounded-[14px] bg-gradient-to-b from-[#1a1714] to-[#0f0e10] px-4 py-3 transition-all duration-300 hover:brightness-110" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
         <div className="pointer-events-none absolute inset-0 rounded-[14px] bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.04)_2px,rgba(0,0,0,0.04)_4px)]" />
 
         <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
@@ -251,7 +251,7 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
             {config.label}
           </span>
 
-          <div ref={pickerRef} className="relative mt-1 nodrag nopan" onPointerDown={(e) => e.stopPropagation()}>
+          <div ref={pickerRef} className="relative mt-1 nodrag nopan" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
             <label className="text-[8px] uppercase tracking-wider text-[#9c907f]/50">Reports to</label>
             <button
               type="button"
