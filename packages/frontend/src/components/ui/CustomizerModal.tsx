@@ -165,6 +165,12 @@ export const CustomizerModal = ({
   const [roleDraft, setRoleDraft] = useState('');
   const [parentDraft, setParentDraft] = useState<string | null>(null);
 
+  // Parent lookup helper
+  const getParentForAgent = (agentId: string, hierarchy: Array<{ parent: string; child: string }>): string | null => {
+    const edge = hierarchy.find((e) => e.child === agentId);
+    return edge?.parent ?? null;
+  };
+
   useEffect(() => {
     if (!isOpen) {
       wasOpenRef.current = false;
@@ -214,12 +220,6 @@ export const CustomizerModal = ({
       };
     });
     clearSpriteTemplateCache();
-  };
-
-  // Parent lookup helper
-  const getParentForAgent = (agentId: string, hierarchy: Array<{ parent: string; child: string }>): string | null => {
-    const edge = hierarchy.find((e) => e.child === agentId);
-    return edge?.parent ?? null;
   };
 
   const handleRoleBlur = useCallback(() => {
