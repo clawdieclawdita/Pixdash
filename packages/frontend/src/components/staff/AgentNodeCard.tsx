@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import type { StoreAgent } from '@/store/agentsStore';
 import { cn } from '@/lib/utils';
@@ -7,6 +7,11 @@ import { spriteUrls } from './spriteUrls';
 type AgentNodeData = {
   agent: StoreAgent;
   role: string;
+  allAgents: StoreAgent[];
+  currentParent: string | null;
+  onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>;
+  onUpdateRole: (agentId: string, role: string) => Promise<boolean>;
+  onUpdateParent: (child: string, newParent: string | null) => Promise<boolean>;
 };
 
 type AgentFlowNode = Node<AgentNodeData, 'agent'>;
@@ -90,6 +95,80 @@ const hiddenHandleStyle = {
   border: 'none',
 } as const;
 
+/* ── Click-to-edit inline text field ── */
+function InlineEdit({
+  value,
+  onSave,
+  className,
+  inputClassName,
+}: {
+  value: string;
+  onSave: (val: string) => void;
+  className?: string;
+  inputClassName?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commit = useCallback(() => {
+    setEditing(false);
+    if (draft !== value) onSave(draft);
+  }, [draft, value, onSave]);
+
+  const cancel = useCallback(() => {
+    setEditing(false);
+    setDraft(value);
+  }, [value]);
+
+  if (!editing) {
+    return (
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={() => setEditing(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter') setEditing(true); }}
+        className={cn(
+          'group/edit relative cursor-pointer truncate',
+          className,
+        )}
+      >
+        {value || <span className="italic opacity-40">click to edit</span>}
+        <span className="pointer-events-none absolute -right-3 top-0 hidden text-[9px] text-[#d1a45a]/60 group-hover/edit:inline">✏</span>
+      </span>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') cancel();
+      }}
+      className={cn(
+        'w-full rounded border border-[#d1a45a]/60 bg-[#0f0e10] px-1 py-0 text-[11px] text-slate-200 outline-none focus:border-[#d1a45a]',
+        inputClassName,
+      )}
+    />
+  );
+}
+
 export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
   const agent = data.agent;
   const role = data.role;
@@ -98,6 +177,34 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
   const displayName = agent.displayName ?? agent.name ?? agent.id ?? '?';
   const config = statusConfig[status] ?? statusConfig.offline;
   const bodyType = agent.bodyType ?? 'michael';
+  const currentParent = data.currentParent;
+  const allAgents = data.allAgents;
+
+  // Parent options: all agents except self + "None"
+  const parentOptions = allAgents
+    .filter((a) => a.id !== agent.id)
+    .map((a) => ({
+      value: a.id,
+      label: a.displayName ?? a.name ?? a.id,
+    }));
+
+  const handleDisplayNameSave = useCallback(
+    (val: string) => { data.onUpdateDisplayName(agent.id, val); },
+    [agent.id, data.onUpdateDisplayName],
+  );
+
+  const handleRoleSave = useCallback(
+    (val: string) => { data.onUpdateRole(agent.id, val); },
+    [agent.id, data.onUpdateRole],
+  );
+
+  const handleParentChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const val = e.target.value;
+      data.onUpdateParent(agent.id, val === '' ? null : val);
+    },
+    [agent.id, data.onUpdateParent],
+  );
 
   return (
     <div className="relative h-[88px] w-[260px]">
@@ -112,17 +219,37 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
         </div>
 
         <div className="relative ml-3 flex w-auto flex-col justify-center leading-[1.15]">
-          <span className={cn('font-display text-[11px] uppercase tracking-[0.18em]', roleColor)}>
-            {role}
-          </span>
+          <InlineEdit
+            value={role}
+            onSave={handleRoleSave}
+            className={cn('font-display text-[11px] uppercase tracking-[0.18em]', roleColor)}
+            inputClassName="font-display text-[11px] uppercase tracking-[0.18em]"
+          />
 
-          <span className="mt-2 text-[14px] font-bold text-slate-200">
-            {displayName}
-          </span>
+          <InlineEdit
+            value={displayName}
+            onSave={handleDisplayNameSave}
+            className="mt-2 text-[14px] font-bold text-slate-200"
+            inputClassName="text-[13px] font-bold"
+          />
 
           <span className={cn('mt-[4px] text-[11px] uppercase tracking-[0.16em]', config.labelClass)}>
             {config.label}
           </span>
+        </div>
+
+        {/* Parent dropdown — visible on hover */}
+        <div className="pointer-events-none absolute -bottom-6 right-2 hidden w-auto group-hover:pointer-events-auto group-hover:block">
+          <select
+            value={currentParent ?? ''}
+            onChange={handleParentChange}
+            className="pixel-frame h-5 rounded border border-[#d1a45a]/30 bg-[#0f0e10] px-1 text-[9px] text-[#9c907f] outline-none"
+          >
+            <option value="">None (Root)</option>
+            {parentOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
       </div>
     </div>

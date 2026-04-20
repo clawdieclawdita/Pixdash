@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dagre from 'dagre';
 import {
   Background,
@@ -29,9 +29,22 @@ const nodeTypes: NodeTypes = {
   agent: AgentNodeCard,
 };
 
-type AgentFlowNode = Node<{ agent: StoreAgent; role: string }, 'agent'>;
+type AgentFlowNode = Node<{ agent: StoreAgent; role: string; allAgents: StoreAgent[]; currentParent: string | null; onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>; onUpdateRole: (agentId: string, role: string) => Promise<boolean>; onUpdateParent: (child: string, newParent: string | null) => Promise<boolean> }, 'agent'>;
 
-function buildGraph(agents: StoreAgent[], roles: Record<string, string>, hierarchy: Array<{ parent: string; child: string }>): { nodes: AgentFlowNode[]; edges: Edge[] } {
+function getParentForAgent(agentId: string, hierarchy: Array<{ parent: string; child: string }>): string | null {
+  const edge = hierarchy.find((e) => e.child === agentId);
+  return edge?.parent ?? null;
+}
+
+function buildGraph(
+  agents: StoreAgent[],
+  roles: Record<string, string>,
+  hierarchy: Array<{ parent: string; child: string }>,
+  allAgents: StoreAgent[],
+  onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>,
+  onUpdateRole: (agentId: string, role: string) => Promise<boolean>,
+  onUpdateParent: (child: string, newParent: string | null) => Promise<boolean>,
+): { nodes: AgentFlowNode[]; edges: Edge[] } {
   const agentIds = new Set(agents.map((a) => a.id));
 
   const g = new dagre.graphlib.Graph();
@@ -60,6 +73,11 @@ function buildGraph(agents: StoreAgent[], roles: Record<string, string>, hierarc
       data: {
         agent,
         role: roles[agent.id] ?? agent.title ?? 'Agent',
+        allAgents,
+        currentParent: getParentForAgent(agent.id, hierarchy),
+        onUpdateDisplayName,
+        onUpdateRole,
+        onUpdateParent,
       },
     };
   });
@@ -127,16 +145,27 @@ function StaffFlow({ initialNodes, initialEdges }: { initialNodes: AgentFlowNode
 
 export function StaffView() {
   const { agents } = useAgentsStore();
+  const { config, updateDisplayName, updateRole, updateHierarchy, resetToDefaults } = useConfigStore();
   const [mounted, setMounted] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const { config } = useConfigStore();
-
-  const { nodes, edges } = useMemo(() => buildGraph(agents, config.roles, config.hierarchy), [agents, config.roles, config.hierarchy]);
+  const { nodes, edges } = useMemo(
+    () => buildGraph(agents, config.roles, config.hierarchy, agents, updateDisplayName, updateRole, updateHierarchy),
+    [agents, config.roles, config.hierarchy, updateDisplayName, updateRole, updateHierarchy],
+  );
   const [fitSignal, setFitSignal] = useState(0);
+
+  const handleReset = useCallback(async () => {
+    setResetting(true);
+    await resetToDefaults();
+    // Trigger a re-fit after reset changes hierarchy
+    setTimeout(() => setFitSignal((v) => v + 1), 100);
+    setResetting(false);
+  }, [resetToDefaults]);
 
   return (
     <div className="pixel-frame crt-panel relative min-h-[70vh] overflow-hidden rounded-[18px] bg-[linear-gradient(180deg,rgba(15,12,16,0.98),rgba(9,8,11,0.98))]">
@@ -156,6 +185,14 @@ export function StaffView() {
               {agents.filter((a) => a.status !== 'offline').length}/{agents.length} online
             </span>
             <span className="h-2.5 w-2.5 animate-pulse border border-[#2a2520] bg-[#00d4aa]" />
+            <button
+              type="button"
+              disabled={resetting}
+              onClick={handleReset}
+              className="pixel-button flex items-center gap-2 rounded-[10px] bg-[#2a1515]/90 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-rose-300 transition hover:brightness-110 disabled:opacity-50"
+            >
+              {resetting ? '…' : '↺'} Reset
+            </button>
             <button
               type="button"
               onClick={() => setFitSignal((value) => value + 1)}

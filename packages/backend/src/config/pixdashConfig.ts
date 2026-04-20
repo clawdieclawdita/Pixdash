@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -154,6 +154,118 @@ class PixdashConfig {
       roles: { ...this.config.roles },
       hierarchy: [...this.config.hierarchy],
     };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Mutation methods (in-memory + persist to pixdash.json)            */
+  /* ------------------------------------------------------------------ */
+
+  private getConfigPath(): string {
+    let configPath = path.resolve(process.cwd(), 'pixdash.json');
+    if (!existsSync(configPath)) {
+      configPath = path.resolve(process.cwd(), '..', '..', 'pixdash.json');
+    }
+    if (process.env.PIXDASH_CONFIG_PATH) {
+      configPath = path.resolve(process.env.PIXDASH_CONFIG_PATH);
+    }
+    return configPath;
+  }
+
+  private saveToFile(): void {
+    const configPath = this.getConfigPath();
+    // Ensure the directory exists
+    const dir = path.dirname(configPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const json = JSON.stringify(this.config, null, 2);
+    writeFileSync(configPath, `// PixDash configuration – auto-generated\n${json}\n`, 'utf8');
+  }
+
+  updateDisplayName(agentId: string, displayName: string): { displayNames: Record<string, string> } {
+    if (displayName.trim() === '') {
+      delete this.config.displayNames[agentId];
+    } else {
+      this.config.displayNames[agentId] = displayName.trim();
+    }
+    this.saveToFile();
+    return { displayNames: { ...this.config.displayNames } };
+  }
+
+  updateRole(agentId: string, role: string): { roles: Record<string, string> } {
+    if (role.trim() === '') {
+      delete this.config.roles[agentId];
+    } else {
+      this.config.roles[agentId] = role.trim();
+    }
+    this.saveToFile();
+    return { roles: { ...this.config.roles } };
+  }
+
+  /**
+   * Reassign a child's parent in the hierarchy.
+   * Returns the updated hierarchy or throws on validation failure.
+   */
+  updateHierarchy(child: string, newParent: string | null): { hierarchy: HierarchyEdge[] } {
+    // Prevent self-parenting
+    if (newParent === child) {
+      throw new Error('An agent cannot be its own parent.');
+    }
+
+    // Remove any existing edge where this child appears
+    this.config.hierarchy = this.config.hierarchy.filter((e) => e.child !== child);
+
+    if (newParent !== null) {
+      // Check for circular dependency: newParent must not be a descendant of child
+      if (this.wouldCreateCycle(child, newParent)) {
+        throw new Error('Circular dependency detected.');
+      }
+      this.config.hierarchy.push({ parent: newParent, child });
+    }
+
+    this.saveToFile();
+    return { hierarchy: [...this.config.hierarchy] };
+  }
+
+  /** BFS from `start` to see if we can reach `target` following parent→child edges */
+  private wouldCreateCycle(start: string, target: string): boolean {
+    const childrenOf = new Map<string, string[]>();
+    for (const edge of this.config.hierarchy) {
+      const list = childrenOf.get(edge.parent) ?? [];
+      list.push(edge.child);
+      childrenOf.set(edge.parent, list);
+    }
+    // After hypothetical addition: child→newParent edge
+    // Cycle exists if from `target` we can reach `start` via child edges
+    const visited = new Set<string>();
+    const queue = [target];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current === start) return true;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const kids = childrenOf.get(current);
+      if (kids) {
+        for (const kid of kids) {
+          if (!visited.has(kid)) queue.push(kid);
+        }
+      }
+    }
+    return false;
+  }
+
+  resetToDefaults(): { displayNames: Record<string, string>; roles: Record<string, string>; hierarchy: HierarchyEdge[] } {
+    // Preserve reservedWaypoints and spawnPositions from current config
+    const reserved = { ...this.config.reservedWaypoints };
+    const spawns = [...this.config.spawnPositions];
+
+    this.config = {
+      ...DEFAULT_CONFIG,
+      reservedWaypoints: reserved,
+      spawnPositions: spawns,
+    };
+    this.saveToFile();
+    return this.getPublicConfig();
   }
 }
 
