@@ -590,6 +590,11 @@ export class GatewayClient {
     if (toolName === 'sessions_spawn') {
       this.detectSpawnConference(agentId, args);
     }
+
+    // session_send conference detection
+    if (toolName === 'session_send') {
+      this.detectSendConference(agentId, args, sessionKey);
+    }
   }
 
   /**
@@ -614,17 +619,17 @@ export class GatewayClient {
     }
 
     if (!targetAgentId || targetAgentId === sourceAgentId) return;
-    if (!this.agentStateManager.isKnownAgent(targetAgentId)) return;
 
-    // Check if the runtime indicates a subagent session (not a known real agent)
-    if (typeof args === 'object' && args !== null) {
-      const argsRecord = args as Record<string, unknown>;
-      const runtime = this.pickString(argsRecord.runtime);
-      if (runtime === 'subagent' || runtime === 'acp') return;
+    // Accept known real agents directly
+    if (this.agentStateManager.isKnownAgent(targetAgentId)) {
+      // Target is a known real agent — trigger conference regardless of runtime
+    } else if (targetAgentId.includes(':subagent:')) {
+      // Ephemeral subagent session — skip
+      return;
+    } else {
+      // Unknown agent ID that's not a subagent key — skip
+      return;
     }
-
-    // Filter out ephemeral subagent session keys
-    if (targetAgentId.includes(':subagent:')) return;
 
     logger.info(
       { sourceAgentId, targetAgentId, tool: 'sessions_spawn' },
@@ -635,6 +640,52 @@ export class GatewayClient {
       agentIds: [sourceAgentId, targetAgentId],
       sessionKey: `spawn:${sourceAgentId}:${targetAgentId}`,
       source: 'sessions_spawn',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Detect conferences triggered by session_send between two known real agents.
+   */
+  private detectSendConference(sourceAgentId: string, args: unknown, fallbackSessionKey: string): void {
+    if (!this.agentStateManager.isKnownAgent(sourceAgentId)) return;
+
+    // Try to extract target from args or session
+    let targetAgentId: string | undefined;
+    if (typeof args === 'string') {
+      try {
+        const parsed = JSON.parse(args) as Record<string, unknown>;
+        targetAgentId = this.pickString(parsed.sessionKey, parsed.targetAgentId, parsed.to, parsed.agentId);
+      } catch { /* ignore */ }
+    } else if (args && typeof args === 'object') {
+      const argsRecord = args as Record<string, unknown>;
+      targetAgentId = this.pickString(argsRecord.sessionKey, argsRecord.targetAgentId, argsRecord.to, argsRecord.agentId);
+    }
+
+    // sessionKey args might be a full session key — extract agentId from it
+    if (targetAgentId && targetAgentId.startsWith('agent:')) {
+      const parts = targetAgentId.split(':');
+      if (parts.length >= 2) {
+        const candidateId = parts[1];
+        if (this.agentStateManager.isKnownAgent(candidateId)) {
+          targetAgentId = candidateId;
+        }
+      }
+    }
+
+    if (!targetAgentId || targetAgentId === sourceAgentId) return;
+    if (!this.agentStateManager.isKnownAgent(targetAgentId)) return;
+    if (targetAgentId.includes(':subagent:')) return;
+
+    logger.info(
+      { sourceAgentId, targetAgentId, tool: 'session_send' },
+      'Detected session_send between known agents — triggering conference',
+    );
+
+    this.agentStateManager.applyConferenceEvent({
+      agentIds: [sourceAgentId, targetAgentId],
+      sessionKey: fallbackSessionKey,
+      source: 'session_send',
       timestamp: new Date().toISOString(),
     });
   }
