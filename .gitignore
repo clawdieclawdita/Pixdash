@@ -21,3 +21,4 @@ QA_*.md
 *AUDIT*.md
 *_REPORT*.md
 *_RETEST*.md
+docs/*.md
