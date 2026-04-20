@@ -14,16 +14,12 @@
     "cornelio": "CISO",
     "infralover": "IM",
     "docclaw": "DM",
-    "forbidden": "Analyst"
+    "forbidden": "Mulo"
   },
   "hierarchy": [
     {
       "parent": "main",
       "child": "devo"
-    },
-    {
-      "parent": "main",
-      "child": "cornelio"
     },
     {
       "parent": "devo",
@@ -36,6 +32,10 @@
     {
       "parent": "infralover",
       "child": "forbidden"
+    },
+    {
+      "parent": "main",
+      "child": "cornelio"
     }
   ],
   "reservedWaypoints": {

@@ -1090,15 +1090,30 @@ Frontend updates agent appearance in Canvas</code></pre></div>
 
   <h3>How to Modify an Existing Agent</h3>
   <ul>
-    <li><strong>Display name</strong>: Update <code>displayNames.&lt;agentId&gt;</code> in <code>pixdash.json</code>, restart.</li>
-    <li><strong>Role</strong>: Update <code>roles.&lt;agentId&gt;</code> in <code>pixdash.json</code>, restart.</li>
-    <li><strong>Body type</strong>: Via API <code>PATCH /api/v1/agents/:id/appearance</code> with <code>{ "bodyType": "jim" }</code>.
+    <li><strong>Display name (via UI)</strong>: Edit inline on the <strong>Staff</strong> view agent cards, or via the Office <strong>CUSTOMIZE</strong> modal.</li>
+    <li><strong>Role (via UI)</strong>: Edit inline on the Office <strong>CUSTOMIZE</strong> modal (role title input).</li>
+    <li><strong>Reports-to (via UI)</strong>: Edit via the Office <strong>CUSTOMIZE</strong> modal (reports-to dropdown).</li>
+    <li><strong>Body type</strong>: Via the <strong>CUSTOMIZE</strong> modal appearance editor.
       Available body types: <code>male</code>, <code>female</code>, <code>neutral</code>, <code>michael</code>, <code>angela</code>, <code>phillis</code>, <code>creed</code>, <code>ryan</code>, <code>pam</code>, <code>kelly</code>, <code>kate</code>, <code>pites</code>, <code>jim</code>, <code>clawdie</code>.</li>
     <li><strong>Reserved waypoint</strong>: Update <code>reservedWaypoints.&lt;agentId&gt;</code> in <code>pixdash.json</code>, restart.</li>
   </ul>
 
+  <p><strong>Via API:</strong> Display name → <code>PATCH /api/v1/config/displayNames</code>, Role → <code>PATCH /api/v1/config/roles</code>. See <a href="#config-management-api">Config Management API</a> below.</p>
+
   <h3>How to Change the Org Hierarchy</h3>
-  <p>Edit the <code>hierarchy</code> array. Each edge is <code>{ "parent": "&lt;id&gt;", "child": "&lt;id&gt;" }</code>. The tree is rendered from these edges — ensure no cycles.</p>
+  <ul>
+    <li><strong>Via UI:</strong> Use the Office <strong>CUSTOMIZE</strong> modal's reports-to dropdown.</li>
+    <li><strong>Via API:</strong> <code>PATCH /api/v1/config/hierarchy</code> — see <a href="#config-management-api">Config Management API</a> below.</li>
+    <li><strong>Via file:</strong> Edit the <code>hierarchy</code> array in <code>pixdash.json</code>. Each edge is <code>{ "parent": "&lt;id&gt;", "child": "&lt;id&gt;" }</code>. Ensure no cycles.</li>
+  </ul>
+
+  <h3>How to Reset Configuration</h3>
+  <p>All changes made via the UI or API can be reverted to the original <code>pixdash.json</code> values:</p>
+  <ul>
+    <li><strong>Via UI:</strong> Click the <strong>Reset</strong> button in the Office CUSTOMIZE modal.</li>
+    <li><strong>Via API:</strong> <code>POST /api/v1/config/reset</code> — see <a href="#config-management-api">Config Management API</a> below.</li>
+  </ul>
+  <p>The reset restores <code>displayNames</code>, <code>roles</code>, and <code>hierarchy</code> to the values loaded at startup.</p>
 
   <h3>How to Configure Spawn Positions</h3>
   <p>Add or modify entries in <code>spawnPositions</code>. Each entry is <code>{ "x": &lt;tileX&gt;, "y": &lt;tileY&gt; }</code>. Positions must be on walkable tiles.</p>
@@ -1495,9 +1510,28 @@ curl "http://localhost:3000/api/v1/agents/main/logs?limit=20&amp;offset=0&amp;le
       <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
       <tbody>
         <tr><td>GET</td><td><code>/api/v1/config</code></td><td>Get public configuration</td></tr>
+        <tr><td>PATCH</td><td><code>/api/v1/config/displayNames</code></td><td>Update agent display name</td></tr>
+        <tr><td>PATCH</td><td><code>/api/v1/config/roles</code></td><td>Update agent role title</td></tr>
+        <tr><td>PATCH</td><td><code>/api/v1/config/hierarchy</code></td><td>Reassign agent's parent in hierarchy</td></tr>
+        <tr><td>POST</td><td><code>/api/v1/config/reset</code></td><td>Reset all config to startup defaults</td></tr>
       </tbody>
     </table>
   </div>
+
+  <h4 id="config-management-api">Config Management API</h4>
+  <p>All config mutations are persisted to <code>pixdash.json</code> on disk and broadcast to connected clients.</p>
+  <ul>
+    <li><strong><code>PATCH /api/v1/config/displayNames</code></strong> — Body: <code>{ agentId, displayName }</code>. Returns updated displayNames map.</li>
+    <li><strong><code>PATCH /api/v1/config/roles</code></strong> — Body: <code>{ agentId, role }</code>. Returns updated roles map.</li>
+    <li><strong><code>PATCH /api/v1/config/hierarchy</code></strong> — Body: <code>{ child, newParent }</code>. Set <code>newParent</code> to <code>null</code> to remove from hierarchy. Returns <code>400</code> for circular dependencies.</li>
+    <li><strong><code>POST /api/v1/config/reset</code></strong> — No body. Restores all config to startup defaults.</li>
+  </ul>
+
+  <h4>UI: CUSTOMIZE Modal &amp; Staff View</h4>
+  <ul>
+    <li><strong>CUSTOMIZE modal</strong> (Office view ⚙️): Edit role title, reports-to dropdown, appearance, and reset config to defaults.</li>
+    <li><strong>Staff view</strong>: React Flow + Dagre org tree with pan/zoom/fit, inline display name editing, live config sync.</li>
+  </ul>
   <div class="code-wrapper">
     <span class="code-lang">bash</span>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -1617,6 +1651,9 @@ curl "http://localhost:3000/api/v1/agents/main/logs?limit=20&amp;offset=0&amp;le
     <li><strong>Requesting operator scopes</strong> (<code>operator.read</code>, <code>operator.admin</code>)</li>
   </ol>
   <p>The Gateway treats any client that completes this challenge-response as an authorized operator device.</p>
+  <blockquote>
+    <p><strong>Note on architecture:</strong> PixDash's backend is <strong>movement-authoritative</strong> — it owns the collision map, A* pathfinding, movement tick loop (20Hz), waypoint claims, and idle wandering. The frontend is render-only with lerp interpolation. When building your own integration, you can choose where movement logic lives; PixDash puts it server-side for consistency.</p>
+  </blockquote>
 
   <h2 id="authentication-protocol">2. Authentication Protocol</h2>
 
@@ -2511,6 +2548,9 @@ AgentRenderer.render() → ctx.drawImage(sprite, drawX, drawY, 235, 177)</code><
 
   <h3>Backend Architecture</h3>
   <p><strong>Stack:</strong> Fastify + @fastify/websocket + @fastify/static + @fastify/cors</p>
+  <blockquote>
+    <p><strong>Key principle:</strong> The backend is <strong>movement-authoritative</strong>. All collision maps, A* pathfinding, movement ticks (20Hz), waypoint claims, idle wandering, status→destination routing, and conference seating are handled server-side. The frontend is render-only with lerp interpolation — no client-side pathfinding or movement logic exists.</p>
+  </blockquote>
 
   <h4>Server Bootstrap (<code>server.ts</code>)</h4>
   <div class="code-wrapper">
@@ -2701,6 +2741,13 @@ export const smoothPositionTargets = new Map&lt;
     <li><code>roles: Record&lt;string, string&gt;</code> — agent ID → role label</li>
     <li><code>hierarchy: unknown[]</code> — organizational hierarchy</li>
   </ul>
+  <p>The store also provides mutation methods that call the config API and persist to <code>pixdash.json</code>:</p>
+  <ul>
+    <li><code>updateDisplayName(agentId, displayName)</code> → <code>PATCH /api/v1/config/displayNames</code></li>
+    <li><code>updateRole(agentId, role)</code> → <code>PATCH /api/v1/config/roles</code></li>
+    <li><code>updateHierarchy(child, newParent)</code> → <code>PATCH /api/v1/config/hierarchy</code></li>
+    <li><code>resetToDefaults()</code> → <code>POST /api/v1/config/reset</code></li>
+  </ul>
   <p>Display names are applied to agents during initial load and re-applied when config finishes loading (race condition protection via <code>configStore.subscribe</code>).</p>
 
   <h2 id="adding-new-features">4. Adding New Features</h2>
@@ -2812,6 +2859,10 @@ seated('breakroom-1', 10, 10, 'breakroom', 'south'),</code></pre>
         <tr><td><code>PATCH</code></td><td><code>/api/v1/agents/:id/displayName</code></td><td>Update display name</td><td><code>{ displayName: string | null }</code></td><td><code>{ success: true, displayName: string | null }</code></td></tr>
         <tr><td><code>GET</code></td><td><code>/api/v1/office/layout</code></td><td>Get office tilemap</td><td>—</td><td><code>Tilemap</code></td></tr>
         <tr><td><code>GET</code></td><td><code>/api/v1/config</code></td><td>Get public config</td><td>—</td><td><code>PixdashConfig</code></td></tr>
+        <tr><td><code>PATCH</code></td><td><code>/api/v1/config/displayNames</code></td><td>Update agent display name</td><td><code>{ agentId, displayName }</code></td><td><code>{ success, displayNames }</code></td></tr>
+        <tr><td><code>PATCH</code></td><td><code>/api/v1/config/roles</code></td><td>Update agent role title</td><td><code>{ agentId, role }</code></td><td><code>{ success, roles }</code></td></tr>
+        <tr><td><code>PATCH</code></td><td><code>/api/v1/config/hierarchy</code></td><td>Reassign agent's parent</td><td><code>{ child, newParent }</code></td><td><code>{ success, hierarchy }</code></td></tr>
+        <tr><td><code>POST</code></td><td><code>/api/v1/config/reset</code></td><td>Reset config to startup defaults</td><td>—</td><td><code>{ success, displayNames, roles, hierarchy }</code></td></tr>
       </tbody>
     </table>
   </div>
@@ -2903,6 +2954,21 @@ seated('breakroom-1', 10, 10, 'breakroom', 'south'),</code></pre>
     <li>Import shared types via <code>@pixdash/shared</code></li>
   </ul>
 
+  <h3>Retro Visual Theme</h3>
+  <ul>
+    <li><strong>Fonts:</strong> Press Start 2P (headings, labels) + Space Mono (body text, code)</li>
+    <li><strong>CRT overlay:</strong> Scanline effect via CSS <code>::after</code> pseudo-element</li>
+    <li><strong>CSS classes:</strong> <code>pixel-frame</code>, <code>pixel-button</code>, <code>pixel-inset</code> for retro-styled UI elements</li>
+    <li><strong>Color palette:</strong> Dark backgrounds (<code>#0a0a0f</code>), amber/gold accents (<code>#d1a45a</code>), cyan links (<code>#00e5ff</code>)</li>
+    <li><strong>Dead code removed:</strong> ~478 lines of old pre-server-authoritative frontend movement code</li>
+  </ul>
+
+  <h3>UI: CUSTOMIZE Modal &amp; Staff View</h3>
+  <ul>
+    <li><strong>CUSTOMIZE modal</strong> (Office view ⚙️): Edit role title, reports-to, appearance, and reset config to defaults. Changes persist to <code>pixdash.json</code> immediately.</li>
+    <li><strong>Staff view</strong>: React Flow + Dagre org tree with pan/zoom/fit, inline display name editing, live config sync via <code>configStore</code>.</li>
+  </ul>
+
   <h3>Testing</h3>
   <ul>
     <li><strong>Live QA scripts</strong> in <code>scripts/</code> — HTTP-based integration tests against a running server</li>
@@ -2987,11 +3053,22 @@ cd packages/backend &amp;&amp; pnpm build</code></pre>
   <div class="code-wrapper">
     <span class="code-lang">bash</span>
     <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-    <pre><code class="language-bash">docker build -t pixdash .
-docker run -p 3000:3000 -v ./pixdash.json:/app/pixdash.json pixdash</code></pre>
+    <pre><code class="language-bash">docker compose up -d --build</code></pre>
   </div>
+  <p>The <code>Dockerfile</code> uses a multi-stage build: <code>node:20-alpine</code> + <code>vips-dev</code> + <code>build-base</code> (builder) → <code>node:20-alpine</code> + <code>vips</code> (runtime). <code>docker-compose.yml</code> uses <code>network_mode: host</code>; port defaults to <code>5555</code>.</p>
 
-  <p>The <code>Dockerfile</code> builds both packages and serves the frontend static files via Fastify's <code>@fastify/static</code>.</p>
+  <h3>Dual Deploy During Development</h3>
+  <p>When developing, you typically need both the backend and frontend running:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash"># Terminal 1: backend
+cd packages/backend &amp;&amp; node dist/server.js
+
+# Terminal 2: frontend (Vite HMR)
+pnpm dev  # port 5173</code></pre>
+  </div>
+  <p>Alternatively, use <code>start.sh</code> for a single-process production-like setup (no HMR).</p>
 
   <h4>start.sh</h4>
   <p>The <code>start.sh</code> script starts the production backend which serves both API and frontend static files from <code>packages/frontend/dist/</code>.</p>

@@ -27,6 +27,8 @@ The standard OpenClaw companion app (mobile/desktop) uses a QR-code pairing flow
 
 The Gateway treats any client that completes this challenge-response as an authorized operator device.
 
+> **Note on architecture:** PixDash's backend is **movement-authoritative** — it owns the collision map, A* pathfinding, movement tick loop (20Hz), waypoint claims, and idle wandering. The frontend is render-only with lerp interpolation. When building your own integration, you can choose where movement logic lives; PixDash puts it server-side for consistency.
+
 ---
 
 ## 2. Authentication Protocol

@@ -255,6 +255,8 @@ Zustand store updates for movement are **throttled to ~8Hz** (`STORE_FLUSH_INTER
 
 **Stack:** Fastify + @fastify/websocket + @fastify/static + @fastify/cors
 
+> **Key principle: Backend is movement-authoritative.** All collision maps, A* pathfinding, movement ticks (20Hz), waypoint claims, idle wandering, status→destination routing, and conference seating are handled server-side. The frontend is render-only — it receives `agent:movement` events and applies lerp interpolation for smooth visuals. No client-side pathfinding or movement logic exists.
+
 #### Server Bootstrap (`server.ts`)
 
 ```typescript
@@ -411,6 +413,12 @@ Throttled Zustand flush (~8Hz):
 - `roles: Record<string, string>` — agent ID → role label
 - `hierarchy: unknown[]` — organizational hierarchy
 
+The store also provides mutation methods that call the config API and persist to `pixdash.json`:
+- `updateDisplayName(agentId, displayName)` → `PATCH /api/v1/config/displayNames`
+- `updateRole(agentId, role)` → `PATCH /api/v1/config/roles`
+- `updateHierarchy(child, newParent)` → `PATCH /api/v1/config/hierarchy`
+- `resetToDefaults()` → `POST /api/v1/config/reset`
+
 Display names are applied to agents during initial load and re-applied when config finishes loading (race condition protection via `configStore.subscribe`).
 
 ---
@@ -502,6 +510,10 @@ All endpoints are prefixed with `/api/v1`. **No authentication** — local only.
 | `PATCH` | `/api/v1/agents/:id/displayName` | Update display name | `{ displayName: string \| null }` | `{ success: true, displayName: string \| null }` |
 | `GET` | `/api/v1/office/layout` | Get office tilemap | — | `Tilemap` |
 | `GET` | `/api/v1/config` | Get public config | — | `PixdashConfig` |
+| `PATCH` | `/api/v1/config/displayNames` | Update agent display name | `{ agentId, displayName }` | `{ success, displayNames }` |
+| `PATCH` | `/api/v1/config/roles` | Update agent role title | `{ agentId, role }` | `{ success, roles }` |
+| `PATCH` | `/api/v1/config/hierarchy` | Reassign agent's parent | `{ child, newParent }` | `{ success, hierarchy }` |
+| `POST` | `/api/v1/config/reset` | Reset config to startup defaults | — | `{ success, displayNames, roles, hierarchy }` |
 
 **Notes:**
 - `GET /api/v1/agents` strips sensitive fields (`soul`, `identity`, `config.workspace`, `config.agentDir`, `config.source`, `config.model`)
@@ -580,6 +592,34 @@ Standard fork → branch → PR workflow via GitHub.
 - Path aliases: `@/` → `src/`, `@assets/` → `../../assets/` (frontend only)
 - Import shared types via `@pixdash/shared`
 
+### Retro Visual Theme
+
+PixDash uses a pixel-art/retro aesthetic throughout the frontend:
+
+- **Fonts**: Press Start 2P (headings, labels) + Space Mono (body text, code)
+- **CRT overlay**: Scanline effect via CSS `::after` pseudo-element on `<body>`
+- **CSS classes**: `pixel-frame`, `pixel-button`, `pixel-inset` for retro-styled UI elements
+- **Color palette**: Dark backgrounds (`#0a0a0f`), amber/gold accents (`#d1a45a`, `#f0d6a5`), cyan links (`#00e5ff`)
+- **Dead code removed**: ~478 lines of old pre-server-authoritative frontend movement code were cleaned up
+
+### UI: CUSTOMIZE Modal
+
+The Office view's **CUSTOMIZE** button (⚙️) opens a modal for editing the selected agent's configuration live:
+
+- **Role title** — text input to change the agent's role label
+- **Reports-to** — dropdown to reassign the agent's parent in the org hierarchy (or clear it)
+- **Reset** — restores all config (display names, roles, hierarchy) to startup defaults
+
+Changes are persisted to `pixdash.json` immediately via the config API and broadcast to all connected clients.
+
+### UI: Staff View
+
+The **Staff** tab shows an interactive org tree built with **React Flow** + **Dagre** layout:
+
+- **Pan/zoom/fit** — mouse wheel to zoom, drag to pan, toolbar button to fit the tree
+- **Inline editing** — click on an agent card to edit the display name directly
+- **Live sync** — changes via API or CUSTOMIZE modal update the tree in real time via `configStore`
+
 ### Testing
 
 - **Live QA scripts** in `scripts/` — HTTP-based integration tests against a running server
@@ -656,15 +696,42 @@ cd packages/backend && pnpm build
 #### Docker
 
 ```bash
-docker build -t pixdash .
-docker run -p 3000:3000 -v ./pixdash.json:/app/pixdash.json pixdash
+docker compose up -d --build
 ```
 
-The `Dockerfile` builds both packages and serves the frontend static files via Fastify's `@fastify/static`.
+The `Dockerfile` uses a multi-stage build:
+1. **Builder stage**: `node:20-alpine` + `vips-dev` + `build-base` (for sharp compilation)
+2. **Runtime stage**: `node:20-alpine` + `vips` (for collision grid generation)
+
+`docker-compose.yml` uses `network_mode: host` so the container shares the host's network stack. Port defaults to `5555` via Docker Compose (vs `3000` for bare metal).
+
+Volume mounts:
+- `./assets` → `/app/assets:ro` — office layout + collision grid
+- `./.env` → `/app/.env:ro` — environment variables
+- `~/.openclaw/openclaw.json` → Gateway auth token
+- `~/.openclaw/pixdash` → Device keys + appearances persistence
+
+> **Important:** When running in Docker, `PIXDASH_GATEWAY_URL` in `.env` **must** use the host's LAN IP (e.g., `ws://192.168.1.200:18789`), **not** `localhost` or `127.0.0.1`.
 
 #### start.sh
 
 The `start.sh` script starts the production backend which serves both API and frontend static files from `packages/frontend/dist/`.
+
+### Dual Deploy During Development
+
+When developing, you typically need both the backend and frontend running:
+
+```bash
+# Terminal 1: backend (production build, serves API + static files)
+cd packages/backend && node dist/server.js
+
+# Terminal 2: frontend (Vite dev server with HMR)
+pnpm dev  # starts Vite on port 5173
+```
+
+Vite proxies API requests to the backend. The backend serves `packages/frontend/dist/` in production, but during development the Vite dev server provides HMR.
+
+Alternatively, use `start.sh` for a single-process production-like setup (no HMR).
 
 ### Production Architecture
 

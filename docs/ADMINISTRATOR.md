@@ -282,15 +282,41 @@ Frontend updates agent appearance in Canvas
 
 ### How to Modify an Existing Agent
 
-- **Display name**: Update `displayNames.<agentId>` in `pixdash.json`, restart.
-- **Role**: Update `roles.<agentId>` in `pixdash.json`, restart.
-- **Body type**: Via API `PATCH /api/v1/agents/:id/appearance` with `{ "bodyType": "jim" }`.
-  Available body types: `male`, `female`, `neutral`, `michael`, `angela`, `phillis`, `creed`, `ryan`, `pam`, `kelly`, `kate`, `pites`, `jim`, `clawdie`.
+#### Via UI (recommended)
+
+- **Display name**: Edit inline on the **Staff** view agent cards, or via the Office **CUSTOMIZE** modal.
+- **Role**: Edit inline on the Office **CUSTOMIZE** modal (role title input).
+- **Reports-to**: Edit via the Office **CUSTOMIZE** modal (reports-to dropdown).
+- **Body type**: Via the **CUSTOMIZE** modal appearance editor. Available body types: `male`, `female`, `neutral`, `michael`, `angela`, `phillis`, `creed`, `ryan`, `pam`, `kelly`, `kate`, `pites`, `jim`, `clawdie`.
 - **Reserved waypoint**: Update `reservedWaypoints.<agentId>` in `pixdash.json`, restart.
+
+#### Via API
+
+- **Display name**: `PATCH /api/v1/config/displayNames` — see [Config Management API](#config-management-api) below.
+- **Role**: `PATCH /api/v1/config/roles` — see below.
+- **Body type**: `PATCH /api/v1/agents/:id/appearance` with `{ "bodyType": "jim" }`.
+- **Reserved waypoint**: Update `reservedWaypoints.<agentId>` in `pixdash.json`, restart.
+
+#### Via pixdash.json (file edit)
+
+- **Display name**: Update `displayNames.<agentId>`, restart.
+- **Role**: Update `roles.<agentId>`, restart.
+- **Reserved waypoint**: Update `reservedWaypoints.<agentId>`, restart.
 
 ### How to Change the Org Hierarchy
 
-Edit the `hierarchy` array. Each edge is `{ "parent": "<id>", "child": "<id>" }`. The tree is rendered from these edges — ensure no cycles.
+- **Via UI**: Use the Office **CUSTOMIZE** modal's reports-to dropdown — select a new parent or clear the field.
+- **Via API**: `PATCH /api/v1/config/hierarchy` — see [Config Management API](#config-management-api) below.
+- **Via file**: Edit the `hierarchy` array in `pixdash.json`. Each edge is `{ "parent": "<id>", "child": "<id>" }`. The tree is rendered from these edges — ensure no cycles.
+
+### How to Reset Configuration
+
+All changes made via the UI or API can be reverted to the original `pixdash.json` values:
+
+- **Via UI**: Click the **Reset** button in the Office CUSTOMIZE modal.
+- **Via API**: `POST /api/v1/config/reset` — see [Config Management API](#config-management-api) below.
+
+The reset restores `displayNames`, `roles`, and `hierarchy` to the values loaded at startup.
 
 ### How to Configure Spawn Positions
 
@@ -621,6 +647,10 @@ Returns the full `Tilemap` object (width, height, tileSize, layers, walkable gri
 | Method | Path | Description |
 |---|---|---|
 | GET | `/api/v1/config` | Get public configuration |
+| PATCH | `/api/v1/config/displayNames` | Update agent display name (persisted to `pixdash.json`) |
+| PATCH | `/api/v1/config/roles` | Update agent role (persisted to `pixdash.json`) |
+| PATCH | `/api/v1/config/hierarchy` | Reassign agent's parent in hierarchy (persisted to `pixdash.json`) |
+| POST | `/api/v1/config/reset` | Reset all config to startup defaults |
 
 ```bash
 curl http://localhost:3000/api/v1/config
@@ -636,6 +666,76 @@ Response:
 ```
 
 Note: `reservedWaypoints` and `spawnPositions` are **not** exposed in this endpoint.
+
+#### Config Management API {#config-management-api}
+
+All config mutations are persisted to `pixdash.json` on disk and broadcast to connected clients via the `agent:config` WebSocket event.
+
+**PATCH `/api/v1/config/displayNames`** — Set an agent's display name:
+
+```bash
+curl -X PATCH http://localhost:3000/api/v1/config/displayNames \
+  -H "Content-Type: application/json" \
+  -d '{"agentId":"main","displayName":"Clawdie Boss"}'
+```
+
+Response: `{"success":true,"displayNames":{"main":"Clawdie Boss",...}}`
+
+**PATCH `/api/v1/config/roles`** — Set an agent's role title:
+
+```bash
+curl -X PATCH http://localhost:3000/api/v1/config/roles \
+  -H "Content-Type: application/json" \
+  -d '{"agentId":"main","role":"CTO"}'
+```
+
+Response: `{"success":true,"roles":{"main":"CTO",...}}`
+
+**PATCH `/api/v1/config/hierarchy`** — Reassign an agent's parent:
+
+```bash
+# Move 'forbidden' to report to 'cornelio'
+curl -X PATCH http://localhost:3000/api/v1/config/hierarchy \
+  -H "Content-Type: application/json" \
+  -d '{"child":"forbidden","newParent":"cornelio"}'
+
+# Remove from hierarchy entirely
+curl -X PATCH http://localhost:3000/api/v1/config/hierarchy \
+  -H "Content-Type: application/json" \
+  -d '{"child":"forbidden","newParent":null}'
+```
+
+Response: `{"success":true,"hierarchy":[...]}`
+
+Circular dependencies and self-parenting return `400`.
+
+**POST `/api/v1/config/reset`** — Restore startup defaults:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/config/reset
+```
+
+Response: `{"success":true,"displayNames":{...},"roles":{...},"hierarchy":{...}}`
+
+Restores `displayNames`, `roles`, and `hierarchy` to the values loaded from `pixdash.json` at server startup.
+
+#### UI: CUSTOMIZE Modal
+
+The Office view's **CUSTOMIZE** button (⚙️) opens a modal for editing the selected agent's configuration without restarting the server:
+
+- **Role title** — text input to change the agent's role label
+- **Reports-to** — dropdown to reassign the agent's parent in the org hierarchy (or clear it)
+- **Reset** — restores all config (display names, roles, hierarchy) to startup defaults
+
+Changes are persisted to `pixdash.json` immediately and reflected across all connected clients.
+
+#### UI: Staff View
+
+The **Staff** tab shows an interactive org tree built with React Flow + Dagre layout:
+
+- **Pan/zoom/fit** — mouse wheel to zoom, drag to pan, toolbar button to fit the tree
+- **Inline editing** — click on an agent card to edit the display name directly
+- **Live sync** — changes via API or CUSTOMIZE modal update the tree in real time
 
 ### WebSocket Endpoint
 
