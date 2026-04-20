@@ -207,21 +207,6 @@ export const CustomizerModal = ({
     return () => window.clearInterval(timer);
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
-  const handlePresetSelect = (preset: CharacterPreset) => {
-    const nextBodyType = preset.bodyType as Appearance['bodyType'];
-    setSelectedPreset(preset.id);
-    setDraft((current) => {
-      if (current.bodyType === nextBodyType) return current;
-      return {
-        ...current,
-        bodyType: nextBodyType
-      };
-    });
-    clearSpriteTemplateCache();
-  };
-
   const handleRoleBlur = useCallback(() => {
     if (!agent) return;
     const currentRole = config.roles[agent.id] ?? agent.title ?? 'Agent';
@@ -240,6 +225,21 @@ export const CustomizerModal = ({
     },
     [agent, updateHierarchy],
   );
+
+  if (!isOpen) return null;
+
+  const handlePresetSelect = (preset: CharacterPreset) => {
+    const nextBodyType = preset.bodyType as Appearance['bodyType'];
+    setSelectedPreset(preset.id);
+    setDraft((current) => {
+      if (current.bodyType === nextBodyType) return current;
+      return {
+        ...current,
+        bodyType: nextBodyType
+      };
+    });
+    clearSpriteTemplateCache();
+  };
 
   const handleSave = () => {
     // Persist role if changed
