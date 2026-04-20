@@ -35,6 +35,7 @@ function buildGraph(
   agents: StoreAgent[],
   roles: Record<string, string>,
   hierarchy: Array<{ parent: string; child: string }>,
+  isAgentInMeeting: (agentId: string) => boolean,
   onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>,
   onUpdateRole: (agentId: string, role: string) => Promise<boolean>,
 ): { nodes: AgentFlowNode[]; edges: Edge[] } {
@@ -66,6 +67,7 @@ function buildGraph(
       data: {
         agent,
         role: roles[agent.id] ?? agent.title ?? 'Agent',
+        inConference: isAgentInMeeting(agent.id),
         onUpdateDisplayName,
         onUpdateRole,
       },
@@ -140,18 +142,23 @@ function StaffFlow({ initialNodes, initialEdges }: { initialNodes: AgentFlowNode
 }
 
 export function StaffView() {
-  const { agents } = useAgentsStore();
+  const agents = useAgentsStore((state) => state.agents);
+  const activeMeetings = useAgentsStore((state) => state.activeMeetings);
   const { config, updateDisplayName, updateRole, resetToDefaults } = useConfigStore();
   const [mounted, setMounted] = useState(false);
   const [resetting, setResetting] = useState(false);
+
+  const isAgentInMeeting = useCallback((agentId: string) => {
+    return activeMeetings.some((m) => m.agentIds.includes(agentId));
+  }, [activeMeetings]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const { nodes, edges } = useMemo(
-    () => buildGraph(agents, config.roles, config.hierarchy, updateDisplayName, updateRole),
-    [agents, config.roles, config.hierarchy, updateDisplayName, updateRole],
+    () => buildGraph(agents, config.roles, config.hierarchy, isAgentInMeeting, updateDisplayName, updateRole),
+    [agents, config.roles, config.hierarchy, isAgentInMeeting, updateDisplayName, updateRole],
   );
   const [fitSignal, setFitSignal] = useState(0);
 

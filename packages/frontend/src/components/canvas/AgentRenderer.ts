@@ -3,6 +3,7 @@ import type { Direction } from '@pixdash/shared';
 import { getWalkFrameIndex } from '@/lib/movement';
 import { isDebug, isDebugAgent } from '@/lib/debug';
 import { loadSpriteTemplate, pickSpriteTemplateFromAppearance, clearSpriteTemplateCache, type SpriteSheetFrames } from '@/lib/spriteSheets';
+import { agentsStore } from '@/store/agentsStore';
 
 const SPRITE_DRAW_WIDTH = 235;
 const SPRITE_DRAW_HEIGHT = 177;
@@ -196,6 +197,42 @@ const drawAgentLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px:
   ctx.restore();
 };
 
+const drawConferenceLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition, px: number, py: number) => {
+  const inMeeting = agentsStore.getState().isAgentInMeeting(agent.id);
+  if (!inMeeting) return;
+
+  const transform = ctx.getTransform();
+  const zoom = Math.min(Math.abs(transform.a) || 1, Math.abs(transform.d) || 1);
+  const opacity = clamp(0.45 + (zoom - 0.35) * 0.9, 0.45, 1);
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.font = "bold 16px 'Space Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const text = 'IN MEETING';
+  const textWidth = Math.ceil(ctx.measureText(text).width);
+  const paddingX = 8;
+  const labelWidth = textWidth + paddingX * 2;
+  const labelHeight = 20;
+  const labelX = Math.round(px - labelWidth / 2);
+  const labelY = Math.round(py - 10 - labelHeight);
+
+  ctx.fillStyle = `rgba(26, 21, 16, ${0.8 * opacity})`;
+  drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 4);
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(209, 164, 90, ${0.5 * opacity})`;
+  ctx.lineWidth = 1;
+  drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 4);
+  ctx.stroke();
+
+  ctx.fillStyle = `rgba(209, 164, 90, ${Math.min(1, opacity * 1.2)})`;
+  ctx.fillText(text, px, labelY + labelHeight / 2 + 0.5);
+  ctx.restore();
+};
+
 type AgentRenderOverride = { x: number; y: number; direction?: Direction; isMoving?: boolean };
 
 export class AgentRenderer {
@@ -292,6 +329,7 @@ export class AgentRenderer {
 
       ctx.drawImage(sprite, drawX, drawY, SPRITE_DRAW_WIDTH, SPRITE_DRAW_HEIGHT);
       if (showLabels) drawAgentLabel(ctx, agent, renderX, renderY);
+      drawConferenceLabel(ctx, agent, renderX, renderY);
       ctx.restore();
     });
   }

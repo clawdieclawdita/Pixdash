@@ -97,6 +97,9 @@ export class GatewayClient {
   private deviceToken?: string;
   private pendingConnectRequestId?: string;
   private pendingPresenceRequestId?: string;
+  /** Group exchange tracking: sessionKey → Map<agentId, timestamp> */
+  private readonly groupExchangeWindows = new Map<string, Map<string, number>>();
+  private readonly GROUP_EXCHANGE_WINDOW_MS = 30_000;
 
   constructor(
     private readonly config: BackendConfig,
@@ -502,6 +505,11 @@ export class GatewayClient {
       }
     }
 
+    // Group exchange detection: track agents active in the same session key
+    if (role === 'assistant' && this.agentStateManager.isKnownAgent(agentId)) {
+      this.trackGroupExchange(sessionKey, agentId);
+    }
+
     if (role === 'user') {
       this.agentStateManager.recordActivity(agentId);
       this.agentStateManager.applyLogEvent({
@@ -577,6 +585,104 @@ export class GatewayClient {
         message: `🔧 ${toolName}: ${argsPreview}`,
       },
     });
+
+    // sessions_spawn conference detection
+    if (toolName === 'sessions_spawn') {
+      this.detectSpawnConference(agentId, args);
+    }
+  }
+
+  /**
+   * Detect conferences triggered by sessions_spawn between two known real agents.
+   * Only triggers if both source and target are known agents (not ephemeral subagents).
+   */
+  private detectSpawnConference(sourceAgentId: string, args: unknown): void {
+    if (!this.agentStateManager.isKnownAgent(sourceAgentId)) return;
+
+    // Parse target agentId from spawn args
+    let targetAgentId: string | undefined;
+    if (typeof args === 'string') {
+      try {
+        const parsed = JSON.parse(args) as Record<string, unknown>;
+        targetAgentId = this.pickString(parsed.agentId, parsed.targetAgentId);
+      } catch {
+        // Unparseable args
+      }
+    } else if (args && typeof args === 'object') {
+      const argsRecord = args as Record<string, unknown>;
+      targetAgentId = this.pickString(argsRecord.agentId, argsRecord.targetAgentId);
+    }
+
+    if (!targetAgentId || targetAgentId === sourceAgentId) return;
+    if (!this.agentStateManager.isKnownAgent(targetAgentId)) return;
+
+    // Check if the runtime indicates a subagent session (not a known real agent)
+    if (typeof args === 'object' && args !== null) {
+      const argsRecord = args as Record<string, unknown>;
+      const runtime = this.pickString(argsRecord.runtime);
+      if (runtime === 'subagent' || runtime === 'acp') return;
+    }
+
+    // Filter out ephemeral subagent session keys
+    if (targetAgentId.includes(':subagent:')) return;
+
+    logger.info(
+      { sourceAgentId, targetAgentId, tool: 'sessions_spawn' },
+      'Detected sessions_spawn between known agents — triggering conference',
+    );
+
+    this.agentStateManager.applyConferenceEvent({
+      agentIds: [sourceAgentId, targetAgentId],
+      sessionKey: `spawn:${sourceAgentId}:${targetAgentId}`,
+      source: 'sessions_spawn',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Track agents messaging within the same session key.
+   * When 2+ different known agents are active within a 30s window, trigger conference.
+   */
+  private trackGroupExchange(sessionKey: string, agentId: string): void {
+    const now = Date.now();
+    let window = this.groupExchangeWindows.get(sessionKey);
+
+    if (!window) {
+      window = new Map();
+      this.groupExchangeWindows.set(sessionKey, window);
+    }
+
+    // Purge expired entries
+    for (const [id, ts] of window.entries()) {
+      if (now - ts > this.GROUP_EXCHANGE_WINDOW_MS) {
+        window.delete(id);
+      }
+    }
+
+    window.set(agentId, now);
+
+    // Need 2+ different known agents to trigger conference
+    const activeAgentIds = [...window.keys()];
+    if (activeAgentIds.length < 2) return;
+
+    // Filter to only known agents
+    const validAgentIds = activeAgentIds.filter((id) => this.agentStateManager.isKnownAgent(id));
+    if (validAgentIds.length < 2) return;
+
+    logger.info(
+      { sessionKey, agentIds: validAgentIds },
+      'Group exchange detected — triggering conference',
+    );
+
+    this.agentStateManager.applyConferenceEvent({
+      agentIds: validAgentIds,
+      sessionKey,
+      source: 'group_exchange',
+      timestamp: new Date().toISOString(),
+    });
+
+    // Reset the window after triggering to avoid repeated triggers
+    this.groupExchangeWindows.delete(sessionKey);
   }
 
   private resolveAgentIdFromSessionPayload(payload: Record<string, unknown>): string | undefined {

@@ -10,6 +10,8 @@ type SupportedEvent =
   | 'agent:appearance'
   | 'agent:config'
   | 'agent:conference'
+  | 'agent:conference_start'
+  | 'agent:conference_end'
   | 'agent:position'
   | 'agent:movement';
 

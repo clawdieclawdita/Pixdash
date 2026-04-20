@@ -7,6 +7,7 @@ import { spriteUrls } from './spriteUrls';
 type AgentNodeData = {
   agent: StoreAgent;
   role: string;
+  inConference?: boolean;
   onUpdateDisplayName: (agentId: string, displayName: string) => Promise<boolean>;
   onUpdateRole: (agentId: string, role: string) => Promise<boolean>;
 };
@@ -169,6 +170,7 @@ function InlineEdit({
 export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
   const agent = data.agent;
   const role = data.role;
+  const inConference = data.inConference ?? false;
   const roleColor = roleColors[role] ?? 'text-[#b7aa96]';
   const status = agent.status ?? 'offline';
   const displayName = agent.displayName ?? agent.name ?? agent.id ?? '?';
@@ -193,6 +195,13 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
 
       <div className="pixel-frame group relative flex min-h-[88px] w-[260px] flex-row items-center justify-center rounded-[14px] bg-gradient-to-b from-[#1a1714] to-[#0f0e10] px-4 py-3 transition-all duration-300 hover:brightness-110">
         <div className="pointer-events-none absolute inset-0 rounded-[14px] bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.04)_2px,rgba(0,0,0,0.04)_4px)]" />
+
+        {inConference && (
+          <div className="conference-pulse pixel-inset absolute -right-2 -top-2 z-10 flex items-center gap-1 rounded-[6px] bg-[#1a1510] px-2 py-1">
+            <span className="text-[10px] leading-none text-[#d1a45a]">📞</span>
+            <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-[#d1a45a]">Meeting</span>
+          </div>
+        )}
 
         <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
           <SpriteAvatar bodyType={bodyType} />

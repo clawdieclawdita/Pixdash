@@ -101,12 +101,30 @@ export interface GatewayTaskEvent {
 export interface GatewayConferenceEvent {
   agentIds: string[];
   sessionKey?: string;
-  source?: 'session_send' | 'shared_session';
+  source?: 'session_send' | 'shared_session' | 'sessions_spawn' | 'group_exchange';
   timestamp: string;
 }
 
 export interface AgentStateSubscriber {
   (event: { event: FrontendEventName; payload: FrontendEventPayload }): void;
+}
+
+export interface ActiveMeeting {
+  id: string;
+  agentIds: Set<string>;
+  sessionKey: string;
+  startedAt: number;
+  lastActivityAt: number;
+  source: 'session_send' | 'sessions_spawn' | 'group_exchange';
+}
+
+export interface ActiveMeetingSnapshot {
+  id: string;
+  agentIds: string[];
+  sessionKey: string;
+  startedAt: string;
+  lastActivityAt: string;
+  source: ActiveMeeting['source'];
 }
 
 export interface ClientContext {
@@ -132,6 +150,7 @@ export interface AgentStateManagerLike {
   upsertAppearance(id: string, patch: AppearancePatch): Promise<Appearance>;
   setDisplayName(id: string, name: string | null): Promise<string | null>;
   requestMove(request: MoveAgentRequest): { ok: true; agent: Agent };
+  getActiveMeetings(): ActiveMeetingSnapshot[];
 }
 
 export interface PixDashServices {

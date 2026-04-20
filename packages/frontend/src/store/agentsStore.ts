@@ -172,19 +172,33 @@ function normalizeAgent(agent: Agent, fallbackIndex: number): StoreAgent {
   };
 }
 
+export interface MeetingInfo {
+  id: string;
+  agentIds: string[];
+  sessionKey: string;
+  startedAt: number;
+  source: string;
+}
+
 interface AgentsState {
   agents: StoreAgent[];
   selectedAgentId: string | null;
+  activeMeetings: MeetingInfo[];
   setAgents: (agents: Agent[]) => void;
   updateAgent: (agent: Partial<StoreAgent> & Pick<StoreAgent, 'id'>) => void;
   selectAgent: (agentId: string | null) => void;
   clearSelection: () => void;
   setDisplayName: (agentId: string, name: string | null) => Promise<void>;
+  setActiveMeetings: (meetings: MeetingInfo[]) => void;
+  addMeeting: (meeting: MeetingInfo) => void;
+  removeMeeting: (meetingId: string) => void;
+  isAgentInMeeting: (agentId: string) => boolean;
 }
 
-export const useAgentsStore = create<AgentsState>((set) => ({
+export const useAgentsStore = create<AgentsState>((set, get) => ({
   agents: [],
   selectedAgentId: null,
+  activeMeetings: [],
   setAgents: (agents) =>
     set((state) => ({
       agents: agents.map((agent, index) => {
@@ -273,6 +287,17 @@ export const useAgentsStore = create<AgentsState>((set) => ({
       ),
     }));
   },
+  setActiveMeetings: (meetings) => set({ activeMeetings: meetings }),
+  addMeeting: (meeting) => set((state) => {
+    if (state.activeMeetings.some((m) => m.id === meeting.id)) return state;
+    return { activeMeetings: [...state.activeMeetings, meeting] };
+  }),
+  removeMeeting: (meetingId) => set((state) => ({
+    activeMeetings: state.activeMeetings.filter((m) => m.id !== meetingId),
+  })),
+  isAgentInMeeting: (agentId) => {
+    return get().activeMeetings.some((m) => m.agentIds.includes(agentId));
+  },
 }));
 
 export const agentsStore = {
@@ -282,4 +307,8 @@ export const agentsStore = {
   updateAgent: useAgentsStore.getState().updateAgent,
   selectAgent: useAgentsStore.getState().selectAgent,
   clearSelection: useAgentsStore.getState().clearSelection,
+  setActiveMeetings: useAgentsStore.getState().setActiveMeetings,
+  addMeeting: useAgentsStore.getState().addMeeting,
+  removeMeeting: useAgentsStore.getState().removeMeeting,
+  isAgentInMeeting: useAgentsStore.getState().isAgentInMeeting,
 };

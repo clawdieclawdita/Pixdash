@@ -3,7 +3,7 @@ import type { AgentMovementEventPayload, MoveAgentRequest } from './movement.js'
 import type { Tilemap } from './tilemap.js';
 
 export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task';
-export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference' | 'agent:movement';
+export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference' | 'agent:conference_start' | 'agent:conference_end' | 'agent:movement';
 
 export interface AgentStatusEventPayload {
   agentId: string;
@@ -40,8 +40,20 @@ export interface AgentConfigEventPayload {
 export interface AgentConferenceEventPayload {
   agentIds: string[];
   sessionKey?: string;
-  source?: 'session_send' | 'shared_session';
+  source?: 'session_send' | 'shared_session' | 'sessions_spawn' | 'group_exchange';
   timestamp: string;
+}
+
+export interface AgentConferenceStartEventPayload {
+  meetingId: string;
+  agentIds: string[];
+  sessionKey: string;
+  source: 'session_send' | 'sessions_spawn' | 'group_exchange';
+}
+
+export interface AgentConferenceEndEventPayload {
+  meetingId: string;
+  agentIds: string[];
 }
 
 export type FrontendEventPayload =
@@ -52,6 +64,8 @@ export type FrontendEventPayload =
   | AgentPositionEventPayload
   | AgentConfigEventPayload
   | AgentConferenceEventPayload
+  | AgentConferenceStartEventPayload
+  | AgentConferenceEndEventPayload
   | AgentMovementEventPayload;
 
 export interface WsConnectedMessage {

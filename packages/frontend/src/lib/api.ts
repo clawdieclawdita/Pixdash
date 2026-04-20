@@ -122,6 +122,34 @@ export function updateDisplayName(id: string, displayName: string | null): Promi
   });
 }
 
+export interface MeetingInfo {
+  id: string;
+  agentIds: string[];
+  sessionKey: string;
+  startedAt: number;
+  source: string;
+}
+
 export function getOfficeLayout(): Promise<OfficeLayout> {
   return request<OfficeLayout>('/office/layout');
+}
+
+export async function getMeetings(): Promise<MeetingInfo[]> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${API_BASE_URL}/meetings`, {
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      });
+      if (res.status === 404) return [];
+      if (!res.ok) return [];
+      return res.json() as Promise<MeetingInfo[]>;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  } catch {
+    return [];
+  }
 }

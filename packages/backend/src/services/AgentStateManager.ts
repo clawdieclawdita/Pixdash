@@ -4,7 +4,7 @@ import { DEFAULT_APPEARANCE } from '@pixdash/shared';
 import type { BackendWaypoint } from '../data/waypoints.js';
 import { cloneBackendWaypoints } from '../data/waypoints.js';
 import { createNoGoTiles } from '../data/noGoTiles.js';
-import type { ConfigAgentSnapshot, GatewayConferenceEvent, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent } from '../types/index.js';
+import type { ActiveMeeting, ActiveMeetingSnapshot, ConfigAgentSnapshot, GatewayConferenceEvent, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent } from '../types/index.js';
 import { AppearanceStore } from './AppearanceStore.js';
 import { MovementEngine } from './MovementEngine.js';
 
@@ -49,6 +49,8 @@ const IDLE_THRESHOLD_MS = 300_000;
 const WORKING_GRACE_MS = 10_000;
 const STATUS_REEVALUATION_INTERVAL_MS = 30_000;
 const MOVEMENT_TICK_INTERVAL_MS = 50;
+const MEETING_INACTIVITY_THRESHOLD_MS = 60_000;
+const MEETING_CHECK_INTERVAL_MS = 15_000;
 const TILE_SIZE_PX = 32;
 const TILE_CENTER_OFFSET_PX = TILE_SIZE_PX / 2;
 
@@ -105,6 +107,8 @@ export class AgentStateManager {
   private readonly gridWidth: number;
   private readonly gridHeight: number;
   private readonly movementEngine: MovementEngine;
+  private readonly activeMeetings = new Map<string, ActiveMeeting>();
+  private readonly meetingCheckInterval: NodeJS.Timeout;
 
   constructor(private readonly appearanceStore: AppearanceStore, officeLayout: Tilemap) {
     this.waypoints = cloneBackendWaypoints();
@@ -131,6 +135,11 @@ export class AgentStateManager {
       this.broadcastSettledStates();
     }, 5_000);
     this.settledBroadcastInterval.unref?.();
+
+    this.meetingCheckInterval = setInterval(() => {
+      this.checkMeetingInactivity();
+    }, MEETING_CHECK_INTERVAL_MS);
+    this.meetingCheckInterval.unref?.();
   }
 
   /** Remove an agent and all associated state. Safe to call multiple times. */
@@ -155,6 +164,7 @@ export class AgentStateManager {
     clearInterval(this.movementInterval);
     clearInterval(this.statusInterval);
     clearInterval(this.settledBroadcastInterval);
+    clearInterval(this.meetingCheckInterval);
     for (const timer of this.activityDecayTimers.values()) {
       clearTimeout(timer);
     }
@@ -311,13 +321,35 @@ export class AgentStateManager {
       return;
     }
 
+    const sessionKey = event.sessionKey ?? 'unknown';
+    const source = event.source === 'sessions_spawn' || event.source === 'group_exchange'
+      ? event.source
+      : 'session_send';
+
+    // Create or update meeting
+    const meeting = this.createOrUpdateMeeting(validAgentIds, sessionKey, source);
+
+    // Route agents to conference seats
     this.movementEngine.handleConference(validAgentIds);
+
+    // Broadcast legacy conference event for backward compat
     this.broadcast('agent:conference', {
       agentIds: validAgentIds,
-      sessionKey: event.sessionKey,
-      source: event.source,
+      sessionKey,
+      source,
       timestamp: event.timestamp ?? new Date().toISOString(),
     });
+
+    // Broadcast meeting start if this is a new meeting
+    if (meeting) {
+      logger.info({ meetingId: meeting.id, agentIds: validAgentIds, sessionKey, source }, 'Conference meeting started');
+      this.broadcast('agent:conference_start', {
+        meetingId: meeting.id,
+        agentIds: [...meeting.agentIds],
+        sessionKey: meeting.sessionKey,
+        source: meeting.source,
+      });
+    }
   }
 
   recordActivity(id: string, timestamp = Date.now()): void {
@@ -371,12 +403,37 @@ export class AgentStateManager {
     return { ok: true, agent: structuredClone(agent) };
   }
 
+  getActiveMeetings(): ActiveMeetingSnapshot[] {
+    const snapshots: ActiveMeetingSnapshot[] = [];
+    for (const meeting of this.activeMeetings.values()) {
+      snapshots.push({
+        id: meeting.id,
+        agentIds: [...meeting.agentIds],
+        sessionKey: meeting.sessionKey,
+        startedAt: new Date(meeting.startedAt).toISOString(),
+        lastActivityAt: new Date(meeting.lastActivityAt).toISOString(),
+        source: meeting.source,
+      });
+    }
+    // Sort by most recently active first
+    snapshots.sort((a, b) => {
+      const timeA = new Date(a.lastActivityAt).getTime();
+      const timeB = new Date(b.lastActivityAt).getTime();
+      return timeB - timeA;
+    });
+    return snapshots;
+  }
+
   getMutableAgents(): StatefulAgent[] {
     return [...this.agents.values()];
   }
 
   getMutableAgent(id: string): StatefulAgent | undefined {
     return this.agents.get(id);
+  }
+
+  isKnownAgent(id: string): boolean {
+    return this.agents.has(id);
   }
 
   findWaypointById(waypointId: string | null | undefined): BackendWaypoint | null {
@@ -472,6 +529,105 @@ export class AgentStateManager {
       return deltaY >= 0 ? 'south' : 'north';
     }
     return from.direction ?? 'south';
+  }
+
+  /**
+   * Create or update a meeting for the given agents and session key.
+   * Returns the meeting if it was newly created, or undefined if merged into existing.
+   */
+  private createOrUpdateMeeting(
+    agentIds: string[],
+    sessionKey: string,
+    source: ActiveMeeting['source'],
+  ): ActiveMeeting | undefined {
+    const now = Date.now();
+
+    // Check if any existing meeting covers this sessionKey
+    for (const existing of this.activeMeetings.values()) {
+      if (existing.sessionKey === sessionKey) {
+        // Merge new agents into existing meeting
+        let changed = false;
+        for (const id of agentIds) {
+          if (!existing.agentIds.has(id)) {
+            existing.agentIds.add(id);
+            changed = true;
+          }
+        }
+        existing.lastActivityAt = now;
+        // If new agents joined, re-route them to conference
+        if (changed) {
+          this.movementEngine.handleConference([...existing.agentIds]);
+        }
+        return undefined; // Not a new meeting
+      }
+    }
+
+    // Create a new meeting
+    const meetingId = `meeting_${now}_${Math.random().toString(36).slice(2, 8)}`;
+    const meeting: ActiveMeeting = {
+      id: meetingId,
+      agentIds: new Set(agentIds),
+      sessionKey,
+      startedAt: now,
+      lastActivityAt: now,
+      source,
+    };
+    this.activeMeetings.set(meetingId, meeting);
+    return meeting;
+  }
+
+  private dismissMeeting(meetingId: string): void {
+    const meeting = this.activeMeetings.get(meetingId);
+    if (!meeting) return;
+
+    const agentIds = [...meeting.agentIds];
+    this.activeMeetings.delete(meetingId);
+
+    logger.info({ meetingId, agentIds }, 'Conference meeting dismissed (inactivity)');
+
+    // Release agents from conference status and restore normal behavior
+    for (const agentId of agentIds) {
+      const agent = this.agents.get(agentId);
+      if (!agent) continue;
+
+      // Release conference waypoint claim
+      if (agent.movement?.claimedWaypointId) {
+        const waypoint = this.findWaypointById(agent.movement.claimedWaypointId);
+        if (waypoint?.type === 'conference') {
+          this.releaseWaypointClaim(agent.movement.claimedWaypointId, agentId);
+        }
+      }
+
+      // Determine what status to route back to
+      const presence = this.presence.get(agentId);
+      const restoreStatus = (presence && typeof presence.lastActivityAt === 'number'
+        && (Date.now() - presence.lastActivityAt) < WORKING_GRACE_MS)
+        ? 'working'
+        : 'idle';
+
+      agent.status = restoreStatus;
+      this.movementEngine.handleStatusChange(agentId, restoreStatus, 'conference');
+      this.broadcast('agent:status', {
+        agentId,
+        status: restoreStatus,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    this.broadcast('agent:conference_end', {
+      meetingId,
+      agentIds,
+    });
+  }
+
+  private checkMeetingInactivity(): void {
+    const now = Date.now();
+    for (const [meetingId, meeting] of this.activeMeetings.entries()) {
+      const inactivityMs = now - meeting.lastActivityAt;
+      if (inactivityMs >= MEETING_INACTIVITY_THRESHOLD_MS) {
+        this.dismissMeeting(meetingId);
+      }
+    }
   }
 
   private ensureAgent(id: string, name?: string): StatefulAgent {

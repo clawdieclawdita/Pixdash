@@ -15,6 +15,7 @@ import agentRoutes from './routes/agents.js';
 import healthRoutes from './routes/health.js';
 import officeRoutes from './routes/office.js';
 import configRoutes from './routes/config.js';
+import meetingsRoutes from './routes/meetings.js';
 import { PixDashWebSocketServer } from './websocket/server.js';
 import { createLogger } from './utils/logger.js';
 import type { PixDashFastifyInstance } from './types/index.js';
@@ -57,6 +58,7 @@ async function buildServer(): Promise<PixDashFastifyInstance> {
   await app.register(agentRoutes);
   await app.register(officeRoutes);
   await app.register(configRoutes);
+  await app.register(meetingsRoutes);
 
   // Serve frontend static files in production
   const frontendDist = path.join(__dirname, '../../frontend/dist');

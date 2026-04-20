@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getAgents,
+  getMeetings,
   type Agent,
   type AgentLog,
   type AgentTask,
-  type Position
+  type Position,
 } from '@/lib/api';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { normalizeIncomingPosition, useAgentsStore } from '@/store/agentsStore';
@@ -66,6 +67,8 @@ type EventPayloadMap = {
   'agent.log': { agentId: string; level: AgentLog['level']; message: string; timestamp: string };
   'agent.task': { agentId: string; taskId: string; description: string; status: string; timestamp: string };
   'agent:conference': { agentIds: string[]; sessionKey?: string; source?: string; timestamp: string };
+  'agent:conference_start': { meetingId: string; agentIds: string[]; sessionKey: string; source: string; startedAt: number };
+  'agent:conference_end': { meetingId: string; agentIds: string[] };
   'agent:position': { agentId: string; position: Position; direction?: Position['direction'] };
   'agent:appearance': { agentId: string; appearance: Agent['appearance'] };
   'agent:movement': AgentMovementEventPayload;
@@ -170,6 +173,14 @@ export function useAgents() {
       // Local placement should only run for agents still using fallback movement.
       // Backend-authoritative agents are skipped inside placeAgentsOnLoad.
       movementStore.placeAgentsOnLoad(syncedAgents);
+
+      // Fetch active meetings on initial load/reconnect (404-safe)
+      void getMeetings().then((meetings) => {
+        if (meetings.length > 0) {
+          useAgentsStore.getState().setActiveMeetings(meetings);
+        }
+      });
+
       setError(null);
       hasLoadedRef.current = true;
 
@@ -475,6 +486,24 @@ export function useAgents() {
       case 'agent:conference': {
         const payload = lastEvent.payload as EventPayloadMap['agent:conference'];
         void handleConference(payload.agentIds);
+        break;
+      }
+      case 'agent:conference_start': {
+        const payload = lastEvent.payload as EventPayloadMap['agent:conference_start'];
+        const { addMeeting } = useAgentsStore.getState();
+        addMeeting({
+          id: payload.meetingId,
+          agentIds: payload.agentIds,
+          sessionKey: payload.sessionKey,
+          startedAt: payload.startedAt,
+          source: payload.source,
+        });
+        break;
+      }
+      case 'agent:conference_end': {
+        const payload = lastEvent.payload as EventPayloadMap['agent:conference_end'];
+        const { removeMeeting } = useAgentsStore.getState();
+        removeMeeting(payload.meetingId);
         break;
       }
       default:

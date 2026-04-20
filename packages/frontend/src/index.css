@@ -153,3 +153,12 @@ textarea {
     box-shadow: 0 0 0 2px rgba(209, 164, 90, 0.22), inset 1px 1px 0 rgba(255, 230, 183, 0.08), inset -1px -1px 0 rgba(0, 0, 0, 0.72);
   }
 }
+
+@keyframes conference-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.conference-pulse {
+  animation: conference-pulse 2s ease-in-out infinite;
+}
