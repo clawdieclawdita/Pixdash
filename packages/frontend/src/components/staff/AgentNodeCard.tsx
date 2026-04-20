@@ -145,7 +145,7 @@ function InlineEdit({
         )}
       >
         {value || <span className="italic opacity-40">click to edit</span>}
-        <span className="pointer-events-none absolute -right-3 top-0 hidden text-[9px] text-[#d1a45a]/60 group-hover/edit:inline">✏</span>
+        <span className="pointer-events-none absolute right-0 top-0 hidden text-[10px] text-[#d1a45a]/80 group-hover/edit:inline">✏</span>
       </span>
     );
   }
@@ -207,11 +207,11 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
   );
 
   return (
-    <div className="relative h-[88px] w-[260px]">
+    <div className="relative w-[260px]">
       <Handle type="target" position={Position.Top} style={hiddenHandleStyle} />
       <Handle type="source" position={Position.Bottom} style={hiddenHandleStyle} />
 
-      <div className="pixel-frame group relative flex h-[88px] w-[260px] flex-row items-center justify-center rounded-[14px] bg-gradient-to-b from-[#1a1714] to-[#0f0e10] px-4 py-3 transition-all duration-300 hover:brightness-110">
+      <div className="pixel-frame group relative flex min-h-[88px] w-[260px] flex-row items-center justify-center rounded-[14px] bg-gradient-to-b from-[#1a1714] to-[#0f0e10] px-4 py-3 transition-all duration-300 hover:brightness-110">
         <div className="pointer-events-none absolute inset-0 rounded-[14px] bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.04)_2px,rgba(0,0,0,0.04)_4px)]" />
 
         <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
@@ -236,20 +236,20 @@ export function AgentNodeCard({ data }: NodeProps<AgentFlowNode>) {
           <span className={cn('mt-[4px] text-[11px] uppercase tracking-[0.16em]', config.labelClass)}>
             {config.label}
           </span>
-        </div>
 
-        {/* Parent dropdown — visible on hover */}
-        <div className="pointer-events-none absolute -bottom-6 right-2 hidden w-auto group-hover:pointer-events-auto group-hover:block">
-          <select
-            value={currentParent ?? ''}
-            onChange={handleParentChange}
-            className="pixel-frame h-5 rounded border border-[#d1a45a]/30 bg-[#0f0e10] px-1 text-[9px] text-[#9c907f] outline-none"
-          >
-            <option value="">None (Root)</option>
-            {parentOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+          <div className="mt-1">
+            <label className="text-[8px] uppercase tracking-wider text-[#9c907f]/50">Reports to</label>
+            <select
+              value={currentParent ?? ''}
+              onChange={handleParentChange}
+              className="block w-full mt-0.5 rounded border border-[#d1a45a]/20 bg-[#0f0e10] px-1 py-0 text-[9px] text-[#b7aa96] outline-none"
+            >
+              <option value="">None (Root)</option>
+              {parentOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
     </div>

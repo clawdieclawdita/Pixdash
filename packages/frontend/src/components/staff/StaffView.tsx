@@ -17,7 +17,7 @@ import { useConfigStore } from '@/store/configStore';
 import { AgentNodeCard } from './AgentNodeCard';
 
 const CARD_WIDTH = 260;
-const CARD_HEIGHT = 88;
+const CARD_HEIGHT = 110;
 
 const defaultEdgeOptions = {
   type: 'smoothstep',

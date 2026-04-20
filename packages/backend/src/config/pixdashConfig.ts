@@ -73,9 +73,29 @@ const DEFAULT_SPAWN_POSITIONS: SpawnPosition[] = [
 ];
 
 const DEFAULT_CONFIG: PixdashConfigSchema = {
-  displayNames: {},
-  roles: {},
-  hierarchy: [],
+  displayNames: {
+    main: 'Clawdie',
+    devo: 'Devo',
+    cornelio: 'Cornelio',
+    docclaw: 'DocClaw',
+    infralover: 'InfraLover',
+    forbidden: 'Forbidden',
+  },
+  roles: {
+    main: 'CEO',
+    devo: 'CDO',
+    cornelio: 'CISO',
+    infralover: 'IM',
+    docclaw: 'DM',
+    forbidden: 'Analyst',
+  },
+  hierarchy: [
+    { parent: 'main', child: 'devo' },
+    { parent: 'main', child: 'cornelio' },
+    { parent: 'devo', child: 'infralover' },
+    { parent: 'devo', child: 'docclaw' },
+    { parent: 'infralover', child: 'forbidden' },
+  ],
   reservedWaypoints: {},
   spawnPositions: [...DEFAULT_SPAWN_POSITIONS],
 };
