@@ -1,0 +1,3132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixDash Documentation — v1.0-alpha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+<style>
+/* ===== RESET & BASE ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:15px}
+body{
+  font-family:'Space Mono',monospace;
+  background:#0a0a0f;
+  color:#c8c8d0;
+  line-height:1.7;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ===== CRT OVERLAY ===== */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);
+}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:#111118}
+::-webkit-scrollbar-thumb{background:#d1a45a44;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#d1a45a88}
+
+/* ===== HEADER ===== */
+.doc-header{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  background:linear-gradient(180deg,#0a0a0f 0%,#0a0a0fee 85%,transparent 100%);
+  padding:18px 24px 30px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid #d1a45a22;
+}
+.doc-header-left{display:flex;align-items:center;gap:16px}
+.doc-logo{
+  font-family:'Press Start 2P',monospace;font-size:14px;color:#f0d6a5;
+  text-shadow:0 0 20px #d1a45a55,2px 2px 0 #000;
+  letter-spacing:1px;
+}
+.doc-version{
+  font-family:'Press Start 2P',monospace;font-size:8px;
+  background:#d1a45a22;color:#d1a45a;padding:4px 10px;
+  border:1px solid #d1a45a44;border-radius:3px;
+  letter-spacing:0.5px;
+}
+.doc-header-right a{
+  font-size:12px;color:#00e5ff;text-decoration:none;
+  font-family:'Space Mono',monospace;
+  border:1px solid #00e5ff33;padding:6px 14px;border-radius:3px;
+  transition:all .2s;
+}
+.doc-header-right a:hover{background:#00e5ff11;border-color:#00e5ff66}
+
+/* ===== SIDEBAR ===== */
+.sidebar{
+  position:fixed;top:72px;left:0;bottom:0;width:280px;z-index:50;
+  background:#0e0e16;
+  border-right:1px solid #1a1a2a;
+  overflow-y:auto;padding:20px 0;
+  transition:transform .3s ease;
+}
+.sidebar-toggle{
+  display:none;position:fixed;top:80px;left:12px;z-index:60;
+  background:#d1a45a;color:#0a0a0f;border:none;
+  width:36px;height:36px;border-radius:4px;cursor:pointer;
+  font-size:18px;font-weight:700;
+}
+.sidebar-overlay{
+  display:none;position:fixed;inset:0;z-index:45;background:rgba(0,0,0,.6);
+}
+.sidebar-section{margin-bottom:8px}
+.sidebar-section-title{
+  font-family:'Press Start 2P',monospace;font-size:8px;
+  color:#d1a45a;padding:8px 24px 6px;letter-spacing:0.5px;
+  text-transform:uppercase;cursor:pointer;
+  display:flex;align-items:center;gap:8px;
+  user-select:none;
+}
+.sidebar-section-title .arrow{
+  display:inline-block;transition:transform .2s;font-size:10px;
+}
+.sidebar-section-title.collapsed .arrow{transform:rotate(-90deg)}
+.sidebar-links{list-style:none;padding:0 0 4px}
+.sidebar-links.collapsed{display:none}
+.sidebar-links li a{
+  display:block;padding:5px 24px 5px 40px;
+  color:#888899;font-size:12px;text-decoration:none;
+  border-left:2px solid transparent;
+  transition:all .15s;
+}
+.sidebar-links li a:hover{color:#c8c8d0;background:#ffffff06;border-left-color:#d1a45a55}
+.sidebar-links li a.active{color:#f0d6a5;border-left-color:#d1a45a;background:#d1a45a0c}
+
+/* ===== MAIN ===== */
+.main{
+  margin-left:280px;padding:100px 48px 80px 48px;max-width:960px;
+}
+
+/* ===== SECTION DIVIDER ===== */
+.doc-section{margin-bottom:60px}
+.doc-section-divider{
+  display:flex;align-items:center;gap:16px;
+  margin:48px 0 32px;padding-top:24px;
+  border-top:1px solid #1a1a2a;
+}
+.doc-section-divider .dot{width:8px;height:8px;background:#d1a45a;border-radius:50%}
+.doc-section-divider h2{
+  font-family:'Press Start 2P',monospace;font-size:16px;
+  color:#f0d6a5;white-space:nowrap;
+  text-shadow:0 0 20px #d1a45a33;
+}
+
+/* ===== TOC ===== */
+.toc{
+  background:#111118;border:1px solid #1a1a2a;border-radius:8px;
+  padding:24px 32px;margin-bottom:48px;
+}
+.toc h3{
+  font-family:'Press Start 2P',monospace;font-size:10px;
+  color:#d1a45a;margin-bottom:16px;letter-spacing:0.5px;
+}
+.toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 32px}
+.toc-grid a{
+  color:#888899;font-size:12px;text-decoration:none;
+  padding:3px 0;display:block;transition:color .15s;
+}
+.toc-grid a:hover{color:#00e5ff}
+
+/* ===== TYPOGRAPHY ===== */
+h1{
+  font-family:'Press Start 2P',monospace;font-size:18px;
+  color:#f0d6a5;margin:40px 0 20px;
+  text-shadow:0 0 20px #d1a45a33;line-height:1.6;
+}
+h2{
+  font-family:'Press Start 2P',monospace;font-size:13px;
+  color:#f0d6a5;margin:48px 0 16px;
+  text-shadow:0 0 15px #d1a45a22;line-height:1.8;
+}
+h3{
+  font-family:'Press Start 2P',monospace;font-size:10px;
+  color:#d1a45a;margin:32px 0 12px;letter-spacing:0.5px;line-height:1.8;
+}
+h4{
+  font-family:'Space Mono',monospace;font-size:14px;font-weight:700;
+  color:#c8c8d0;margin:24px 0 8px;
+}
+p{margin:0 0 14px;color:#c8c8d0}
+a{color:#00e5ff;text-decoration:none;transition:color .15s}
+a:hover{color:#4df0ff}
+
+strong{color:#f0d6a5;font-weight:700}
+em{color:#b0b0c0;font-style:italic}
+code:not(pre code){
+  background:#1a1a2a;color:#00e5ff;
+  padding:2px 7px;border-radius:3px;font-size:13px;
+  border:1px solid #252538;
+}
+ul,ol{padding-left:24px;margin:0 0 14px}
+li{margin-bottom:6px}
+li::marker{color:#d1a45a88}
+blockquote{
+  border-left:3px solid #d1a45a;
+  background:#111118;padding:14px 20px;margin:16px 0;
+  border-radius:0 6px 6px 0;color:#a0a0b0;
+}
+blockquote p{margin:0}
+
+/* ===== CODE BLOCKS ===== */
+.code-wrapper{
+  position:relative;margin:16px 0;border-radius:6px;
+  border:1px solid #1a1a2a;overflow:hidden;
+}
+.code-wrapper pre{
+  margin:0!important;padding:20px!important;
+  background:#111118!important;border-radius:0!important;
+}
+.code-wrapper pre code{
+  font-family:'Space Mono',monospace!important;
+  font-size:13px!important;line-height:1.6!important;
+  background:transparent!important;border:none!important;
+}
+.code-lang{
+  position:absolute;top:8px;right:52px;
+  font-family:'Press Start 2P',monospace;font-size:7px;
+  color:#555;text-transform:uppercase;letter-spacing:0.5px;
+  pointer-events:none;
+}
+.copy-btn{
+  position:absolute;top:8px;right:8px;
+  background:#1a1a2a;color:#888;border:1px solid #252538;
+  padding:4px 10px;border-radius:3px;cursor:pointer;
+  font-size:11px;font-family:'Space Mono',monospace;
+  transition:all .2s;
+}
+.copy-btn:hover{background:#252538;color:#f0d6a5;border-color:#d1a45a55}
+.copy-btn.copied{color:#00e5ff;border-color:#00e5ff55}
+
+/* ===== TABLES ===== */
+.table-wrapper{overflow-x:auto;margin:16px 0;border-radius:6px;border:1px solid #1a1a2a}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:#151520}
+th{
+  font-family:'Press Start 2P',monospace;font-size:8px;
+  color:#d1a45a;padding:12px 16px;text-align:left;
+  letter-spacing:0.5px;text-transform:uppercase;
+  border-bottom:2px solid #d1a45a33;white-space:nowrap;
+}
+td{
+  padding:10px 16px;border-bottom:1px solid #1a1a2a;
+  color:#c8c8d0;vertical-align:top;
+}
+tr:nth-child(even) td{background:#0d0d14}
+tr:hover td{background:#d1a45a08}
+td code{font-size:12px}
+
+/* ===== DIAGRAM / PRE BLOCKS (non-code) ===== */
+.diagram-block{
+  background:#111118;border:1px solid #1a1a2a;
+  border-radius:6px;padding:20px;margin:16px 0;
+  overflow-x:auto;font-size:12px;line-height:1.5;
+  color:#888899;
+}
+.diagram-block code{background:transparent;border:none;color:inherit;padding:0;font-size:inherit}
+
+/* ===== BADGE / TAG ===== */
+.tag{
+  display:inline-block;font-family:'Press Start 2P',monospace;
+  font-size:7px;padding:3px 8px;border-radius:3px;
+  letter-spacing:0.3px;
+}
+.tag-required{background:#ff444422;color:#ff6666;border:1px solid #ff444444}
+.tag-optional{background:#00e5ff11;color:#00e5ff;border:1px solid #00e5ff33}
+
+/* ===== BACK TO TOP ===== */
+.back-to-top{
+  position:fixed;bottom:24px;right:24px;z-index:80;
+  background:#d1a45a;color:#0a0a0f;border:none;
+  width:40px;height:40px;border-radius:4px;cursor:pointer;
+  font-size:16px;font-weight:700;
+  opacity:0;transform:translateY(10px);
+  transition:all .3s;box-shadow:0 4px 20px #d1a45a44;
+}
+.back-to-top.visible{opacity:1;transform:translateY(0)}
+.back-to-top:hover{background:#f0d6a5;box-shadow:0 4px 30px #d1a45a66}
+
+/* ===== PRINT ===== */
+@media print{
+  .sidebar,.sidebar-toggle,.sidebar-overlay,.back-to-top,.copy-btn,.code-lang,.doc-header{display:none!important}
+  .main{margin:0;padding:20px;max-width:100%}
+  body{background:#fff;color:#000;font-size:11px}
+  body::after{display:none}
+  h1,h2,h3{color:#111;text-shadow:none}
+  .code-wrapper{border:1px solid #ccc;page-break-inside:avoid}
+  .code-wrapper pre{background:#f5f5f5!important;color:#333!important}
+  .table-wrapper{border:1px solid #ccc}
+  table{border:1px solid #ccc}
+  th{background:#eee;color:#333}
+  td{border-color:#ddd;color:#333}
+  a{color:#005;text-decoration:underline}
+  blockquote{border-left-color:#999;background:#f9f9f9}
+}
+
+/* ===== MOBILE ===== */
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-toggle{display:flex;align-items:center;justify-content:center}
+  .sidebar-overlay.open{display:block}
+  .main{margin-left:0;padding:100px 20px 60px}
+  .toc-grid{grid-template-columns:1fr}
+  h1{font-size:14px}
+  h2{font-size:11px}
+  .doc-header{padding:14px 16px 26px}
+  .doc-logo{font-size:11px}
+  .doc-section-divider h2{font-size:13px}
+}
+@media(max-width:600px){
+  .doc-header-left{gap:10px}
+  .doc-logo{font-size:9px}
+  .doc-version{font-size:7px;padding:3px 7px}
+  html{font-size:14px}
+}
+
+/* ===== HLJS OVERRIDES ===== */
+.hljs{background:transparent!important}
+.hljs-keyword{color:#c678dd}
+.hljs-string{color:#98c379}
+.hljs-number{color:#d19a66}
+.hljs-comment{color:#5c6370;font-style:italic}
+.hljs-title,.hljs-function{color:#61afef}
+.hljs-params{color:#abb2bf}
+.hljs-built_in{color:#e6c07b}
+.hljs-attr{color:#d19a66}
+.hljs-type{color:#e5c07b}
+.hljs-literal{color:#d19a66}
+.hljs-meta{color:#c678dd}
+.hljs-variable{color:#e06c75}
+.hljs-tag{color:#e06c75}
+.hljs-name{color:#e06c75}
+.hljs-symbol{color:#56b6c2}
+.hljs-selector-class{color:#d19a66}
+.hljs-selector-tag{color:#e06c75}
+.hljs-selector-id{color:#61afef}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="doc-header">
+  <div class="doc-header-left">
+    <span class="doc-logo">🎮 PixDash</span>
+    <span class="doc-version">v1.0-alpha</span>
+  </div>
+  <div class="doc-header-right">
+    <a href="https://github.com/clawdieclawdita/Pixdash" target="_blank" rel="noopener">⭐ GitHub</a>
+  </div>
+</header>
+
+<!-- SIDEBAR TOGGLE (mobile) -->
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle navigation">☰</button>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+  <!-- Installation -->
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" data-section="sec-install">
+      <span class="arrow">▼</span> Installation
+    </div>
+    <ul class="sidebar-links" data-parent="sec-install">
+      <li><a href="#prerequisites">Prerequisites</a></li>
+      <li><a href="#installation-methods">Installation Methods</a></li>
+      <li><a href="#environment-variables">Environment Variables</a></li>
+      <li><a href="#configuration-files">Configuration Files</a></li>
+      <li><a href="#first-run-setup">First-Run Setup</a></li>
+      <li><a href="#troubleshooting-install">Troubleshooting</a></li>
+      <li><a href="#upgrading">Upgrading</a></li>
+    </ul>
+  </div>
+
+  <!-- Administrator -->
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" data-section="sec-admin">
+      <span class="arrow">▼</span> Administrator
+    </div>
+    <ul class="sidebar-links" data-parent="sec-admin">
+      <li><a href="#architecture-overview">Architecture Overview</a></li>
+      <li><a href="#data-flow">Data Flow</a></li>
+      <li><a href="#agent-configuration">Agent Configuration</a></li>
+      <li><a href="#deployment-options">Deployment Options</a></li>
+      <li><a href="#security">Security</a></li>
+      <li><a href="#maintenance">Maintenance</a></li>
+      <li><a href="#api-reference">API Reference</a></li>
+    </ul>
+  </div>
+
+  <!-- Gateway Integration -->
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" data-section="sec-gateway">
+      <span class="arrow">▼</span> Gateway Integration
+    </div>
+    <ul class="sidebar-links" data-parent="sec-gateway">
+      <li><a href="#gateway-overview">Overview</a></li>
+      <li><a href="#authentication-protocol">Authentication Protocol</a></li>
+      <li><a href="#event-reference">Event Reference</a></li>
+      <li><a href="#session-subscription">Session Subscription</a></li>
+      <li><a href="#reconnection-logic">Reconnection Logic</a></li>
+      <li><a href="#reproduction-guide">Reproduction Guide</a></li>
+      <li><a href="#gateway-troubleshooting">Troubleshooting</a></li>
+    </ul>
+  </div>
+
+  <!-- Developer -->
+  <div class="sidebar-section">
+    <div class="sidebar-section-title" data-section="sec-dev">
+      <span class="arrow">▼</span> Developer Guide
+    </div>
+    <ul class="sidebar-links" data-parent="sec-dev">
+      <li><a href="#project-structure-dev">Project Structure</a></li>
+      <li><a href="#codebase-architecture">Codebase Architecture</a></li>
+      <li><a href="#state-management-dev">State Management</a></li>
+      <li><a href="#adding-new-features">Adding New Features</a></li>
+      <li><a href="#api-endpoints-dev">API Endpoints</a></li>
+      <li><a href="#websocket-events-dev">WebSocket Events</a></li>
+      <li><a href="#contributing-guidelines">Contributing</a></li>
+      <li><a href="#development-workflow">Development Workflow</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc" id="table-of-contents">
+  <h3>📋 Table of Contents</h3>
+  <div class="toc-grid">
+    <a href="#sec-install">📦 Installation Guide</a>
+    <a href="#prerequisites">— Prerequisites</a>
+    <a href="#installation-methods">— Installation Methods</a>
+    <a href="#environment-variables">— Environment Variables</a>
+    <a href="#configuration-files">— Configuration Files</a>
+    <a href="#first-run-setup">— First-Run Setup</a>
+    <a href="#troubleshooting-install">— Troubleshooting</a>
+    <a href="#upgrading">— Upgrading</a>
+    <a href="#sec-admin">🔧 Administrator Guide</a>
+    <a href="#architecture-overview">— Architecture Overview</a>
+    <a href="#data-flow">— Data Flow</a>
+    <a href="#agent-configuration">— Agent Configuration</a>
+    <a href="#deployment-options">— Deployment Options</a>
+    <a href="#security">— Security</a>
+    <a href="#maintenance">— Maintenance</a>
+    <a href="#api-reference">— API Reference</a>
+    <a href="#sec-gateway">🔌 Gateway Integration</a>
+    <a href="#gateway-overview">— Overview</a>
+    <a href="#authentication-protocol">— Auth Protocol</a>
+    <a href="#event-reference">— Event Reference</a>
+    <a href="#session-subscription">— Session Subscription</a>
+    <a href="#reconnection-logic">— Reconnection Logic</a>
+    <a href="#reproduction-guide">— Reproduction Guide</a>
+    <a href="#gateway-troubleshooting">— Troubleshooting</a>
+    <a href="#sec-dev">👨‍💻 Developer Guide</a>
+    <a href="#project-structure-dev">— Project Structure</a>
+    <a href="#codebase-architecture">— Codebase Architecture</a>
+    <a href="#state-management-dev">— State Management</a>
+    <a href="#adding-new-features">— Adding Features</a>
+    <a href="#api-endpoints-dev">— API Endpoints</a>
+    <a href="#websocket-events-dev">— WebSocket Events</a>
+    <a href="#contributing-guidelines">— Contributing</a>
+    <a href="#development-workflow">— Dev Workflow</a>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 1: INSTALLATION GUIDE                                -->
+<!-- ============================================================ -->
+<div class="doc-section" id="sec-install">
+  <div class="doc-section-divider">
+    <span class="dot"></span>
+    <h2>📦 Installation Guide</h2>
+  </div>
+
+  <h2 id="prerequisites">1. Prerequisites</h2>
+
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Requirement</th><th>Version</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Node.js</strong></td><td>20+</td><td>Alpine image uses <code>node:20-alpine</code></td></tr>
+        <tr><td><strong>pnpm</strong></td><td>10.17.1</td><td>Pinned in <code>packageManager</code> field</td></tr>
+        <tr><td><strong>OpenClaw Gateway</strong></td><td>Running</td><td>Must expose WebSocket on port 18789</td></tr>
+        <tr><td><strong>libvips</strong></td><td>System package</td><td>Required by <code>sharp</code> for sprite processing; auto-installed in Docker via <code>vips</code> / <code>vips-dev</code></td></tr>
+        <tr><td><strong>OS</strong></td><td>Linux, macOS, or WSL2</td><td>Docker Compose uses <code>network_mode: host</code> (not supported on Docker Desktop for Mac/Windows without workarounds)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Verify prerequisites</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">node --version    # v20.x+
+pnpm --version    # 10.17.1
+# Verify Gateway is reachable
+curl -s http://127.0.0.1:18789/health 2>/dev/null &amp;&amp; echo "Gateway OK" || echo "Gateway not responding"</code></pre>
+  </div>
+
+  <blockquote>
+    <p><strong>Docker Desktop note:</strong> <code>network_mode: host</code> works natively on Linux. On macOS/Windows Docker Desktop, you must use the host's LAN IP in <code>PIXDASH_GATEWAY_URL</code> and bind to <code>0.0.0.0</code>, since the container shares the host network namespace on Linux but not on Docker Desktop.</p>
+  </blockquote>
+
+  <h2 id="installation-methods">2. Installation Methods</h2>
+
+  <h3>Method A: Git Clone (Recommended for Development)</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">git clone https://github.com/clawdieclawdita/Pixdash.git
+cd Pixdash
+pnpm install
+cp .env.example .env
+# Edit .env — at minimum set PIXDASH_GATEWAY_URL
+pnpm build</code></pre>
+  </div>
+
+  <p>After building, start with development hot-reload:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">pnpm dev</code></pre>
+  </div>
+
+  <p>Or start the production backend with the script:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">./start.sh</code></pre>
+  </div>
+
+  <h3>Method B: Docker Compose (Recommended for Production)</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">git clone https://github.com/clawdieclawdita/Pixdash.git
+cd Pixdash
+cp .env.example .env
+# Edit .env — gateway URL MUST use host LAN IP (e.g., ws://192.168.1.200:18789)
+docker compose up -d --build</code></pre>
+  </div>
+
+  <p>The Docker setup uses <code>network_mode: host</code>, so the container shares the host network stack. Port defaults to <code>5555</code> in Docker (vs <code>3000</code> for local dev).</p>
+
+  <h3>Method C: Script-Based (start.sh / stop.sh)</h3>
+
+  <h4>start.sh</h4>
+  <p>Builds all packages, then launches the backend as a background process:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">./start.sh</code></pre>
+  </div>
+
+  <p>Behavior:</p>
+  <ul>
+    <li>Loads <code>.env</code> if present</li>
+    <li>Runs <code>./stop.sh</code> first to kill any existing instance</li>
+    <li>Builds all packages (<code>pnpm -r build</code>)</li>
+    <li>Starts <code>packages/backend/dist/server.js</code> in the background</li>
+    <li>If <code>PIXDASH_DEV_MODE=true</code>, runs with <code>--watch --enable-source-maps</code></li>
+    <li>Defaults: <code>PIXDASH_HOST=192.168.1.200</code>, <code>PIXDASH_PORT=3000</code></li>
+    <li>PID file: <code>~/.openclaw/pixdash/pixdash.pid</code></li>
+    <li>Log file: <code>~/.openclaw/pixdash/pixdash.log</code></li>
+  </ul>
+
+  <h4>stop.sh</h4>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">./stop.sh</code></pre>
+  </div>
+
+  <p>Behavior:</p>
+  <ul>
+    <li>Reads PID from <code>~/.openclaw/pixdash/pixdash.pid</code> and sends <code>SIGTERM</code></li>
+    <li>Falls back to <code>pkill</code> matching <code>pixdash/packages/backend/dist/server.js</code> if PID file is stale</li>
+    <li>Removes the PID file</li>
+  </ul>
+
+  <h2 id="environment-variables">3. Environment Variables</h2>
+
+  <p>All variables are defined in <code>.env.example</code>. Copy it to <code>.env</code> and adjust.</p>
+
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th><th>Required</th><th>Docker Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>PIXDASH_HOST</code></td><td><code>0.0.0.0</code></td><td>Backend bind address</td><td><span class="tag tag-optional">Optional</span></td><td>Set to <code>0.0.0.0</code> in compose</td></tr>
+        <tr><td><code>PIXDASH_PORT</code></td><td><code>3000</code></td><td>Backend HTTP/WS port</td><td><span class="tag tag-optional">Optional</span></td><td>Defaults to <code>5555</code> in Docker Compose</td></tr>
+        <tr><td><code>PIXDASH_GATEWAY_URL</code></td><td><code>ws://127.0.0.1:18789</code></td><td>OpenClaw Gateway WebSocket URL</td><td><span class="tag tag-required">Required</span></td><td>Must use host LAN IP for Docker (e.g., <code>ws://192.168.1.200:18789</code>)</td></tr>
+        <tr><td><code>PIXDASH_DEBUG</code></td><td><code>false</code></td><td>Enable verbose frontend logging (<code>true</code>/<code>false</code>)</td><td><span class="tag tag-optional">Optional</span></td><td>—</td></tr>
+        <tr><td><code>PIXDASH_OFFICE_LAYOUT_PATH</code></td><td>Auto-detected</td><td>Path to <code>office-layout.json</code></td><td><span class="tag tag-optional">Optional</span></td><td>Docker sets to <code>/app/assets/office-layout.json</code></td></tr>
+        <tr><td><code>PIXDASH_OPENCLAW_CONFIG</code></td><td>Auto-detected (<code>$HOME/.openclaw/openclaw.json</code>)</td><td>Path to OpenClaw config (Gateway token)</td><td><span class="tag tag-optional">Optional</span></td><td>Docker sets to <code>/root/.openclaw/openclaw.json</code></td></tr>
+        <tr><td><code>PIXDASH_APPEARANCES_PATH</code></td><td>Auto-detected (<code>$HOME/.openclaw/pixdash/appearances.json</code>)</td><td>Path to appearances JSON</td><td><span class="tag tag-optional">Optional</span></td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Optional: Dev Mode</h3>
+  <p>Set <code>PIXDASH_DEV_MODE=true</code> in <code>.env</code> before running <code>./start.sh</code> to enable <code>--watch</code> and source maps.</p>
+
+  <h2 id="configuration-files">4. Configuration Files</h2>
+
+  <h3>pixdash.json</h3>
+  <p>Controls agent display names, roles, organizational hierarchy, reserved waypoints, and spawn positions.</p>
+
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "displayNames": {
+    "main": "Clawdie",
+    "devo": "Devo",
+    "cornelio": "Cornelio",
+    "docclaw": "DocClaw",
+    "infralover": "InfraLover",
+    "forbidden": "Forbidden"
+  },
+  "roles": {
+    "main": "CEO",
+    "devo": "CDO",
+    "cornelio": "CISO",
+    "infralover": "IM",
+    "docclaw": "DM",
+    "forbidden": "Analyst"
+  },
+  "hierarchy": [
+    { "parent": "main", "child": "devo" },
+    { "parent": "main", "child": "cornelio" },
+    { "parent": "devo", "child": "infralover" },
+    { "parent": "devo", "child": "docclaw" },
+    { "parent": "infralover", "child": "forbidden" }
+  ],
+  "reservedWaypoints": {
+    "main": "reception-front"
+  },
+  "spawnPositions": [
+    { "x": 3, "y": 22 },
+    { "x": 6, "y": 22 }
+  ]
+}</code></pre>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>displayNames</code></td><td><code>Record&lt;string, string&gt;</code></td><td>Maps agent keys (from Gateway) to human-readable names shown in the UI</td></tr>
+        <tr><td><code>roles</code></td><td><code>Record&lt;string, string&gt;</code></td><td>Maps agent keys to job titles displayed in tooltips/overlays</td></tr>
+        <tr><td><code>hierarchy</code></td><td><code>Array&lt;{parent, child}&gt;</code></td><td>Defines org-chart parent-child relationships between agents</td></tr>
+        <tr><td><code>reservedWaypoints</code></td><td><code>Record&lt;string, string&gt;</code></td><td>Assigns named waypoints to specific agents (e.g., a reserved desk)</td></tr>
+        <tr><td><code>spawnPositions</code></td><td><code>Array&lt;{x, y}&gt;</code></td><td>Tile-grid coordinates where agents initially appear</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>.env</h3>
+  <p>Runtime configuration (see <a href="#environment-variables">Environment Variables</a>).</p>
+
+  <h2 id="first-run-setup">5. First-Run Setup</h2>
+
+  <h3>Step 1 — Clone and Install</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">git clone https://github.com/clawdieclawdita/Pixdash.git
+cd Pixdash
+pnpm install</code></pre>
+  </div>
+
+  <h3>Step 2 — Configure Environment</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">cp .env.example .env</code></pre>
+  </div>
+
+  <p>Edit <code>.env</code> and set <code>PIXDASH_GATEWAY_URL</code> to your Gateway's WebSocket address:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash"># Local dev (Gateway on same machine)
+PIXDASH_GATEWAY_URL=ws://127.0.0.1:18789
+
+# Docker or remote Gateway — use the host's LAN IP
+PIXDASH_GATEWAY_URL=ws://192.168.1.200:18789</code></pre>
+  </div>
+
+  <h3>Step 3 — Configure Agent Roster</h3>
+  <p>Edit <code>pixdash.json</code> to match your OpenClaw agent keys. The keys under <code>displayNames</code>, <code>roles</code>, and <code>reservedWaypoints</code> must match the agent identifiers used by your Gateway.</p>
+
+  <h3>Step 4 — Build and Start</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">pnpm build
+./start.sh
+# or for Docker:
+# docker compose up -d --build</code></pre>
+  </div>
+
+  <h3>Step 5 — Verify Health</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash"># Local dev (default port 3000)
+curl http://localhost:3000/api/v1/health
+
+# Docker (default port 5555)
+curl http://localhost:5555/api/v1/health</code></pre>
+  </div>
+
+  <p>You should get a <code>200 OK</code> response.</p>
+
+  <h3>Step 6 — Open Browser</h3>
+  <p>Navigate to the configured host and port:</p>
+  <ul>
+    <li><strong>Dev mode:</strong> <code>http://localhost:5173</code> (Vite dev server)</li>
+    <li><strong>Production / start.sh:</strong> <code>http://192.168.1.200:3000</code></li>
+    <li><strong>Docker:</strong> <code>http://192.168.1.200:5555</code></li>
+  </ul>
+
+  <h3>Step 7 — What You Should See</h3>
+  <p>A pixel-art isometric office with agent sprites. If the Gateway connection is live and agents are registered, you'll see agents walking around, heading to desks, and navigating the office in real time.</p>
+
+  <h2 id="troubleshooting-install">6. Troubleshooting</h2>
+
+  <h3>Gateway Connection Refused</h3>
+  <p><strong>Symptom:</strong> Backend logs show <code>ECONNREFUSED</code> when connecting to <code>PIXDASH_GATEWAY_URL</code>.</p>
+  <p><strong>Fix:</strong></p>
+  <ol>
+    <li>Verify the Gateway is running: <code>openclaw gateway status</code></li>
+    <li>Confirm the URL and port match: <code>curl http://127.0.0.1:18789/health</code></li>
+    <li>For Docker, ensure <code>PIXDASH_GATEWAY_URL</code> uses the host LAN IP (not <code>localhost</code> or <code>127.0.0.1</code>), unless using <code>network_mode: host</code> on Linux</li>
+  </ol>
+
+  <h3>AUTH_TOKEN_MISMATCH</h3>
+  <p><strong>Symptom:</strong> Backend connects to Gateway but authentication fails.</p>
+  <p><strong>Fix:</strong> The backend reads the Gateway token from <code>openclaw.json</code>. Ensure the mounted config file (or <code>PIXDASH_OPENCLAW_CONFIG</code> path) points to a valid config with the correct token.</p>
+
+  <h3>Port Already in Use (EADDRINUSE)</h3>
+  <p><strong>Symptom:</strong> <code>Error: listen EADDRINUSE: address already in use :::3000</code></p>
+  <p><strong>Fix:</strong></p>
+  <ol>
+    <li>Stop existing PixDash: <code>./stop.sh</code></li>
+    <li>Check what's using the port: <code>ss -ltnp | grep :3000</code></li>
+    <li>Change <code>PIXDASH_PORT</code> in <code>.env</code> if the port is claimed by another service</li>
+  </ol>
+
+  <h3>Agents Not Appearing</h3>
+  <p><strong>Symptom:</strong> Office renders but no agent sprites are visible.</p>
+  <p><strong>Fix:</strong></p>
+  <ol>
+    <li>Check <code>/api/v1/agents</code> response: <code>curl http://localhost:3000/api/v1/agents</code></li>
+    <li>Verify agent keys in <code>pixdash.json</code> match the Gateway's registered agent IDs</li>
+    <li>Confirm the Gateway is actually streaming agent state</li>
+  </ol>
+
+  <h3>Empty /api/v1/agents Response</h3>
+  <p><strong>Symptom:</strong> The endpoint returns <code>[]</code> or an empty object.</p>
+  <p><strong>Fix:</strong></p>
+  <ul>
+    <li>Ensure the Gateway has active agents. PixDash mirrors what the Gateway reports.</li>
+    <li>Check that the WebSocket connection to the Gateway is established in the backend logs.</li>
+  </ul>
+
+  <h3>Docker Networking Issues</h3>
+  <p><strong>Symptom:</strong> Container starts but can't reach the Gateway.</p>
+  <p><strong>Fix:</strong></p>
+  <ul>
+    <li><code>network_mode: host</code> is used, so on Linux the container shares the host network. Verify the Gateway is bound to <code>0.0.0.0</code> or <code>127.0.0.1</code>.</li>
+    <li>On Docker Desktop (Mac/Windows), <code>network_mode: host</code> doesn't work the same way. Use the host machine's LAN IP and ensure the Gateway is accessible from that interface.</li>
+  </ul>
+
+  <h3>sharp / libvips Build Failures</h3>
+  <p><strong>Symptom:</strong> <code>sharp</code> installation fails with native compilation errors.</p>
+  <p><strong>Fix:</strong></p>
+  <ol>
+    <li>Ensure <code>pnpm install</code> runs on the correct Node version (20+)</li>
+    <li>On Linux, install libvips: <code>sudo apt install libvips-dev</code> (Debian/Ubuntu) or <code>sudo apk add vips-dev build-base</code> (Alpine)</li>
+    <li>The Dockerfile handles this automatically with <code>apk add vips-dev build-base</code></li>
+  </ol>
+
+  <h3>Config File Not Found</h3>
+  <p><strong>Symptom:</strong> Backend logs show a missing <code>pixdash.json</code> or <code>office-layout.json</code>.</p>
+  <p><strong>Fix:</strong></p>
+  <ul>
+    <li><code>pixdash.json</code> must be in the project root. It's copied automatically in Docker via the Dockerfile.</li>
+    <li><code>office-layout.json</code> is auto-detected from <code>./assets/</code> in local dev, or mounted via the <code>./assets</code> volume in Docker.</li>
+    <li>If auto-detection fails, set <code>PIXDASH_OFFICE_LAYOUT_PATH</code> explicitly.</li>
+  </ul>
+
+  <h2 id="upgrading">7. Upgrading</h2>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">cd Pixdash
+git pull origin main
+pnpm install          # Pick up new dependencies
+pnpm build            # Rebuild all packages
+./stop.sh             # Stop the running instance
+./start.sh            # Restart with the new build</code></pre>
+  </div>
+
+  <h3>Docker Upgrade</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">cd Pixdash
+git pull origin main
+docker compose up -d --build    # Rebuilds the image and restarts</code></pre>
+  </div>
+
+  <p>Docker Compose will detect changed files, rebuild the image, and replace the running container. The <code>assets/</code> volume and <code>.env</code> file persist across upgrades.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 2: ADMINISTRATOR GUIDE                               -->
+<!-- ============================================================ -->
+<div class="doc-section" id="sec-admin">
+  <div class="doc-section-divider">
+    <span class="dot"></span>
+    <h2>🔧 Administrator Guide</h2>
+  </div>
+
+  <h2 id="architecture-overview">1. Architecture Overview</h2>
+
+  <h3>System Diagram</h3>
+  <div class="diagram-block"><pre><code>┌──────────────┐         ┌──────────────────┐         ┌──────────────────┐         ┌──────────┐
+│   Browser    │◄──WS───►│  PixDash Backend  │◄──WS───►│  OpenClaw Gateway │◄──WS───►│  Agents  │
+│  (Canvas UI) │◄──REST─►│  (Fastify + WS)   │         │   (Auth + PubSub) │         │(OpenClaw)│
+└──────────────┘         └──────────────────┘         └──────────────────┘         └──────────┘
+                                │    ▲
+                                │    │
+                         ┌──────┘    └──────┐
+                         ▼                    ▼
+                   ┌──────────┐       ┌──────────────┐
+                   │ pixdash  │       │ appearances  │
+                   │  .json   │       │   .json      │
+                   └──────────┘       └──────────────┘</code></pre></div>
+
+  <h3>Monorepo Structure</h3>
+  <div class="diagram-block"><pre><code>pixdash/
+├── packages/
+│   ├── shared/          # TypeScript types, constants, JSON schemas
+│   ├── backend/         # Fastify HTTP/WebSocket server
+│   │   └── src/
+│   │       ├── server.ts              # Entry point, wiring
+│   │       ├── config/                # Config loading (env vars + JSONC)
+│   │       ├── routes/                # REST API (agents, health, office, config)
+│   │       ├── services/              # Core business logic
+│   │       │   ├── GatewayClient.ts   # WebSocket client to OpenClaw Gateway
+│   │       │   ├── AgentStateManager.ts # Agent lifecycle + status
+│   │       │   ├── MovementEngine.ts  # Movement routing + wander
+│   │       │   ├── PathfindingService.ts # A* pathfinding
+│   │       │   ├── AppearanceStore.ts # Persisted agent appearances
+│   │       │   ├── ConfigWatcher.ts   # Live-reload from openclaw.json
+│   │       │   └── CollisionGridLoader.ts # Walkability grid from blocked.png
+│   │       ├── data/                  # Waypoints + no-go tile definitions
+│   │       ├── websocket/             # WS server + request handlers
+│   │       └── schemas/               # JSON schemas for validation
+│   └── frontend/        # Vite + React app (Canvas rendering)
+├── assets/
+│   ├── office-layout.json             # Tilemap data
+│   ├── collision-grid.json            # Pre-computed walkability grid
+│   ├── blocked.png                    # Source for collision grid
+│   └── palettes/                      # Color palettes (hair, skin, outfits)
+├── pixdash.json                       # Agent configuration
+├── docker-compose.yml
+├── Dockerfile
+├── start.sh / stop.sh
+└── .env                               # Environment variables</code></pre></div>
+
+  <h3>What Runs Where</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Component</th><th>Location</th><th>Technology</th></tr></thead>
+      <tbody>
+        <tr><td>Canvas rendering</td><td>Browser (client)</td><td>HTML5 Canvas, React</td></tr>
+        <tr><td>Movement / pathfinding</td><td>Backend (server)</td><td>A* algorithm, 50ms tick loop</td></tr>
+        <tr><td>Agent state tracking</td><td>Backend (server)</td><td>Node.js EventEmitter</td></tr>
+        <tr><td>Auth to Gateway</td><td>Backend (server)</td><td>Ed25519 device keys</td></tr>
+        <tr><td>Frontend assets</td><td>Backend serves in production</td><td><code>@fastify/static</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Tech Stack</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Layer</th><th>Technology</th><th>Version</th></tr></thead>
+      <tbody>
+        <tr><td>Runtime</td><td>Node.js</td><td>20 (Alpine)</td></tr>
+        <tr><td>Package manager</td><td>pnpm</td><td>10.17.1</td></tr>
+        <tr><td>HTTP server</td><td>Fastify</td><td>(see package.json)</td></tr>
+        <tr><td>WebSocket</td><td><code>@fastify/websocket</code> + <code>ws</code></td><td>—</td></tr>
+        <tr><td>Frontend build</td><td>Vite</td><td>(see frontend package.json)</td></tr>
+        <tr><td>UI framework</td><td>React</td><td>—</td></tr>
+        <tr><td>Image processing</td><td>sharp</td><td>—</td></tr>
+        <tr><td>Config watcher</td><td>chokidar</td><td>—</td></tr>
+        <tr><td>CORS</td><td><code>@fastify/cors</code></td><td>—</td></tr>
+        <tr><td>Protocol</td><td>Gateway Protocol v3</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="data-flow">2. Data Flow</h2>
+
+  <h3>Agent Data: Gateway → Backend → Browser → Canvas</h3>
+  <ol>
+    <li><strong>OpenClaw Gateway</strong> emits events (<code>agent.status</code>, <code>agent.log</code>, <code>agent.task</code>, <code>health</code>, <code>session.message</code>, <code>session.tool</code>) via WebSocket.</li>
+    <li><strong>GatewayClient</strong> receives events and dispatches to <strong>AgentStateManager</strong>:
+      <ul>
+        <li>Status events → <code>applyStatusEvent()</code> → status derivation + broadcast</li>
+        <li>Log events → <code>applyLogEvent()</code> → log buffer (max 100) + broadcast</li>
+        <li>Task events → <code>applyTaskEvent()</code> → task buffer (max 200) + broadcast</li>
+        <li>Session messages → <code>recordActivity()</code> + <code>applyLogEvent()</code> for assistant/user messages</li>
+      </ul>
+    </li>
+    <li><strong>AgentStateManager</strong> broadcasts changes via EventEmitter.</li>
+    <li><strong>PixDashWebSocketServer</strong> fans out events to all connected browser WebSocket clients.</li>
+    <li><strong>Frontend</strong> receives events, updates Zustand stores, and the Canvas re-renders.</li>
+  </ol>
+
+  <h3>Status Lifecycle</h3>
+  <div class="diagram-block"><pre><code>                    ┌─────────────────────────────────────────┐
+                    │           Activity Detected             │
+                    │   (session.message, session.tool, etc.) │
+                    └─────────────┬───────────────────────────┘
+                                  ▼
+                             ┌─────────┐
+               ┌────────────►│ working │◄─── grace period: 10s
+               │             └────┬────┘
+               │                  │ (no activity for 10s)
+               │                  ▼
+               │             ┌─────────┐
+               │             │ online  │◄─── last session age &lt; 5 min
+               │             └────┬────┘
+               │                  │ (no activity for 5 min)
+               │                  ▼
+    ┌──────────┴──┐        ┌─────────┐
+    │   offline   │        │  idle   │───── wanders to random waypoints
+    └─────────────┘        └─────────┘
+        ▲                       ▲
+        │                       │
+   Gateway says              Gateway says
+   "offline"                 "idle" / no data</code></pre></div>
+
+  <p>Status derivation rules in <code>AgentStateManager.deriveStatus()</code>:</p>
+  <ul>
+    <li><strong>working</strong>: activity detected within last 10s</li>
+    <li><strong>online</strong>: activity detected within last 5 min (but > 10s ago)</li>
+    <li><strong>idle</strong>: activity last seen > 5 min ago, or baseline from Gateway</li>
+    <li><strong>offline</strong>: explicit offline event from Gateway</li>
+    <li><strong>busy</strong>: passed through from Gateway (no automatic transition)</li>
+  </ul>
+  <p>Agents offline for > 24 hours are automatically removed from memory.</p>
+
+  <h3>Movement Data Flow</h3>
+  <div class="diagram-block"><pre><code>Status change (working/online)
+        │
+        ▼
+MovementEngine.handleStatusChange()
+        │
+        ├─ Find reserved waypoint → routeAgentToWaypoint()
+        └─ Find nearest desk → routeToCategory('desk')
+                │
+                ▼
+        PathfindingService.findPath()   ← A* on walkability grid
+                │
+                ▼
+        MovementEngine.movementTick()   ← Every 50ms
+        (advance along path at 5 tiles/sec)
+                │
+                ▼
+        AgentStateManager.emitMovement()
+                │
+                ▼
+        PixDashWebSocketServer.broadcast()
+                │
+                ▼
+        Frontend receives agent:movement event
+                │
+                ▼
+        Lerp interpolation on Canvas   ← smooth visual movement
+                │
+                ▼
+        On arrival → mark "seated" or "idle"
+                   → schedule next wander (idle: 60–90s random delay)</code></pre></div>
+
+  <p>Movement features:</p>
+  <ul>
+    <li><strong>Waypoint claiming</strong>: each waypoint can only be claimed by one agent</li>
+    <li><strong>Occupied tile avoidance</strong>: agents reroute around stationary agents</li>
+    <li><strong>Blocked timeout</strong>: cancels movement after 5s if no detour found</li>
+    <li><strong>Stale path recovery</strong>: auto-recovers from stuck-in-moving state</li>
+    <li><strong>Position validation</strong>: snaps agents to nearest walkable tile if corrupted</li>
+  </ul>
+
+  <h3>Appearance Customization Flow</h3>
+  <div class="diagram-block"><pre><code>PATCH /api/v1/agents/:id/appearance   or   WS { method: "updateAppearance" }
+        │
+        ▼
+AgentStateManager.upsertAppearance()
+        │
+        ▼
+AppearanceStore.merge()   ← validates against JSON schema
+        │
+        ▼
+Persisted to appearances.json
+        │
+        ▼
+Broadcast agent:appearance event
+        │
+        ▼
+Frontend updates agent appearance in Canvas</code></pre></div>
+
+  <h2 id="agent-configuration">3. Agent Configuration (<code>pixdash.json</code>)</h2>
+
+  <h3>Full Schema</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">jsonc</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  // Map of agent ID → display name shown in the UI
+  "displayNames": {
+    "&lt;agentId&gt;": "Human Name"
+  },
+
+  // Map of agent ID → role label for org chart
+  "roles": {
+    "&lt;agentId&gt;": "Role Title"
+  },
+
+  // Org hierarchy: array of parent → child edges
+  "hierarchy": [
+    { "parent": "&lt;agentId&gt;", "child": "&lt;agentId&gt;" }
+  ],
+
+  // Map of agent ID → reserved waypoint ID (assigned on spawn)
+  "reservedWaypoints": {
+    "&lt;agentId&gt;": "&lt;waypointId&gt;"
+  },
+
+  // Agent spawn positions on the tile grid [x, y]
+  "spawnPositions": [
+    { "x": 3, "y": 22 }
+  ]
+}</code></pre>
+  </div>
+
+  <h3>Default Values</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Field</th><th>Default</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>displayNames</code></td><td><code>{}</code></td><td>Agents use Gateway-provided name</td></tr>
+        <tr><td><code>roles</code></td><td><code>{}</code></td><td>Agents default to <code>"Agent"</code></td></tr>
+        <tr><td><code>hierarchy</code></td><td><code>[]</code></td><td>No hierarchy shown</td></tr>
+        <tr><td><code>reservedWaypoints</code></td><td><code>{}</code></td><td>No reserved seats</td></tr>
+        <tr><td><code>spawnPositions</code></td><td>16 predefined positions</td><td>See <code>pixdashConfig.ts</code> for full list</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Available Waypoint IDs</h3>
+  <ul>
+    <li><strong>Desks</strong>: <code>desk-a1</code> through <code>desk-g4</code> (28 desk waypoints total)</li>
+    <li><strong>Reception</strong>: <code>reception-front</code>, <code>reception-1</code> through <code>reception-7</code></li>
+    <li><strong>Restrooms</strong>: <code>rest-1</code> through <code>rest-8</code></li>
+    <li><strong>Conference</strong>: <code>conf-head-n</code>, <code>conf-head-s</code>, <code>conf-left-1</code> through <code>conf-left-5</code>, <code>conf-right-1</code> through <code>conf-right-5</code></li>
+    <li><strong>Dining</strong>: <code>dining-center</code></li>
+  </ul>
+
+  <h3>How to Add a New Agent</h3>
+  <ol>
+    <li>Add the agent to OpenClaw's <code>openclaw.json</code> under <code>agents.list</code>.</li>
+    <li>Edit <code>pixdash.json</code> to add the new agent's entries:</li>
+  </ol>
+  <div class="code-wrapper">
+    <span class="code-lang">jsonc</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "displayNames": {
+    // ... existing entries ...
+    "newagent": "New Agent"
+  },
+  "roles": {
+    // ... existing entries ...
+    "newagent": "Developer"
+  },
+  "hierarchy": [
+    // ... existing edges ...
+    { "parent": "devo", "child": "newagent" }
+  ],
+  "reservedWaypoints": {
+    // Optional: assign a specific desk
+    "newagent": "desk-a3"
+  }
+}</code></pre>
+  </div>
+  <ol start="3">
+    <li>The <strong>ConfigWatcher</strong> auto-reloads when <code>openclaw.json</code> changes — no restart needed for agent discovery.</li>
+    <li><code>pixdash.json</code> changes require a restart (or config reload).</li>
+  </ol>
+
+  <h3>How to Modify an Existing Agent</h3>
+  <ul>
+    <li><strong>Display name</strong>: Update <code>displayNames.&lt;agentId&gt;</code> in <code>pixdash.json</code>, restart.</li>
+    <li><strong>Role</strong>: Update <code>roles.&lt;agentId&gt;</code> in <code>pixdash.json</code>, restart.</li>
+    <li><strong>Body type</strong>: Via API <code>PATCH /api/v1/agents/:id/appearance</code> with <code>{ "bodyType": "jim" }</code>.
+      Available body types: <code>male</code>, <code>female</code>, <code>neutral</code>, <code>michael</code>, <code>angela</code>, <code>phillis</code>, <code>creed</code>, <code>ryan</code>, <code>pam</code>, <code>kelly</code>, <code>kate</code>, <code>pites</code>, <code>jim</code>, <code>clawdie</code>.</li>
+    <li><strong>Reserved waypoint</strong>: Update <code>reservedWaypoints.&lt;agentId&gt;</code> in <code>pixdash.json</code>, restart.</li>
+  </ul>
+
+  <h3>How to Change the Org Hierarchy</h3>
+  <p>Edit the <code>hierarchy</code> array. Each edge is <code>{ "parent": "&lt;id&gt;", "child": "&lt;id&gt;" }</code>. The tree is rendered from these edges — ensure no cycles.</p>
+
+  <h3>How to Configure Spawn Positions</h3>
+  <p>Add or modify entries in <code>spawnPositions</code>. Each entry is <code>{ "x": &lt;tileX&gt;, "y": &lt;tileY&gt; }</code>. Positions must be on walkable tiles.</p>
+
+  <h2 id="deployment-options">4. Deployment Options</h2>
+
+  <h3>Local Development</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">cd pixdash
+pnpm install
+pnpm dev          # Starts Vite dev server for frontend only</code></pre>
+  </div>
+
+  <p>For full backend + frontend:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">pnpm build        # Build all packages
+cd packages/backend
+node dist/server.js</code></pre>
+  </div>
+
+  <h3>Production via start.sh / stop.sh</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash"># Start (builds all packages, runs backend, creates PID file)
+./start.sh
+
+# Stop (kills PID, falls back to process matching)
+./stop.sh</code></pre>
+  </div>
+
+  <p><strong>Environment variables</strong> (set in <code>.env</code> or environment):</p>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>PIXDASH_HOST</code></td><td><code>192.168.1.200</code></td><td>Bind address</td></tr>
+        <tr><td><code>PIXDASH_PORT</code></td><td><code>3000</code></td><td>HTTP port</td></tr>
+        <tr><td><code>PIXDASH_DEV_MODE</code></td><td><code>false</code></td><td>Set <code>true</code> to enable <code>--watch</code> + source maps</td></tr>
+        <tr><td><code>PIXDASH_LOG_LEVEL</code></td><td><code>info</code></td><td>Log level: <code>fatal</code>, <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code>, <code>silent</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><strong>PID file</strong>: <code>~/.openclaw/pixdash/pixdash.pid</code><br>
+  <strong>Log file</strong>: <code>~/.openclaw/pixdash/pixdash.log</code></p>
+
+  <h3>Docker Compose Deployment</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">docker compose up -d</code></pre>
+  </div>
+
+  <p>The <code>docker-compose.yml</code> uses <code>network_mode: host</code> so the container shares the host's network stack (Gateway at <code>127.0.0.1:18789</code> is directly reachable).</p>
+
+  <p><strong>Volume mounts</strong>:</p>
+  <ul>
+    <li><code>./assets</code> → <code>/app/assets:ro</code> — office layout + collision grid</li>
+    <li><code>./.env</code> → <code>/app/.env:ro</code> — environment variables</li>
+    <li><code>~/.openclaw/openclaw.json</code> → Gateway auth token</li>
+    <li><code>~/.openclaw/pixdash</code> → Device keys + appearances persistence</li>
+  </ul>
+
+  <p><strong>Docker-specific environment</strong>:</p>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>PIXDASH_PORT</code></td><td><code>5555</code></td><td>HTTP port inside container</td></tr>
+        <tr><td><code>PIXDASH_GATEWAY_URL</code></td><td><code>ws://127.0.0.1:18789</code></td><td>Gateway WebSocket URL</td></tr>
+        <tr><td><code>PIXDASH_OPENCLAW_CONFIG</code></td><td><code>/root/.openclaw/openclaw.json</code></td><td>Path to OpenClaw config</td></tr>
+        <tr><td><code>PIXDASH_OFFICE_LAYOUT_PATH</code></td><td><code>/app/assets/office-layout.json</code></td><td>Path to office layout</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Port Configuration</h3>
+  <p>Default ports: <strong>3000</strong> (bare metal), <strong>5555</strong> (Docker). Configurable via <code>PIXDASH_PORT</code>.</p>
+  <p>The backend serves:</p>
+  <ul>
+    <li>REST API at <code>/api/v1/*</code></li>
+    <li>WebSocket at <code>/ws</code></li>
+    <li>Frontend static files at <code>/</code> (in production, when <code>packages/frontend/dist</code> exists)</li>
+  </ul>
+
+  <h3>Process Management</h3>
+  <p><code>start.sh</code> writes a PID to <code>~/.openclaw/pixdash/pixdash.pid</code>. <code>stop.sh</code> reads the PID and sends <code>SIGTERM</code>, with a fallback to <code>pkill -f "pixdash/packages/backend/dist/server.js"</code>.</p>
+
+  <h2 id="security">5. Security</h2>
+
+  <h3>Gateway Authentication</h3>
+  <p>PixDash authenticates to the OpenClaw Gateway using <strong>Ed25519 device keys</strong>:</p>
+  <ol>
+    <li>On first run, a key pair is generated and stored at <code>~/.openclaw/pixdash/device-key.json</code> (permissions <code>0600</code>).</li>
+    <li>The <code>deviceId</code> is derived as <code>SHA256(raw_Ed25519_public_key).hex</code>.</li>
+    <li>On connection, the Gateway sends a <code>connect.challenge</code> with a nonce.</li>
+    <li>PixDash signs <code>[v2, deviceId, gateway-client, backend, operator, scopes, timestamp, gatewayToken, nonce]</code> with the private key.</li>
+    <li>The Gateway validates the signature, issues a <code>deviceToken</code>, and grants <code>operator.read</code> + <code>operator.admin</code> scopes.</li>
+  </ol>
+
+  <h3>Gateway Token Resolution</h3>
+  <p>Token is resolved in order:</p>
+  <ol>
+    <li><code>OPENCLAW_GATEWAY_TOKEN</code> env var</li>
+    <li><code>PIXDASH_GATEWAY_TOKEN</code> env var</li>
+    <li><code>config.gatewayToken</code> (from <code>loadConfig()</code>)</li>
+    <li><code>gateway.auth.token</code> from <code>~/.openclaw/openclaw.json</code></li>
+  </ol>
+
+  <h3>Sensitive Field Stripping</h3>
+  <p>All API responses strip these fields from agent objects:</p>
+  <ul>
+    <li><code>soul</code> — agent SOUL.md content</li>
+    <li><code>identity</code> — agent identity metadata</li>
+    <li><code>config.workspace</code>, <code>config.agentDir</code>, <code>config.source</code>, <code>config.model</code></li>
+  </ul>
+
+  <h3>WebSocket Error Sanitization</h3>
+  <p>WebSocket error responses return generic <code>"Internal error"</code> messages. Full errors are logged server-side only.</p>
+
+  <h3>Local-Only Deployment</h3>
+  <p>PixDash is designed for local network deployment. There are no exposed internet endpoints by default. CORS is set to <code>origin: true</code> (allow all origins for development convenience).</p>
+
+  <h2 id="maintenance">6. Maintenance</h2>
+
+  <h3>Log Locations</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Source</th><th>Location</th></tr></thead>
+      <tbody>
+        <tr><td><code>start.sh</code> output</td><td><code>~/.openclaw/pixdash/pixdash.log</code></td></tr>
+        <tr><td>Backend process logs</td><td>stdout/stderr (captured by start.sh or Docker)</td></tr>
+        <tr><td>Docker logs</td><td><code>docker compose logs pixdash</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Log level is controlled by <code>PIXDASH_LOG_LEVEL</code> (default: <code>info</code>). Available levels: <code>fatal</code>, <code>error</code>, <code>warn</code>, <code>info</code>, <code>debug</code>, <code>trace</code>, <code>silent</code>.</p>
+
+  <h3>Health Check</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl http://localhost:3000/api/v1/health
+# Response: {"ok":true,"service":"pixdash-backend"}</code></pre>
+  </div>
+
+  <p>Docker healthcheck runs this every 30s with a 5s timeout.</p>
+
+  <h3>How to Restart</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash"># Bare metal
+./stop.sh &amp;&amp; ./start.sh
+
+# Docker
+docker compose restart pixdash</code></pre>
+  </div>
+
+  <h3>How to Update</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">git pull
+pnpm install
+./stop.sh
+pnpm build
+./start.sh
+
+# Or Docker:
+docker compose build --no-cache &amp;&amp; docker compose up -d</code></pre>
+  </div>
+
+  <h3>Backup Considerations</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>File</th><th>Path</th><th>What it contains</th></tr></thead>
+      <tbody>
+        <tr><td>Agent config</td><td><code>pixdash.json</code></td><td>Display names, roles, hierarchy, reserved waypoints</td></tr>
+        <tr><td>Appearances</td><td><code>~/.openclaw/pixdash/appearances.json</code></td><td>Custom agent appearances (body type, hair, outfit, etc.)</td></tr>
+        <tr><td>Device keys</td><td><code>~/.openclaw/pixdash/device-key.json</code></td><td>Ed25519 identity (loss = new device identity)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Monitoring the Gateway Connection</h3>
+  <p>The <code>GatewayClient</code> uses exponential backoff reconnection (1s → 30s max). Check logs for:</p>
+  <ul>
+    <li><code>"Connected to OpenClaw Gateway transport"</code> — transport open</li>
+    <li><code>"Gateway authentication succeeded"</code> — auth OK (includes protocol version, tick interval, scopes)</li>
+    <li><code>"Gateway socket closed"</code> — connection lost</li>
+    <li><code>"Scheduling Gateway reconnect"</code> — attempting reconnection</li>
+    <li><code>"Subscribing to agent session messages"</code> — subscribed to an agent's session</li>
+  </ul>
+
+  <h2 id="api-reference">7. API Reference</h2>
+
+  <h3>REST Endpoints</h3>
+
+  <h4>Health</h4>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/health</code></td><td>Health check</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl http://localhost:3000/api/v1/health
+# {"ok":true,"service":"pixdash-backend"}</code></pre>
+  </div>
+
+  <h4>Agents</h4>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/agents</code></td><td>List all agents</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/agents/:id</code></td><td>Get single agent</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/agents/:id/logs</code></td><td>Get agent logs (paginated)</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/agents/:id/tasks</code></td><td>Get agent tasks</td></tr>
+        <tr><td>PATCH</td><td><code>/api/v1/agents/:id/appearance</code></td><td>Update agent appearance</td></tr>
+        <tr><td>PATCH</td><td><code>/api/v1/agents/:id/displayName</code></td><td>Set agent display name</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><strong>GET /api/v1/agents</strong></p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl http://localhost:3000/api/v1/agents</code></pre>
+  </div>
+
+  <p>Response:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "agents": [
+    {
+      "id": "main",
+      "name": "Clawdie",
+      "displayName": "Clawdie",
+      "status": "online",
+      "lastSeen": "2025-01-01T00:00:00.000Z",
+      "position": { "x": 31, "y": 22, "direction": "south" },
+      "appearance": {
+        "bodyType": "clawdie",
+        "hair": { "style": "short", "color": "#2C1810" },
+        "skinColor": "#E8BEAC",
+        "outfit": { "type": "casual", "color": "#3B5998" },
+        "accessories": []
+      },
+      "config": {},
+      "stats": { "messagesProcessed": 0, "tasksCompleted": 0, "uptimeSeconds": 0 },
+      "logs": [],
+      "tasks": [],
+      "movement": {
+        "status": "idle", "claimedWaypointId": null,
+        "destination": null, "path": [],
+        "lastUpdatedAt": "...", "progress": 0
+      }
+    }
+  ]
+}</code></pre>
+  </div>
+
+  <p><strong>GET /api/v1/agents/:id</strong></p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl http://localhost:3000/api/v1/agents/main</code></pre>
+  </div>
+  <p>Returns a single agent object. 404 if not found.</p>
+
+  <p><strong>GET /api/v1/agents/:id/logs</strong></p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash"># Default: 100 most recent logs
+curl http://localhost:3000/api/v1/agents/main/logs
+
+# Paginated
+curl "http://localhost:3000/api/v1/agents/main/logs?limit=20&amp;offset=0&amp;level=info"</code></pre>
+  </div>
+  <p>Query params: <code>limit</code> (number), <code>offset</code> (number), <code>level</code> (<code>debug</code>, <code>info</code>, <code>warn</code>, <code>error</code>)</p>
+
+  <p>Response:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "logs": [
+    { "id": "...", "timestamp": "...", "level": "info", "message": "💬 Hello world" }
+  ],
+  "total": 42,
+  "hasMore": true
+}</code></pre>
+  </div>
+
+  <p><strong>GET /api/v1/agents/:id/tasks</strong></p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl http://localhost:3000/api/v1/agents/main/tasks</code></pre>
+  </div>
+
+  <p>Response:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "tasks": [
+    {
+      "id": "...", "type": "...", "status": "completed",
+      "createdAt": "...", "updatedAt": "...", "description": "..."
+    }
+  ]
+}</code></pre>
+  </div>
+
+  <p><strong>PATCH /api/v1/agents/:id/appearance</strong></p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl -X PATCH http://localhost:3000/api/v1/agents/main/appearance \
+  -H "Content-Type: application/json" \
+  -d '{"bodyType":"jim","hair":{"style":"spiky","color":"#E6CEA8"},"outfit":{"type":"formal","color":"#2ECC71"}}'</code></pre>
+  </div>
+
+  <p>Response:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "success": true,
+  "appearance": {
+    "bodyType": "jim",
+    "hair": { "style": "spiky", "color": "#E6CEA8" },
+    "skinColor": "#E8BEAC",
+    "outfit": { "type": "formal", "color": "#2ECC71" },
+    "accessories": []
+  }
+}</code></pre>
+  </div>
+
+  <p><strong>PATCH /api/v1/agents/:id/displayName</strong></p>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl -X PATCH http://localhost:3000/api/v1/agents/main/displayName \
+  -H "Content-Type: application/json" \
+  -d '{"displayName":"Clawdie Boss"}'</code></pre>
+  </div>
+
+  <p>Response:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{ "success": true, "displayName": "Clawdie Boss" }</code></pre>
+  </div>
+
+  <p>Set to <code>null</code> to clear and revert to config-based display name.</p>
+
+  <h4>Office</h4>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/office/layout</code></td><td>Get office tilemap layout</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl http://localhost:3000/api/v1/office/layout</code></pre>
+  </div>
+  <p>Returns the full <code>Tilemap</code> object (width, height, tileSize, layers, walkable grid).</p>
+
+  <h4>Config</h4>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1/config</code></td><td>Get public configuration</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">curl http://localhost:3000/api/v1/config</code></pre>
+  </div>
+
+  <p>Response:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "displayNames": { "main": "Clawdie" },
+  "roles": { "main": "CEO" },
+  "hierarchy": [{ "parent": "main", "child": "devo" }]
+}</code></pre>
+  </div>
+
+  <p><em>Note: <code>reservedWaypoints</code> and <code>spawnPositions</code> are <strong>not</strong> exposed in this endpoint.</em></p>
+
+  <h3>WebSocket Endpoint</h3>
+
+  <p><strong>Connect</strong>: <code>ws://localhost:3000/ws</code></p>
+
+  <p>On connection, server sends:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{ "type": "connected", "clientId": "uuid", "serverVersion": "1.0.0" }</code></pre>
+  </div>
+
+  <h4>WebSocket Requests</h4>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Method</th><th>Description</th><th>Params</th></tr></thead>
+      <tbody>
+        <tr><td><code>sync</code></td><td>Get full state snapshot (all agents + office layout)</td><td>—</td></tr>
+        <tr><td><code>updateAppearance</code></td><td>Update agent appearance</td><td><code>{ agentId, appearance: AppearancePatch }</code></td></tr>
+        <tr><td><code>moveAgent</code></td><td>Move agent to waypoint or coordinates</td><td><code>MoveAgentRequest</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">// Request
+{ "type": "req", "id": "1", "method": "sync" }
+{ "type": "req", "id": "2", "method": "updateAppearance", "params": { "agentId": "main", "appearance": { "bodyType": "pam" } } }
+{ "type": "req", "id": "3", "method": "moveAgent", "params": { "agentId": "main", "waypointId": "desk-a1" } }
+
+// Response
+{ "type": "res", "id": "1", "ok": true, "payload": { "agents": [...], "officeLayout": {...} } }
+{ "type": "res", "id": "2", "ok": true, "payload": { "appearance": {...} } }
+{ "type": "res", "id": "3", "ok": true, "payload": { "ok": true, "agent": {...} } }</code></pre>
+  </div>
+
+  <h4>WebSocket Broadcast Events</h4>
+  <p>The server pushes these events to all connected clients:</p>
+
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Event</th><th>Payload</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>agent:status</code></td><td><code>{ agentId, status, timestamp }</code></td><td>Agent status changed</td></tr>
+        <tr><td><code>agent:log</code></td><td><code>{ agentId, log }</code></td><td>New log entry</td></tr>
+        <tr><td><code>agent:task</code></td><td><code>{ agentId, task }</code></td><td>Task created or updated</td></tr>
+        <tr><td><code>agent:appearance</code></td><td><code>{ agentId, appearance }</code></td><td>Appearance modified</td></tr>
+        <tr><td><code>agent:position</code></td><td><code>{ agentId, position, direction }</code></td><td>Position update</td></tr>
+        <tr><td><code>agent:movement</code></td><td><code>{ agentId, movement, position }</code></td><td>Movement tick (path, progress, fractional position)</td></tr>
+        <tr><td><code>agent:config</code></td><td><code>{ agentId, agent }</code></td><td>Config/identity updated</td></tr>
+        <tr><td><code>agent:conference</code></td><td><code>{ agentIds, sessionKey, source, timestamp }</code></td><td>Agents in conference</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{ "type": "event", "event": "agent:status", "payload": { "agentId": "main", "status": "working", "timestamp": "..." } }
+{ "type": "event", "event": "agent:movement", "payload": { "agentId": "main", "movement": { "status": "moving", "path": [...], "progress": 0.5, "fractionalX": 1008, "fractionalY": 720 }, "position": { "x": 31, "y": 22, "direction": "east" } } }</code></pre>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 3: GATEWAY INTEGRATION GUIDE                         -->
+<!-- ============================================================ -->
+<div class="doc-section" id="sec-gateway">
+  <div class="doc-section-divider">
+    <span class="dot"></span>
+    <h2>🔌 Gateway Integration Guide</h2>
+  </div>
+
+  <blockquote>
+    <p><strong>Target audience</strong>: A competent Node.js developer who needs to connect a new application to an OpenClaw Gateway instance.<br>
+    <strong>Time to reproduce</strong>: ~30 minutes.<br>
+    <strong>Definitive source</strong>: <code>packages/backend/src/services/GatewayClient.ts</code></p>
+  </blockquote>
+
+  <h2 id="gateway-overview">1. Overview</h2>
+
+  <p>The OpenClaw Gateway is a <strong>WebSocket server</strong> that serves as the central message bus for all OpenClaw agents. It exposes agent sessions, health events, tool calls, and presence data over a persistent bidirectional connection.</p>
+
+  <p>PixDash connects to the Gateway via <strong>WebSocket only</strong> — there is no HTTP REST API. The connection uses:</p>
+  <ul>
+    <li><strong>Transport</strong>: WebSocket (<code>ws://</code> or <code>wss://</code>)</li>
+    <li><strong>Auth</strong>: Ed25519 challenge-response with a gateway token</li>
+    <li><strong>Protocol</strong>: JSON request/response + events (protocol version 3)</li>
+    <li><strong>Default URL</strong>: <code>ws://127.0.0.1:18789</code></li>
+  </ul>
+
+  <h3>Why this bypasses the "device approve" pairing flow</h3>
+
+  <p>The standard OpenClaw companion app (mobile/desktop) uses a QR-code pairing flow that requires manual approval. PixDash bypasses this by:</p>
+  <ol>
+    <li><strong>Presenting a valid <code>gateway.auth.token</code></strong> — this is the operator token stored in <code>~/.openclaw/openclaw.json</code> at <code>gateway.auth.token</code></li>
+    <li><strong>Signing a cryptographic challenge</strong> with a locally-generated Ed25519 key pair</li>
+    <li><strong>Requesting operator scopes</strong> (<code>operator.read</code>, <code>operator.admin</code>)</li>
+  </ol>
+  <p>The Gateway treats any client that completes this challenge-response as an authorized operator device.</p>
+
+  <h2 id="authentication-protocol">2. Authentication Protocol</h2>
+
+  <h3>Step 1: Load credentials</h3>
+
+  <p><strong>2.1</strong> The gateway token is resolved in this priority order:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">// From packages/backend/src/services/GatewayClient.ts
+private resolveGatewayToken(): string | undefined {
+  return (
+    process.env.OPENCLAW_GATEWAY_TOKEN ??   // highest priority
+    process.env.PIXDASH_GATEWAY_TOKEN ??    // app-specific override
+    this.config.gatewayToken ??             // passed via BackendConfig
+    this.readGatewayTokenFromConfig()       // read from openclaw.json
+  );
+}</code></pre>
+  </div>
+
+  <p><strong>2.2</strong> When reading from the OpenClaw config file, the file is JSONC (JSON with comments). A JSONC-safe parser must be used to strip <code>//</code> and <code>/* */</code> comments while preserving <code>//</code> inside strings:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">// Config path: ~/.openclaw/openclaw.json
+const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');</code></pre>
+  </div>
+  <p>The token is at: <code>parsed.gateway.auth.token</code></p>
+
+  <p><strong>2.3</strong> The JSONC parser (full implementation from <code>GatewayClient.ts</code>):</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">function stripJsonc(json: string): string {
+  let result = '';
+  let inString = false;
+  let stringChar = '';
+  let i = 0;
+  while (i &lt; json.length) {
+    const ch = json[i];
+    if (inString) {
+      result += ch;
+      if (ch === '\\') { i++; if (i &lt; json.length) result += json[i]; }
+      else if (ch === stringChar) inString = false;
+    } else if (ch === '"' || ch === "'") {
+      inString = true; stringChar = ch; result += ch;
+    } else if (ch === '/' &amp;&amp; json[i + 1] === '/') {
+      while (i &lt; json.length &amp;&amp; json[i] !== '\n') i++;
+      continue;
+    } else if (ch === '/' &amp;&amp; json[i + 1] === '*') {
+      i += 2;
+      while (i &lt; json.length &amp;&amp; !(json[i] === '*' &amp;&amp; json[i + 1] === '/')) i++;
+      i += 2; continue;
+    } else {
+      result += ch;
+    }
+    i++;
+  }
+  return result.replace(/,\s*([\]}])/g, '$1');
+}</code></pre>
+  </div>
+
+  <h3>Step 2: Generate connection parameters</h3>
+
+  <p><strong>2.4</strong> Generate or load an Ed25519 key pair. Keys are persisted at:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">text</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code>~/.openclaw/pixdash/device-key.json</code></pre>
+  </div>
+
+  <p><strong>2.5</strong> Device key storage format:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">type DeviceKeyRecord = {
+  deviceId: string;           // SHA-256 hex of raw 32-byte public key
+  publicKeyPem: string;       // SPKI PEM encoded Ed25519 public key
+  privateKeyPem: string;      // PKCS#8 PEM encoded Ed25519 private key
+  publicKeyBase64Url: string; // base64url of raw 32-byte public key
+};</code></pre>
+  </div>
+
+  <p><strong>2.6</strong> Device ID derivation — EXACT algorithm:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">import { createHash, createPublicKey } from 'node:crypto';
+
+const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+
+const deriveRawKey = (pem: string): Buffer =&gt; {
+  const spki = createPublicKey(pem).export({ type: 'spki', format: 'der' });
+  if (
+    spki.length === ED25519_SPKI_PREFIX.length + 32 &amp;&amp;
+    spki.subarray(0, ED25519_SPKI_PREFIX.length).equals(ED25519_SPKI_PREFIX)
+  ) {
+    return spki.subarray(ED25519_SPKI_PREFIX.length);
+  }
+  return spki;
+};
+
+// deviceId = SHA-256 of raw 32-byte public key, full hex output
+const deviceId = createHash('sha256')
+  .update(deriveRawKey(publicKeyPem))
+  .digest('hex');</code></pre>
+  </div>
+
+  <p><strong>2.7</strong> Public key for connect message (base64url of raw 32 bytes):</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">const b64UrlEncode = (buf: Buffer): string =&gt;
+  buf.toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+
+const publicKeyBase64Url = b64UrlEncode(deriveRawKey(publicKeyPem));</code></pre>
+  </div>
+
+  <p><strong>2.8</strong> Connection parameter values used by PixDash:</p>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td><code>client.id</code></td><td><code>"gateway-client"</code></td></tr>
+        <tr><td><code>client.displayName</code></td><td><code>"PixDash"</code></td></tr>
+        <tr><td><code>client.version</code></td><td><code>"1.0.0"</code></td></tr>
+        <tr><td><code>client.platform</code></td><td><code>process.platform</code></td></tr>
+        <tr><td><code>client.mode</code></td><td><code>"backend"</code></td></tr>
+        <tr><td><code>scopes</code></td><td><code>["operator.read", "operator.admin"]</code></td></tr>
+        <tr><td><code>role</code></td><td><code>"operator"</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Step 3: Connect and authenticate</h3>
+
+  <p><strong>3.1</strong> Open a WebSocket to the Gateway URL:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">const socket = new WebSocket('ws://127.0.0.1:18789');</code></pre>
+  </div>
+
+  <p><strong>3.2</strong> Upon <code>open</code>, the Gateway immediately sends a challenge event:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "type": "event",
+  "event": "connect.challenge",
+  "payload": {
+    "nonce": "&lt;random-nonce-string&gt;",
+    "ts": 1713123456789
+  }
+}</code></pre>
+  </div>
+
+  <p><strong>3.3</strong> Construct the signature payload. The format is pipe-delimited (<code>v2</code> format):</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">const scopes = ['operator.read', 'operator.admin'];
+const signedAt = Date.now();
+
+const signaturePayload = [
+  'v2',
+  deviceId,            // from Step 2.6
+  'gateway-client',    // client.id
+  'backend',           // client.mode
+  'operator',          // role
+  scopes.join(','),    // MUST match connect params scopes EXACTLY
+  String(signedAt),
+  gatewayToken,        // from Step 1
+  challengeNonce,      // from connect.challenge payload
+].join('|');</code></pre>
+  </div>
+
+  <p><strong>3.4</strong> Sign with Ed25519 private key:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">import { sign as signMessage, createPrivateKey } from 'node:crypto';
+
+const sig = signMessage(
+  null,
+  Buffer.from(signaturePayload, 'utf8'),
+  createPrivateKey(privateKeyPem)
+);
+
+const signature = Buffer.from(sig)
+  .toString('base64')
+  .replace(/\+/g, '-')
+  .replace(/\//g, '_')
+  .replace(/=+$/g, '');</code></pre>
+  </div>
+
+  <p><strong>3.5</strong> Send the <code>connect</code> request:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "type": "req",
+  "id": "req_001",
+  "method": "connect",
+  "params": {
+    "minProtocol": 3,
+    "maxProtocol": 3,
+    "auth": {
+      "token": "&lt;gateway-token&gt;",
+      "deviceToken": null
+    },
+    "device": {
+      "id": "&lt;deviceId-hex&gt;",
+      "publicKey": "&lt;publicKeyBase64Url&gt;",
+      "signature": "&lt;signature&gt;",
+      "signedAt": 1713123456789,
+      "nonce": "&lt;challenge-nonce&gt;"
+    },
+    "role": "operator",
+    "scopes": ["operator.read", "operator.admin"],
+    "client": {
+      "id": "gateway-client",
+      "displayName": "PixDash",
+      "version": "1.0.0",
+      "platform": "linux",
+      "mode": "backend"
+    }
+  }
+}</code></pre>
+  </div>
+
+  <blockquote>
+    <p><strong>Critical</strong>: <code>scopes</code> in the signature payload MUST match <code>scopes</code> in the <code>params</code> field EXACTLY — same order, same values. A mismatch causes <code>AUTH_TOKEN_MISMATCH</code>.</p>
+  </blockquote>
+
+  <p><strong>3.6</strong> Gateway responds with <code>hello-ok</code>:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "type": "res",
+  "id": "req_001",
+  "ok": true,
+  "payload": {
+    "type": "hello-ok",
+    "protocol": 3,
+    "policy": {
+      "tickIntervalMs": 30000
+    },
+    "auth": {
+      "deviceToken": "&lt;long-lived-device-token&gt;",
+      "role": "operator",
+      "scopes": ["operator.read", "operator.admin"]
+    },
+    "agents": [...]
+  }
+}</code></pre>
+  </div>
+
+  <p>Save <code>payload.auth.deviceToken</code> — it must be included in future <code>connect</code> requests to skip re-authentication for this device.</p>
+
+  <h3>Step 4: Post-authentication</h3>
+
+  <p>After receiving <code>hello-ok</code>, immediately send these two requests:</p>
+
+  <p><strong>4.1</strong> Subscribe to all session events:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "type": "req",
+  "id": "req_002",
+  "method": "sessions.subscribe",
+  "params": {}
+}</code></pre>
+  </div>
+
+  <p><strong>4.2</strong> Request agent list (presence snapshot):</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "type": "req",
+  "id": "req_003",
+  "method": "agents.list",
+  "params": {}
+}</code></pre>
+  </div>
+
+  <p>The <code>agents.list</code> response contains each agent's status and recent sessions. Subscribe to each session's messages (see Section 4).</p>
+
+  <h2 id="event-reference">3. Event Reference</h2>
+
+  <h3>Inbound events (Gateway → Client)</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Event</th><th>Payload</th><th>When it fires</th><th>How PixDash processes it</th></tr></thead>
+      <tbody>
+        <tr><td><code>connect.challenge</code></td><td><code>{ nonce: string, ts: number }</code></td><td>Immediately after WebSocket opens</td><td>Triggers auth flow (sign challenge, send <code>connect</code>)</td></tr>
+        <tr><td><code>health</code></td><td><code>{ agents: Array&lt;{ agentId, sessions: { recent: Array&lt;{ sessionKey, age, updatedAt &gt;} &gt;}&gt; }</code></td><td>Periodically (per <code>tickIntervalMs</code> from hello-ok)</td><td>Derives agent status from session age; subscribes to new sessions</td></tr>
+        <tr><td><code>session.message</code></td><td><code>{ agentId?, sessionKey, message: { role, content, toolName?, targetAgentId? } }</code></td><td>When any agent sends/receives a message</td><td>Records activity, logs content, detects inter-agent conference</td></tr>
+        <tr><td><code>session.tool</code></td><td><code>{ agentId?, sessionKey, ts, data: { name, phase, args? } }</code></td><td>When any agent invokes a tool</td><td>Records activity, logs tool name + args preview (phase=start only)</td></tr>
+        <tr><td><code>agent.status</code> / <code>agent:status</code></td><td><code>{ agentId, status, timestamp }</code></td><td>Agent status changes</td><td>Updates agent status in state manager</td></tr>
+        <tr><td><code>agent.log</code> / <code>agent:log</code></td><td><code>{ agentId, log: { id, timestamp, level, message } }</code></td><td>Agent log events</td><td>Appends to agent's log list</td></tr>
+        <tr><td><code>agent.task</code> / <code>agent:task</code></td><td><code>{ agentId, task: { id, type, status, ... } }</code></td><td>Agent task updates</td><td>Upserts task in agent's task list</td></tr>
+        <tr><td><code>sessions.changed</code></td><td>_(variable)_</td><td>Session list changes</td><td>Not explicitly handled by PixDash</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Outbound messages (Client → Gateway)</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Method</th><th>Params</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>connect</code></td><td>See Section 2.3.5</td><td>Authenticate</td></tr>
+        <tr><td><code>sessions.subscribe</code></td><td><code>{}</code></td><td>Subscribe to all session events</td></tr>
+        <tr><td><code>sessions.messages.subscribe</code></td><td><code>{ key: string }</code></td><td>Subscribe to a specific session's messages</td></tr>
+        <tr><td><code>agents.list</code></td><td><code>{}</code></td><td>Request agent presence snapshot</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Gateway envelope format</h3>
+  <p>All messages share a common envelope:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">interface GatewayEnvelope {
+  type: 'auth_challenge' | 'auth_response' | 'auth_success' | 'req' | 'res' | 'event';
+  id?: string;
+  method?: string;
+  params?: Record&lt;string, unknown&gt;;
+  event?: string;
+  payload?: unknown;
+  ok?: boolean;
+  error?: string;
+  nonce?: string;
+  timestamp?: string;
+  sessionId?: string;
+}</code></pre>
+  </div>
+
+  <h2 id="session-subscription">4. Session Subscription</h2>
+
+  <h3>4.1 Global session subscription</h3>
+  <p>After auth, send <code>sessions.subscribe({})</code> to receive events for ALL sessions:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{ "type": "req", "id": "req_002", "method": "sessions.subscribe", "params": {} }</code></pre>
+  </div>
+  <p>This enables <code>session.message</code> and <code>session.tool</code> events to flow.</p>
+
+  <h3>4.2 Per-session message subscription</h3>
+  <p>For each agent's recent sessions (discovered via <code>agents.list</code> response or <code>health</code> events), subscribe individually:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "type": "req",
+  "id": "req_004",
+  "method": "sessions.messages.subscribe",
+  "params": { "key": "agent:devo:telegram:group:-1003723628918:topic:673" }
+}</code></pre>
+  </div>
+
+  <h3>4.3 Session key format</h3>
+  <div class="diagram-block"><pre><code>agent:&lt;agentId&gt;:&lt;channel&gt;:&lt;channelType&gt;:&lt;channelId&gt;[:topic:&lt;topicId&gt;]</code></pre></div>
+  <p>Examples:</p>
+  <ul>
+    <li><code>agent:devo:telegram:group:-1003723628918:topic:673</code></li>
+    <li><code>agent:main:telegram:private:123456789</code></li>
+  </ul>
+
+  <h3>4.4 Session discovery</h3>
+  <p>Sessions are discovered from two sources:</p>
+  <ol>
+    <li><strong><code>agents.list</code> response</strong> — each agent entry has <code>sessions.recent[]</code> with <code>sessionKey</code> and <code>key</code> fields</li>
+    <li><strong><code>health</code> events</strong> — each agent in the health snapshot has <code>sessions.recent[]</code></li>
+  </ol>
+  <p>PixDash tracks subscribed sessions in a <code>Set&lt;string&gt;</code> to avoid duplicate subscriptions.</p>
+
+  <h2 id="reconnection-logic">5. Reconnection Logic</h2>
+
+  <h3>5.1 On disconnect</h3>
+  <p>When the WebSocket closes (and the client was not stopped manually):</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">// Exponential backoff, capped at 30 seconds
+const timeout = Math.min(30_000, 1_000 * 2 ** reconnectAttempt);
+reconnectAttempt += 1;
+reconnectTimer = setTimeout(() =&gt; connect(), timeout);</code></pre>
+  </div>
+
+  <h3>5.2 On reconnect</h3>
+  <ol>
+    <li><code>reconnectAttempt</code> resets to 0 on successful transport open</li>
+    <li>The full auth flow runs again (challenge → sign → connect)</li>
+    <li><strong><code>deviceToken</code></strong> from the previous <code>hello-ok</code> is sent in the <code>auth</code> field — this may skip full re-auth</li>
+    <li>After successful auth:
+      <ul>
+        <li><code>sessions.subscribe({})</code> is re-sent</li>
+        <li><code>subscribedSessionKeys</code> is <strong>cleared</strong></li>
+        <li><code>agents.list</code> is re-requested to re-discover sessions</li>
+        <li>Each discovered session is re-subscribed</li>
+      </ul>
+    </li>
+  </ol>
+
+  <h3>5.3 Error handling</h3>
+  <ul>
+    <li><strong>Socket errors</strong>: Logged as warnings; reconnection is scheduled via the close handler</li>
+    <li><strong>Malformed challenge</strong>: Logged as warning; auth does not proceed</li>
+    <li><strong>No gateway token</strong>: Logged as warning; auth does not proceed</li>
+    <li><strong>Gateway request failure</strong> (<code>ok: false</code>): Logged as warning</li>
+    <li><strong><code>agents.list</code> timeout</strong>: 5-second timeout; falls back to waiting for <code>health</code> events</li>
+  </ul>
+
+  <h2 id="reproduction-guide">6. Reproduction Guide</h2>
+
+  <h3>6.1 Minimal package.json</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{
+  "name": "openclaw-gateway-client",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}</code></pre>
+  </div>
+  <p>No external crypto dependencies needed — all Ed25519 and SHA-256 operations use Node.js built-in <code>node:crypto</code>.</p>
+
+  <h3>6.2 Minimal connect + authenticate</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">import { createHash, generateKeyPairSync, createPrivateKey, createPublicKey, sign as signMessage } from 'node:crypto';
+import { readFileSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import WebSocket from 'ws';
+
+// --- JSONC parser (required for openclaw.json) ---
+function stripJsonc(json: string): string {
+  let result = '', inString = false, stringChar = '', i = 0;
+  while (i &lt; json.length) {
+    const ch = json[i];
+    if (inString) {
+      result += ch;
+      if (ch === '\\') { i++; if (i &lt; json.length) result += json[i]; }
+      else if (ch === stringChar) inString = false;
+    } else if (ch === '"' || ch === "'") {
+      inString = true; stringChar = ch; result += ch;
+    } else if (ch === '/' &amp;&amp; json[i + 1] === '/') {
+      while (i &lt; json.length &amp;&amp; json[i] !== '\n') i++; continue;
+    } else if (ch === '/' &amp;&amp; json[i + 1] === '*') {
+      i += 2;
+      while (i &lt; json.length &amp;&amp; !(json[i] === '*' &amp;&amp; json[i + 1] === '/')) i++;
+      i += 2; continue;
+    } else { result += ch; }
+    i++;
+  }
+  return result.replace(/,\s*([\]}])/g, '$1');
+}
+
+// --- Key management ---
+const KEY_PATH = path.join(os.homedir(), '.openclaw', 'my-client', 'device-key.json');
+const SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+
+function b64Url(buf: Buffer): string {
+  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function loadOrCreateKeys() {
+  if (existsSync(KEY_PATH)) {
+    return JSON.parse(readFileSync(KEY_PATH, 'utf8'));
+  }
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const pubPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
+  const privPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  const spki = createPublicKey(pubPem).export({ type: 'spki', format: 'der' });
+  const raw = spki.subarray(SPKI_PREFIX.length);
+  const keys = {
+    deviceId: createHash('sha256').update(raw).digest('hex'),
+    publicKeyPem: pubPem,
+    privateKeyPem: privPem,
+    publicKeyBase64Url: b64Url(raw),
+  };
+  writeFileSync(KEY_PATH, JSON.stringify(keys, null, 2));
+  chmodSync(KEY_PATH, 0o600);
+  return keys;
+}
+
+// --- Load gateway token ---
+const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+const config = JSON.parse(stripJsonc(readFileSync(configPath, 'utf8')));
+const gatewayToken = config.gateway?.auth?.token;
+
+// --- Connect ---
+const keys = loadOrCreateKeys();
+const scopes = ['operator.read', 'operator.admin'];
+let reqId = 0;
+const nextId = () =&gt; `req_${String(++reqId).padStart(3, '0')}`;
+
+const ws = new WebSocket('ws://127.0.0.1:18789');
+
+ws.on('open', () =&gt; {
+  console.log('WebSocket open — waiting for challenge...');
+});
+
+ws.on('message', (data) =&gt; {
+  const msg = JSON.parse(data.toString());
+
+  // Handle challenge
+  if (msg.type === 'event' &amp;&amp; msg.event === 'connect.challenge') {
+    const nonce = msg.payload?.nonce;
+    const signedAt = Date.now();
+
+    const signaturePayload = [
+      'v2', keys.deviceId, 'gateway-client', 'backend',
+      'operator', scopes.join(','), String(signedAt),
+      gatewayToken, nonce,
+    ].join('|');
+
+    const sig = signMessage(
+      null,
+      Buffer.from(signaturePayload, 'utf8'),
+      createPrivateKey(keys.privateKeyPem),
+    );
+    const signature = b64Url(Buffer.from(sig));
+
+    ws.send(JSON.stringify({
+      type: 'req', id: nextId(), method: 'connect',
+      params: {
+        minProtocol: 3, maxProtocol: 3,
+        auth: { token: gatewayToken, deviceToken: null },
+        device: {
+          id: keys.deviceId,
+          publicKey: keys.publicKeyBase64Url,
+          signature, signedAt, nonce,
+        },
+        role: 'operator', scopes,
+        client: { id: 'gateway-client', displayName: 'MyApp', version: '1.0.0', platform: process.platform, mode: 'backend' },
+      },
+    }));
+    return;
+  }
+
+  // Handle hello-ok
+  if (msg.type === 'res' &amp;&amp; msg.ok &amp;&amp; msg.payload?.type === 'hello-ok') {
+    console.log('✅ Authenticated! Device token:', msg.payload.auth?.deviceToken?.slice(0, 16) + '...');
+    // Subscribe to sessions
+    ws.send(JSON.stringify({ type: 'req', id: nextId(), method: 'sessions.subscribe', params: {} }));
+    // Request agent list
+    ws.send(JSON.stringify({ type: 'req', id: nextId(), method: 'agents.list', params: {} }));
+    return;
+  }
+
+  // Handle agents.list response — subscribe to sessions
+  if (msg.type === 'res' &amp;&amp; msg.id &amp;&amp; Array.isArray(msg.payload)) {
+    for (const agent of msg.payload) {
+      const recent = agent.sessions?.recent ?? [];
+      for (const s of recent) {
+        const key = s.sessionKey ?? s.key;
+        if (key) {
+          ws.send(JSON.stringify({ type: 'req', id: nextId(), method: 'sessions.messages.subscribe', params: { key } }));
+          console.log('Subscribed to session:', key);
+        }
+      }
+    }
+    return;
+  }
+
+  // Log all events
+  if (msg.type === 'event') {
+    console.log(`[EVENT] ${msg.event}:`, JSON.stringify(msg.payload).slice(0, 200));
+  }
+});
+
+ws.on('close', () =&gt; console.log('Disconnected'));
+ws.on('error', (err) =&gt; console.error('Socket error:', err.message));</code></pre>
+  </div>
+
+  <h3>6.3 Expected output</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">text</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code>WebSocket open — waiting for challenge...
+✅ Authenticated! Device token: eyJhbGciOiJIUzI1...
+Subscribed to session: agent:devo:telegram:group:-1003723628918:topic:673
+Subscribed to session: agent:main:telegram:group:-1003723628918:topic:673
+[EVENT] health: {"agents":[...]}
+[EVENT] session.message: {"sessionKey":"agent:devo:...","message":{"role":"assistant",...}}
+[EVENT] session.tool: {"sessionKey":"agent:devo:...","data":{"name":"read",...}}</code></pre>
+  </div>
+
+  <h2 id="gateway-troubleshooting">7. Troubleshooting</h2>
+
+  <h3>AUTH_TOKEN_MISMATCH</h3>
+  <p><strong>Cause</strong>: The scopes in the signature payload do not match the scopes in the <code>connect</code> params.</p>
+  <p><strong>Fix</strong>: Ensure the <code>scopes.join(',')</code> in the signature payload uses the <strong>exact same array</strong> as <code>params.scopes</code>. Same order, same values.</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">// CORRECT — same array reference
+const scopes = ['operator.read', 'operator.admin'];
+// Used in BOTH places:
+// signaturePayload: scopes.join(',')
+// params: { scopes }</code></pre>
+  </div>
+
+  <h3>Device ID mismatch</h3>
+  <p><strong>Cause</strong>: The <code>device.id</code> sent in the connect message does not match the SHA-256 of the public key the Gateway has on record.</p>
+  <p><strong>Fix</strong>: Delete <code>~/.openclaw/pixdash/device-key.json</code> and restart. A new key pair will be generated. Alternatively, re-derive the device ID from the PEM:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">const spki = createPublicKey(publicKeyPem).export({ type: 'spki', format: 'der' });
+const raw = spki.subarray(ED25519_SPKI_PREFIX.length);
+const deviceId = createHash('sha256').update(raw).digest('hex');</code></pre>
+  </div>
+
+  <h3>Scope mismatch</h3>
+  <p><strong>Cause</strong>: Requesting scopes not granted to the token, or omitting required scopes.</p>
+  <p><strong>Fix</strong>: Use <code>['operator.read', 'operator.admin']</code> — these are the scopes PixDash uses and are standard for operator devices.</p>
+
+  <h3>Connection refused</h3>
+  <p><strong>Cause</strong>: Gateway is not running, or wrong URL/port.</p>
+  <p><strong>Fix</strong>:</p>
+  <ol>
+    <li>Verify the Gateway is running: <code>openclaw gateway status</code></li>
+    <li>Check the URL — default is <code>ws://127.0.0.1:18789</code></li>
+    <li>Override via <code>PIXDASH_GATEWAY_URL</code> env var or <code>config.gatewayUrl</code></li>
+  </ol>
+
+  <h3>No events received after auth</h3>
+  <p><strong>Cause</strong>: <code>sessions.subscribe({})</code> was not sent after <code>hello-ok</code>.</p>
+  <p><strong>Fix</strong>: Ensure you send <code>sessions.subscribe</code> and <code>agents.list</code> immediately after receiving <code>hello-ok</code>. Also subscribe to individual sessions from the <code>agents.list</code> response.</p>
+
+  <h3>Session key format issues</h3>
+  <p><strong>Cause</strong>: Session keys must match the Gateway's internal format exactly.</p>
+  <p><strong>Fix</strong>: Use the <code>sessionKey</code> or <code>key</code> field from the <code>agents.list</code> response or <code>health</code> events. Do not construct session keys manually. Format is: <code>agent:&lt;agentId&gt;:&lt;channel&gt;:&lt;channelType&gt;:&lt;channelId&gt;[:topic:&lt;topicId&gt;]</code>.</p>
+</div>
+
+<!-- ============================================================ -->
+<!-- SECTION 4: DEVELOPER GUIDE                                   -->
+<!-- ============================================================ -->
+<div class="doc-section" id="sec-dev">
+  <div class="doc-section-divider">
+    <span class="dot"></span>
+    <h2>👨‍💻 Developer / Integration Guide</h2>
+  </div>
+
+  <h2 id="project-structure-dev">1. Project Structure</h2>
+
+  <p>PixDash is a <strong>pnpm monorepo</strong> with three packages:</p>
+
+  <div class="diagram-block"><pre><code>pixdash/
+├── package.json                 # Root: pnpm workspace config, scripts
+├── pnpm-workspace.yaml          # packages/*
+├── Dockerfile                   # Production Docker build
+├── start.sh                     # Production start script
+├── pixdash.example.json         # Configuration example
+│
+├── assets/
+│   ├── collision-grid.json      # Pre-computed walkable tile grid (75×56)
+│   ├── office-palette.json      # Office color palette
+│   ├── blocked.png              # Collision map (white = walkable, black = blocked)
+│   ├── sprites/
+│   │   ├── office.png           # Office background sprite (2400×1792)
+│   │   ├── michael.png          # Agent sprite sheets (2048×2048, 3 cols × 4 rows)
+│   │   ├── angela.png
+│   │   ├── creed.png
+│   │   ├── ... (11 character sprites)
+│   │   └── blocked.png          # Also referenced by CollisionGridLoader
+│   └── palettes/
+│       ├── hair-colors.json
+│       ├── outfit-colors.json
+│       └── skin-tones.json
+│
+├── packages/
+│   ├── shared/                  # Shared TypeScript types &amp; constants
+│   │   ├── src/
+│   │   │   ├── index.ts         # Re-exports all types
+│   │   │   ├── types/
+│   │   │   │   ├── agent.ts     # Agent, Appearance, Position, AgentStatus
+│   │   │   │   ├── event.ts     # WebSocket event types, payloads
+│   │   │   │   ├── movement.ts  # MovementAuthorityState, MoveAgentRequest
+│   │   │   │   └── tilemap.ts   # Tilemap interface
+│   │   │   ├── constants/
+│   │   │   │   ├── defaults.ts  # DEFAULT_APPEARANCE, DEFAULT_POSITION
+│   │   │   │   └── colors.ts    # Color constants
+│   │   │   └── schemas/
+│   │   │       ├── tilemap.schema.json
+│   │   │       └── appearance.schema.json
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   ├── backend/                 # Fastify + WebSocket server
+│   │   ├── src/
+│   │   │   ├── server.ts        # Entry point: buildServer(), main()
+│   │   │   ├── routes/
+│   │   │   │   ├── agents.ts    # /api/v1/agents endpoints
+│   │   │   │   ├── config.ts    # /api/v1/config endpoint
+│   │   │   │   ├── health.ts    # /api/v1/health endpoint
+│   │   │   │   └── office.ts    # /api/v1/office/layout endpoint
+│   │   │   ├── services/
+│   │   │   │   ├── AgentStateManager.ts  # Core agent state, event broadcasting
+│   │   │   │   ├── MovementEngine.ts     # A* pathfinding, wander, collision
+│   │   │   │   ├── PathfindingService.ts # A* implementation
+│   │   │   │   ├── GatewayClient.ts      # OpenClaw Gateway WebSocket client
+│   │   │   │   ├── AppearanceStore.ts    # JSON file persistence
+│   │   │   │   ├── CollisionGridLoader.ts# blocked.png → boolean[][] grid
+│   │   │   │   └── ConfigWatcher.ts      # Watches openclaw.json + SOUL/IDENTITY
+│   │   │   ├── websocket/
+│   │   │   │   ├── server.ts    # PixDashWebSocketServer (Fastify WS)
+│   │   │   │   └── handlers.ts  # sync, updateAppearance, moveAgent
+│   │   │   ├── data/
+│   │   │   │   ├── waypoints.ts # BACKEND_WAYPOINTS array (desks, conference, etc.)
+│   │   │   │   └── noGoTiles.ts # Impermissible tile coordinates
+│   │   │   ├── config/
+│   │   │   │   ├── index.ts     # loadConfig()
+│   │   │   │   ├── pixdashConfig.ts  # Runtime config singleton
+│   │   │   │   └── defaults.ts  # Default values
+│   │   │   ├── schemas/         # JSON Schema validation
+│   │   │   │   ├── agent.schema.json
+│   │   │   │   ├── event.schema.json
+│   │   │   │   └── appearance.schema.json
+│   │   │   ├── utils/
+│   │   │   │   ├── logger.ts    # createLogger()
+│   │   │   │   └── validation.ts# JSON Schema validators
+│   │   │   └── types/
+│   │   │       └── index.ts     # PixDashFastifyInstance, internal types
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   └── frontend/                # React 18 + Vite 5 + Tailwind CSS
+│       ├── src/
+│       │   ├── main.tsx         # ReactDOM entry point
+│       │   ├── App.tsx          # Root: useAgents → AppLayout
+│       │   ├── index.css        # Tailwind directives + custom CSS
+│       │   ├── components/
+│       │   │   ├── layout/
+│       │   │   │   └── AppLayout.tsx  # Main layout: header, canvas, panel
+│       │   │   ├── canvas/
+│       │   │   │   ├── OfficeCanvas.tsx   # HTML5 Canvas container + draw loop
+│       │   │   │   ├── AgentRenderer.ts   # Agent sprite rendering class
+│       │   │   │   ├── CameraController.ts# Pan/zoom camera
+│       │   │   │   ├── TilemapRenderer.ts # Tilemap rendering (unused in prod)
+│       │   │   │   └── TilemapRenderer.tsx
+│       │   │   ├── staff/
+│       │   │   │   ├── NavigationSwitch.tsx  # Office/Staff tab switcher
+│       │   │   │   ├── StaffView.tsx         # Staff directory view
+│       │   │   │   ├── AgentNodeCard.tsx     # Agent card in staff view
+│       │   │   │   └── spriteUrls.ts
+│       │   │   └── ui/
+│       │   │       ├── AgentPanel.tsx    # Selected agent detail sidebar
+│       │   │       ├── AgentStatus.tsx   # Status badge component
+│       │   │       ├── CustomizerModal.tsx # Appearance editor modal
+│       │   │       ├── LogViewer.tsx     # Agent log viewer
+│       │   │       ├── TaskViewer.tsx    # Agent task viewer
+│       │   │       └── ConfigViewer.tsx  # Config display
+│       │   ├── store/
+│       │   │   ├── agentsStore.ts   # Zustand: agent list, selection
+│       │   │   ├── movementStore.ts # Zustand: waypoints, movement tick
+│       │   │   ├── settingsStore.ts # Zustand: theme, zoom, labels (persisted)
+│       │   │   ├── configStore.ts   # Zustand: pixdash.json config
+│       │   │   └── uiStore.ts       # Zustand: panel, customizer, sidebar
+│       │   ├── hooks/
+│       │   │   ├── useAgents.ts     # Agent loading + WebSocket event processing
+│       │   │   ├── useCanvas.ts     # requestAnimationFrame loop
+│       │   │   ├── useSprites.ts    # Sprite sheet loading + caching
+│       │   │   ├── useWebSocket.ts  # WebSocket connection management
+│       │   │   ├── useAllSpritePreviews.ts
+│       │   │   └── useTimezone.ts   # Timezone preference
+│       │   ├── lib/
+│       │   │   ├── api.ts           # REST API client (fetch wrapper)
+│       │   │   ├── movement.ts      # tile/pixel conversion, walk frames
+│       │   │   ├── spriteSheets.ts  # Sprite sheet extraction, caching
+│       │   │   ├── sprite-generator.ts # Procedural sprite generation
+│       │   │   ├── waypoints.ts     # Frontend waypoint definitions
+│       │   │   ├── officeScene.ts   # Office dimensions, scene constants
+│       │   │   ├── tilemap-loader.ts
+│       │   │   ├── debug.ts         # Debug logging helpers
+│       │   │   └── utils.ts         # cn() classname helper
+│       │   └── types/
+│       │       └── index.ts         # AgentPosition, MovementState, PixdashConfig
+│       ├── vite.config.ts           # Vite aliases: @/ → src, @assets/ → ../../assets
+│       ├── tailwind.config.js
+│       ├── postcss.config.js
+│       ├── tsconfig.json
+│       ├── index.html
+│       └── package.json
+│
+└── scripts/                     # QA test scripts
+    ├── live-qa-v2.mjs
+    └── live-qa-v4.js</code></pre></div>
+
+  <h3>Key Configuration Files</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>pnpm-workspace.yaml</code></td><td>Defines <code>packages/*</code> as workspace members</td></tr>
+        <tr><td><code>packages/frontend/vite.config.ts</code></td><td>Vite config with <code>@/</code> and <code>@assets/</code> aliases</td></tr>
+        <tr><td><code>packages/frontend/tsconfig.json</code></td><td>TypeScript path aliases</td></tr>
+        <tr><td><code>pixdash.example.json</code></td><td>Runtime config: display names, roles, hierarchy, reserved waypoints</td></tr>
+        <tr><td><code>assets/collision-grid.json</code></td><td>75×56 boolean walkable grid (auto-generated from <code>blocked.png</code>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="codebase-architecture">2. Codebase Architecture</h2>
+
+  <h3>Frontend Architecture</h3>
+  <p><strong>Stack:</strong> React 18 + Vite 5 + Tailwind CSS + Zustand</p>
+
+  <h4>Component Hierarchy</h4>
+  <div class="diagram-block"><pre><code>App.tsx
+└── AppLayout.tsx
+    ├── Header (inline)
+    │   ├── NavigationSwitch.tsx   ← Office / Staff tab toggle
+    │   └── Stats (agent count, connection status)
+    ├── [viewMode === 'office']
+    │   └── OfficeCanvas.tsx       ← HTML5 Canvas with rAF loop
+    │       └── AgentRenderer.ts   ← Sprite rendering class
+    ├── [viewMode === 'staff']
+    │   └── StaffView.tsx
+    │       └── AgentNodeCard.tsx
+    ├── AgentPanel.tsx             ← Sidebar (selected agent details)
+    │   ├── AgentStatus.tsx
+    │   ├── LogViewer.tsx
+    │   ├── TaskViewer.tsx
+    │   └── ConfigViewer.tsx
+    └── CustomizerModal.tsx        ← Appearance editor overlay</code></pre></div>
+
+  <h4>HTML5 Canvas Rendering Pipeline</h4>
+  <p><code>OfficeCanvas.tsx</code> manages the full rendering loop:</p>
+  <ol>
+    <li><strong><code>useCanvas</code> hook</strong> starts a <code>requestAnimationFrame</code> loop</li>
+    <li>Each frame calls <code>draw()</code> which:
+      <ul>
+        <li>Clears canvas, draws dark gradient background</li>
+        <li>Applies <code>CameraController</code> transform (pan/zoom)</li>
+        <li>Draws <code>office.png</code> background</li>
+        <li>Computes <strong>render overrides</strong> using <code>smoothPositionTargets</code> map</li>
+        <li>Passes agents + overrides to <code>AgentRenderer.render()</code></li>
+      </ul>
+    </li>
+  </ol>
+
+  <h4>Sprite Rendering Pipeline</h4>
+  <div class="diagram-block"><pre><code>assets/sprites/{character}.png (2048×2048 sprite sheet)
+        ↓
+loadSpriteTemplate() in spriteSheets.ts
+        ↓
+extractSheetFrames() → splits into 4 rows (directions) × 3 cols (frames)
+        ↓
+centerAlignFrame() → center-crops each frame
+        ↓
+Map&lt;Direction, SpriteFrameCanvas[]&gt; (SpriteSheetFrames)
+        ↓
+AgentRenderer.render() → ctx.drawImage(sprite, drawX, drawY, 235, 177)</code></pre></div>
+
+  <p>Direction-to-row mapping: <code>['south', 'north', 'west', 'east']</code><br>
+  Frame selection: frame 0 = standing, frames 1,2 = alternating walk cycle (toggled every 180ms)</p>
+
+  <h4>View System</h4>
+  <p>Two views toggled by <code>NavigationSwitch</code>:</p>
+  <ul>
+    <li><strong>Office view</strong> — Canvas-based office floor with walking agents</li>
+    <li><strong>Staff view</strong> — <code>StaffView.tsx</code> grid of <code>AgentNodeCard</code> components</li>
+  </ul>
+  <p>View mode is persisted to <code>localStorage</code> under key <code>pixdash-view</code>.</p>
+
+  <h4>Smooth Position Interpolation</h4>
+  <p>Movement is <strong>server-authoritative</strong>. The frontend interpolates smoothly:</p>
+  <ol>
+    <li>Backend broadcasts <code>agent:movement</code> events at ~20Hz with <code>fractionalX</code>/<code>fractionalY</code> (sub-tile pixel positions)</li>
+    <li>Frontend <code>useAgents</code> hook writes to <code>smoothPositionTargets</code> — a <strong>module-level <code>Map</code></strong> (NOT Zustand)</li>
+    <li><code>OfficeCanvas.draw()</code> reads from <code>smoothPositionTargets</code> each frame</li>
+    <li>When a backend event arrives, the canvas immediately picks it up on next <code>requestAnimationFrame</code></li>
+  </ol>
+  <p>Zustand store updates for movement are <strong>throttled to ~8Hz</strong> (<code>STORE_FLUSH_INTERVAL_MS = 125</code>) to avoid excessive React re-renders. Terminal state changes (seated, idle) flush immediately.</p>
+
+  <h3>Backend Architecture</h3>
+  <p><strong>Stack:</strong> Fastify + @fastify/websocket + @fastify/static + @fastify/cors</p>
+
+  <h4>Server Bootstrap (<code>server.ts</code>)</h4>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">buildServer():
+  1. loadConfig() → pixdashConfig
+  2. AppearanceStore.init() → loads appearances JSON file
+  3. loadOfficeLayoutWithCollisionGrid() → loads tilemap + collision grid
+  4. AgentStateManager(appearanceStore, officeLayout) → creates state manager + movement engine
+  5. PixDashWebSocketServer(app) → registers /ws endpoint
+  6. agentStateManager.subscribe() → broadcasts events to all WS clients
+  7. ConfigWatcher.start() → watches openclaw.json, SOUL.md, IDENTITY.md
+  8. GatewayClient.start() → connects to OpenClaw Gateway WS
+  9. Registers REST routes (health, agents, office, config)
+  10. In production: serves frontend/dist as static files</code></pre>
+  </div>
+
+  <h4>Service Layer</h4>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Service</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <tr><td><code>AgentStateManager</code></td><td>Core state: agent CRUD, status derivation, event broadcasting, movement coordination</td></tr>
+        <tr><td><code>MovementEngine</code></td><td>A* pathfinding, wander scheduling (60–90s), collision avoidance, conference seat assignment</td></tr>
+        <tr><td><code>PathfindingService</code></td><td>Pure A* implementation (<code>findPath()</code>), 4-directional, with no-go tile support</td></tr>
+        <tr><td><code>GatewayClient</code></td><td>WebSocket client to OpenClaw Gateway: authentication (Ed25519 device keys), event forwarding, session subscription</td></tr>
+        <tr><td><code>AppearanceStore</code></td><td>JSON file persistence for agent appearances and display names</td></tr>
+        <tr><td><code>CollisionGridLoader</code></td><td>Generates <code>boolean[][]</code> walkable grid from <code>blocked.png</code> using sharp (brightness threshold)</td></tr>
+        <tr><td><code>ConfigWatcher</code></td><td>Watches <code>openclaw.json</code> + per-agent SOUL.md/IDENTITY.md via chokidar, applies config snapshots</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Movement Tick System</h4>
+  <ul>
+    <li><strong>Tick interval:</strong> 50ms (20Hz) — <code>MOVEMENT_TICK_INTERVAL_MS</code></li>
+    <li><strong>Speed:</strong> 5 tiles/second — <code>MOVEMENT_SPEED_TILES_PER_SECOND</code></li>
+    <li><strong>Progress increment per tick:</strong> <code>0.25</code> tiles</li>
+    <li><strong>Wander delay:</strong> 60–90 seconds for idle agents</li>
+    <li><strong>Status re-evaluation:</strong> Every 30 seconds</li>
+    <li><strong>Settled state broadcast:</strong> Every 5 seconds for non-moving agents</li>
+  </ul>
+
+  <p>Flow per tick:</p>
+  <ol>
+    <li><code>MovementEngine.movementTick()</code> iterates all agents</li>
+    <li>For moving agents: increment <code>progress</code>, step through path nodes</li>
+    <li>Compute <code>fractionalX</code>/<code>fractionalY</code> for sub-tile interpolation</li>
+    <li>On path completion: set status to <code>seated</code> (if at waypoint) or <code>idle</code></li>
+    <li>Call <code>AgentStateManager.emitMovement()</code> → broadcasts to all WS clients</li>
+  </ol>
+
+  <h4>Waypoint and Routing System</h4>
+  <p>Waypoints are defined in <code>packages/backend/src/data/waypoints.ts</code> as <code>BACKEND_WAYPOINTS</code>:</p>
+  <ul>
+    <li><strong>Types:</strong> <code>desk</code> (28), <code>reception</code> (8), <code>restroom</code> (8), <code>conference</code> (12), <code>dining</code> (1)</li>
+    <li>Each waypoint has: <code>id</code>, <code>x</code>, <code>y</code>, <code>type</code>, <code>direction</code>, <code>visualOffsetX/Y</code>, <code>reservedFor</code></li>
+    <li>Waypoints use the <code>seated()</code> helper which auto-computes visual offsets based on facing direction</li>
+    <li><code>reservedFor</code> assigns specific agents to specific desks (via <code>pixdash.json</code>)</li>
+  </ul>
+
+  <p>Status-based routing:</p>
+  <ul>
+    <li><code>working</code> → route to nearest available <code>desk</code> (or reserved desk)</li>
+    <li><code>online</code> → route to nearest available <code>desk</code></li>
+    <li><code>idle</code> → schedule wander (weighted random: desk 35%, reception 30%, restroom 20%, dining 15%)</li>
+    <li><code>conference</code> → route to conference room seats</li>
+    <li><code>offline</code> → cancel movement, release waypoint claim</li>
+  </ul>
+
+  <p>Collision avoidance:</p>
+  <ul>
+    <li><code>occupiedTiles</code> map tracks tiles held by seated/idle agents</li>
+    <li>Moving agents encountering blocked tiles attempt reroute with dynamic no-go set</li>
+    <li>Blocked for >5s → movement cancelled</li>
+  </ul>
+
+  <h3>Shared Types</h3>
+  <p><code>@pixdash/shared</code> provides all shared TypeScript types:</p>
+
+  <p><strong>Agent types (<code>agent.ts</code>):</strong></p>
+  <ul>
+    <li><code>Agent</code> — full agent with position, appearance, config, stats, logs, tasks, soul, identity</li>
+    <li><code>Appearance</code> — bodyType, hair (style+color), skinColor, outfit (type+color), accessories</li>
+    <li><code>Position</code> — x, y, direction</li>
+    <li><code>AgentStatus</code> — <code>'working' | 'online' | 'idle' | 'offline' | 'busy' | 'conference'</code></li>
+    <li><code>BodyType</code> — <code>'male' | 'female' | 'neutral' | 'michael' | 'angela' | ...</code> (11 named characters)</li>
+  </ul>
+
+  <p><strong>Movement types (<code>movement.ts</code>):</strong></p>
+  <ul>
+    <li><code>MovementAuthorityState</code> — status, claimedWaypointId, destination, path, progress, fractionalX/Y, visualOffsetX/Y</li>
+    <li><code>MovementAuthorityStatus</code> — <code>'idle' | 'moving' | 'seated'</code></li>
+    <li><code>MoveAgentRequest</code> — agentId, waypointId?, destination?, direction?</li>
+    <li><code>AgentMovementEventPayload</code> — the broadcast payload</li>
+  </ul>
+
+  <p><strong>Event types (<code>event.ts</code>):</strong></p>
+  <ul>
+    <li>All WebSocket event payload interfaces</li>
+    <li><code>WsConnectedMessage</code>, <code>WsRequestMessage</code>, <code>WsResponseMessage</code>, <code>WsEventMessage</code></li>
+    <li><code>SyncPayload</code> — initial sync response</li>
+  </ul>
+
+  <p><strong>Tilemap types (<code>tilemap.ts</code>):</strong></p>
+  <ul>
+    <li><code>Tilemap</code> — width, height, tileSize, layers (floor/furniture/walls), walkable</li>
+  </ul>
+
+  <p>Type flow: <code>@pixdash/shared</code> → imported by both <code>frontend</code> and <code>backend</code> packages.</p>
+
+  <h2 id="state-management-dev">3. State Management</h2>
+
+  <h3>Zustand Stores</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Store</th><th>File</th><th>What it manages</th><th>Persistence</th></tr></thead>
+      <tbody>
+        <tr><td><code>useAgentsStore</code></td><td><code>store/agentsStore.ts</code></td><td>Agent list, selection, display name updates</td><td>No</td></tr>
+        <tr><td><code>useMovementStore</code></td><td><code>store/movementStore.ts</code></td><td>Frontend waypoint set, movement tick (now no-op for server-authoritative)</td><td>No</td></tr>
+        <tr><td><code>useSettingsStore</code></td><td><code>store/settingsStore.ts</code></td><td>Theme (dark/light), zoom level, showLabels toggle</td><td><code>localStorage</code> (<code>pixdash-settings</code>)</td></tr>
+        <tr><td><code>useConfigStore</code></td><td><code>store/configStore.ts</code></td><td><code>pixdash.json</code> display names, roles, hierarchy</td><td>No (fetched from API)</td></tr>
+        <tr><td><code>useUIStore</code></td><td><code>store/uiStore.ts</code></td><td>Panel open/close, active tab, customizer modal, sidebar collapse</td><td>No</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>How WebSocket Events Update State</h3>
+
+  <p>The <code>useAgents</code> hook in <code>hooks/useAgents.ts</code> bridges WebSocket events to stores:</p>
+  <ol>
+    <li><strong>Initial load:</strong> Fetches <code>GET /api/v1/agents</code> → <code>agentsStore.setAgents()</code></li>
+    <li><strong>Event processing:</strong> Each <code>eventsVersion</code> change drains <code>useWebSocket.drainEvents()</code> queue</li>
+    <li><strong>Event routing:</strong>
+      <ul>
+        <li><code>agent:status</code> / <code>agent.status</code> → <code>agentsStore.updateAgent({ status })</code> + <code>movementStore.handleStatusChange()</code></li>
+        <li><code>agent:log</code> / <code>agent.log</code> → <code>agentsStore.updateAgent({ logs })</code></li>
+        <li><code>agent:task</code> / <code>agent.task</code> → <code>agentsStore.updateAgent({ tasks })</code></li>
+        <li><code>agent:appearance</code> → <code>agentsStore.updateAgent({ appearance })</code></li>
+        <li><code>agent:config</code> → <code>agentsStore.updateAgent()</code> (full agent update)</li>
+        <li><code>agent:conference</code> → <code>movementStore.handleConference()</code></li>
+        <li><code>agent:position</code> → Updates <code>smoothPositionTargets</code> + throttled store flush</li>
+        <li><code>agent:movement</code> → Updates <code>smoothPositionTargets</code> + <code>recentMovingAgents</code> + throttled store flush</li>
+      </ul>
+    </li>
+  </ol>
+
+  <h3>The Smooth Position System</h3>
+
+  <p><strong>Critical design:</strong> High-frequency position data bypasses Zustand entirely.</p>
+
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">// hooks/useAgents.ts — module-level, NOT in React/Zustand
+export const smoothPositionTargets = new Map&lt;
+  string,
+  { x: number; y: number; direction?: Direction; moving: boolean }
+&gt;();</code></pre>
+  </div>
+
+  <p><strong>Write path:</strong></p>
+  <ol>
+    <li>WebSocket <code>agent:movement</code> event arrives in <code>useAgents</code> hook</li>
+    <li><code>fractionalX</code>/<code>fractionalY</code> (backend pixel positions) written to <code>smoothPositionTargets</code></li>
+    <li><code>recentMovingAgents</code> updated with timestamp (for reconnection protection)</li>
+  </ol>
+
+  <p><strong>Read path:</strong></p>
+  <ol>
+    <li><code>OfficeCanvas.draw()</code> reads <code>agentsStore.getState().agents</code> + <code>smoothPositionTargets</code></li>
+    <li>For each agent: if <code>smoothPositionTargets</code> has an entry with <code>moving: true</code>, use those coordinates</li>
+    <li>If not moving, fall back to <code>agent.interpolatedX/Y</code> or <code>agent.x/y</code></li>
+  </ol>
+
+  <p><strong>Throttled Zustand flush (~8Hz):</strong></p>
+  <ul>
+    <li><code>agentMovementBuffer</code> collects movement updates</li>
+    <li>Terminal states (seated, idle) flush immediately</li>
+    <li>Non-terminal states flush at <code>STORE_FLUSH_INTERVAL_MS = 125ms</code></li>
+  </ul>
+
+  <h3>Config Store and pixdash.json</h3>
+  <p><code>configStore</code> fetches <code>GET /api/v1/config</code> on mount and exposes:</p>
+  <ul>
+    <li><code>displayNames: Record&lt;string, string&gt;</code> — agent ID → custom display name</li>
+    <li><code>roles: Record&lt;string, string&gt;</code> — agent ID → role label</li>
+    <li><code>hierarchy: unknown[]</code> — organizational hierarchy</li>
+  </ul>
+  <p>Display names are applied to agents during initial load and re-applied when config finishes loading (race condition protection via <code>configStore.subscribe</code>).</p>
+
+  <h2 id="adding-new-features">4. Adding New Features</h2>
+
+  <h3>How to Add a New View/Tab</h3>
+  <ol>
+    <li><strong>Create the view component</strong> in <code>packages/frontend/src/components/staff/</code> (or a new directory):</li>
+  </ol>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">// components/myview/MyView.tsx
+export function MyView() { ... }</code></pre>
+  </div>
+  <ol start="2">
+    <li><strong>Add to <code>NavigationSwitch</code></strong> in <code>components/staff/NavigationSwitch.tsx</code>:</li>
+  </ol>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">export type ViewMode = 'office' | 'staff' | 'myview';
+
+// Add a new button alongside Office and Staff
+&lt;button onClick={() =&gt; onChange('myview')}&gt;📊 My View&lt;/button&gt;</code></pre>
+  </div>
+  <ol start="3">
+    <li><strong>Wire into <code>AppLayout</code></strong> in <code>components/layout/AppLayout.tsx</code>:</li>
+  </ol>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">import { MyView } from '@/components/myview/MyView';
+
+{viewMode === 'myview' ? (
+  &lt;MyView /&gt;
+) : viewMode === 'staff' ? (
+  &lt;StaffView /&gt;
+) : (
+  // ... office canvas
+)}</code></pre>
+  </div>
+
+  <h3>How to Add a New Agent Panel/Feature</h3>
+  <ol>
+    <li><strong>Backend:</strong>
+      <ul>
+        <li>Add route in <code>packages/backend/src/routes/agents.ts</code></li>
+        <li>Add service method in <code>AgentStateManager.ts</code> if state changes are needed</li>
+        <li>Broadcast via <code>this.broadcast('agent:myevent', payload)</code> to push to all WebSocket clients</li>
+      </ul>
+    </li>
+    <li><strong>Frontend:</strong>
+      <ul>
+        <li>Add API function in <code>lib/api.ts</code></li>
+        <li>Add component in <code>components/ui/</code></li>
+        <li>Wire into <code>AgentPanel.tsx</code></li>
+      </ul>
+    </li>
+    <li><strong>WebSocket event:</strong>
+      <ul>
+        <li>Add payload type in <code>packages/shared/src/types/event.ts</code></li>
+        <li>Add to <code>FrontendEventName</code> union and <code>FrontendEventPayload</code> union</li>
+        <li>Handle in <code>useAgents</code> hook event switch</li>
+        <li>Add to <code>SUPPORTED_EVENTS</code> set in <code>useWebSocket.ts</code></li>
+      </ul>
+    </li>
+  </ol>
+
+  <h3>How to Add New Waypoint Types</h3>
+  <ol>
+    <li><strong>Backend:</strong> Add to <code>packages/backend/src/data/waypoints.ts</code>:</li>
+  </ol>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">export type BackendWaypointType = 'desk' | 'reception' | 'restroom' | 'conference' | 'dining' | 'breakroom';
+
+// Add waypoints to BACKEND_WAYPOINTS array
+seated('breakroom-1', 10, 10, 'breakroom', 'south'),</code></pre>
+  </div>
+  <ol start="2">
+    <li><strong>MovementEngine routing:</strong> Add the type to <code>SEATED_TYPES</code> and optionally <code>WANDER_WEIGHTS</code>:</li>
+  </ol>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">const SEATED_TYPES = new Set&lt;BackendWaypointType&gt;(['desk', 'reception', 'restroom', 'conference', 'dining', 'breakroom']);</code></pre>
+  </div>
+  <ol start="3">
+    <li><strong>Frontend:</strong> Update <code>lib/waypoints.ts</code> and <code>lib/movement.ts</code> (<code>getArrivalStateForMovementType</code>) if the new type needs a visual state.</li>
+    <li><strong>No-go tiles:</strong> Add blocked tiles in <code>packages/backend/src/data/noGoTiles.ts</code> if needed.</li>
+    <li><strong>Config:</strong> Add to <code>pixdash.json</code> if agents can be reserved to this waypoint type.</li>
+  </ol>
+
+  <h2 id="api-endpoints-dev">5. API Endpoints</h2>
+
+  <p>All endpoints are prefixed with <code>/api/v1</code>. <strong>No authentication</strong> — local only.</p>
+
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Request Body</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET</code></td><td><code>/api/v1/health</code></td><td>Health check</td><td>—</td><td><code>{ ok: true, service: "pixdash-backend" }</code></td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/v1/agents</code></td><td>List all agents</td><td>—</td><td><code>{ agents: Agent[] }</code></td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/v1/agents/:id</code></td><td>Get single agent</td><td>—</td><td><code>Agent</code></td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/v1/agents/:id/logs</code></td><td>Get agent logs</td><td>Query: <code>?limit=N&amp;offset=N&amp;level=info</code></td><td><code>{ logs: AgentLog[], total: number, hasMore: boolean }</code></td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/v1/agents/:id/tasks</code></td><td>Get agent tasks</td><td>—</td><td><code>{ tasks: AgentTask[] }</code></td></tr>
+        <tr><td><code>PATCH</code></td><td><code>/api/v1/agents/:id/appearance</code></td><td>Update agent appearance</td><td><code>AppearancePatch</code></td><td><code>{ success: true, appearance: Appearance }</code></td></tr>
+        <tr><td><code>PATCH</code></td><td><code>/api/v1/agents/:id/displayName</code></td><td>Update display name</td><td><code>{ displayName: string | null }</code></td><td><code>{ success: true, displayName: string | null }</code></td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/v1/office/layout</code></td><td>Get office tilemap</td><td>—</td><td><code>Tilemap</code></td></tr>
+        <tr><td><code>GET</code></td><td><code>/api/v1/config</code></td><td>Get public config</td><td>—</td><td><code>PixdashConfig</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p><strong>Notes:</strong></p>
+  <ul>
+    <li><code>GET /api/v1/agents</code> strips sensitive fields (<code>soul</code>, <code>identity</code>, <code>config.workspace</code>, <code>config.agentDir</code>, <code>config.source</code>, <code>config.model</code>)</li>
+    <li><code>PATCH /api/v1/agents/:id/appearance</code> validates against <code>appearance.schema.json</code></li>
+    <li>Agent responses return <code>structuredClone()</code> copies — safe to mutate on the client</li>
+  </ul>
+
+  <h2 id="websocket-events-dev">6. WebSocket Events</h2>
+
+  <h3>Connection</h3>
+  <p><strong>Endpoint:</strong> <code>ws://&lt;host&gt;/ws</code></p>
+
+  <p>On connect, server sends:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{ "type": "connected", "clientId": "uuid", "serverVersion": "1.0.0" }</code></pre>
+  </div>
+
+  <h3>Client → Server Requests</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Method</th><th>Params</th><th>Response</th></tr></thead>
+      <tbody>
+        <tr><td><code>sync</code></td><td>—</td><td><code>{ agents: Agent[], officeLayout: Tilemap }</code></td></tr>
+        <tr><td><code>updateAppearance</code></td><td><code>{ agentId, appearance }</code></td><td><code>{ appearance: Appearance }</code></td></tr>
+        <tr><td><code>moveAgent</code></td><td><code>MoveAgentRequest</code></td><td><code>{ ok: true, agent: Agent }</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Request format:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{ "type": "req", "id": "req_001", "method": "sync" }</code></pre>
+  </div>
+
+  <h3>Server → Client Events</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Event Name</th><th>Payload</th><th>Trigger</th></tr></thead>
+      <tbody>
+        <tr><td><code>agent:status</code></td><td><code>{ agentId, status, timestamp }</code></td><td>Agent status change (gateway event, status re-evaluation, activity decay)</td></tr>
+        <tr><td><code>agent:log</code></td><td><code>{ agentId, log: AgentLog }</code></td><td>New log entry from Gateway</td></tr>
+        <tr><td><code>agent:task</code></td><td><code>{ agentId, task: AgentTask }</code></td><td>Task update from Gateway</td></tr>
+        <tr><td><code>agent:appearance</code></td><td><code>{ agentId, appearance }</code></td><td>Appearance updated via API or store</td></tr>
+        <tr><td><code>agent:config</code></td><td><code>{ agentId, agent }</code></td><td>Config watcher applies new snapshot</td></tr>
+        <tr><td><code>agent:conference</code></td><td><code>{ agentIds[], sessionKey?, source?, timestamp }</code></td><td>Multi-agent session detected</td></tr>
+        <tr><td><code>agent:position</code></td><td><code>{ agentId, position, direction? }</code></td><td>Position change broadcast (supplementary)</td></tr>
+        <tr><td><code>agent:movement</code></td><td><code>{ agentId, movement: MovementAuthorityState, position }</code></td><td>Movement tick update (20Hz for moving, 5s for settled)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Event format:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">json</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-json">{ "type": "event", "event": "agent:movement", "payload": { ... } }</code></pre>
+  </div>
+
+  <h3>Heartbeat</h3>
+  <p>Frontend sends <code>{ "type": "ping" }</code> every 15s. Connection is reset if no server message received for 45s.</p>
+
+  <h2 id="contributing-guidelines">7. Contributing Guidelines</h2>
+
+  <h3>Branch Naming</h3>
+  <ul>
+    <li><code>dev</code> — development branch</li>
+    <li><code>main</code> — stable/release branch</li>
+  </ul>
+
+  <h3>Commit Message Format</h3>
+  <p>No enforced convention currently. Use clear, descriptive messages.</p>
+
+  <h3>PR Process</h3>
+  <p>Standard fork → branch → PR workflow via GitHub.</p>
+
+  <h3>Code Style</h3>
+  <ul>
+    <li><strong>TypeScript strict mode</strong> across all packages</li>
+    <li><strong>ESLint</strong> — configured per package (see <code>tsconfig.json</code>)</li>
+    <li>Path aliases: <code>@/</code> → <code>src/</code>, <code>@assets/</code> → <code>../../assets/</code> (frontend only)</li>
+    <li>Import shared types via <code>@pixdash/shared</code></li>
+  </ul>
+
+  <h3>Testing</h3>
+  <ul>
+    <li><strong>Live QA scripts</strong> in <code>scripts/</code> — HTTP-based integration tests against a running server</li>
+    <li><strong>Playwright</strong> is a root dev dependency — E2E tests can be added</li>
+    <li>No unit test framework is currently configured</li>
+  </ul>
+
+  <h2 id="development-workflow">8. Development Workflow</h2>
+
+  <h3>Running in Dev Mode</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash"># Install dependencies
+pnpm install
+
+# Start frontend dev server (Vite HMR on port 5173)
+pnpm dev
+
+# Backend must be started separately:
+cd packages/backend
+pnpm dev
+# Or: node --watch src/server.ts</code></pre>
+  </div>
+
+  <p>The backend expects:</p>
+  <ul>
+    <li><code>pixdash.json</code> in the project root (see <code>pixdash.example.json</code>)</li>
+    <li><code>assets/sprites/blocked.png</code> for collision grid generation</li>
+    <li>OpenClaw Gateway running at <code>ws://127.0.0.1:18789</code> (or set <code>PIXDASH_GATEWAY_URL</code>)</li>
+  </ul>
+
+  <h3>Environment Variables</h3>
+  <div class="table-wrapper">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>PIXDASH_GATEWAY_URL</code></td><td><code>ws://127.0.0.1:18789</code></td><td>OpenClaw Gateway WebSocket URL</td></tr>
+        <tr><td><code>PIXDASH_GATEWAY_TOKEN</code></td><td>—</td><td>Gateway auth token</td></tr>
+        <tr><td><code>OPENCLAW_GATEWAY_TOKEN</code></td><td>—</td><td>Alternative gateway token source</td></tr>
+        <tr><td><code>PIXDASH_LOG_LEVEL</code></td><td><code>info</code></td><td>Backend log level</td></tr>
+        <tr><td><code>VITE_API_URL</code></td><td><code>/api/v1</code></td><td>Frontend API base URL</td></tr>
+        <tr><td><code>VITE_WS_URL</code></td><td>auto-derived</td><td>Frontend WebSocket URL (derived from API URL if not set)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Hot Reload</h3>
+  <ul>
+    <li><strong>Frontend:</strong> Vite HMR — instant component updates</li>
+    <li><strong>Backend:</strong> Use <code>node --watch</code> or <code>tsx watch</code> for auto-restart on file changes</li>
+  </ul>
+
+  <h3>Debug Logging</h3>
+  <p>Frontend debug logging is available via <code>lib/debug.ts</code>:</p>
+  <div class="code-wrapper">
+    <span class="code-lang">typescript</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-typescript">import { isDebug, isDebugAgent, debugAgent } from '@/lib/debug';</code></pre>
+  </div>
+  <p>Set <code>window.__PIXDASH_DEBUG = true</code> in browser console to enable verbose logging including per-frame render logs and movement state tracking.</p>
+  <p>To debug a specific agent: <code>window.__PIXDASH_DEBUG_AGENT = 'agent:devo'</code></p>
+
+  <h3>Build Process</h3>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash"># Build all packages
+pnpm build
+
+# Build frontend only
+cd packages/frontend &amp;&amp; pnpm build
+# Output: packages/frontend/dist/
+
+# Build backend only
+cd packages/backend &amp;&amp; pnpm build</code></pre>
+  </div>
+
+  <h3>Deploy Process</h3>
+
+  <h4>Docker</h4>
+  <div class="code-wrapper">
+    <span class="code-lang">bash</span>
+    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    <pre><code class="language-bash">docker build -t pixdash .
+docker run -p 3000:3000 -v ./pixdash.json:/app/pixdash.json pixdash</code></pre>
+  </div>
+
+  <p>The <code>Dockerfile</code> builds both packages and serves the frontend static files via Fastify's <code>@fastify/static</code>.</p>
+
+  <h4>start.sh</h4>
+  <p>The <code>start.sh</code> script starts the production backend which serves both API and frontend static files from <code>packages/frontend/dist/</code>.</p>
+
+  <h3>Production Architecture</h3>
+  <p>In production, the Fastify server:</p>
+  <ol>
+    <li>Serves REST API at <code>/api/v1/*</code></li>
+    <li>Serves WebSocket at <code>/ws</code></li>
+    <li>Serves frontend static files from <code>packages/frontend/dist/</code></li>
+    <li>Falls back to <code>index.html</code> for SPA routing (404 handler)</li>
+  </ol>
+
+</div>
+
+<!-- FOOTER -->
+<div style="margin-top:80px;padding-top:24px;border-top:1px solid #1a1a2a;text-align:center;color:#555;font-size:12px">
+  <p style="font-family:'Press Start 2P',monospace;font-size:8px;color:#d1a45a44;margin-bottom:8px">PIXDASH DOCUMENTATION</p>
+  <p>v1.0-alpha · Built with 🎮 and ❤️</p>
+</div>
+
+</main>
+
+<!-- BACK TO TOP -->
+<button class="back-to-top" id="backToTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+// Highlight.js init
+document.addEventListener('DOMContentLoaded', () => {
+  hljs.highlightAll();
+});
+
+// Copy button
+function copyCode(btn) {
+  const wrapper = btn.closest('.code-wrapper');
+  const code = wrapper.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = '✓ Copied';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// Sidebar toggle (mobile)
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebarToggle');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+sidebarToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('open');
+  sidebarOverlay.classList.toggle('open');
+});
+
+sidebarOverlay.addEventListener('click', () => {
+  sidebar.classList.remove('open');
+  sidebarOverlay.classList.remove('open');
+});
+
+// Collapsible sidebar sections
+document.querySelectorAll('.sidebar-section-title').forEach(title => {
+  title.addEventListener('click', () => {
+    const section = title.dataset.section;
+    const links = document.querySelector(`.sidebar-links[data-parent="${section}"]`);
+    title.classList.toggle('collapsed');
+    links.classList.toggle('collapsed');
+  });
+});
+
+// Active link tracking on scroll
+const sidebarLinks = document.querySelectorAll('.sidebar-links a');
+const mainHeadings = [];
+
+sidebarLinks.forEach(link => {
+  const id = link.getAttribute('href')?.replace('#', '');
+  if (id) {
+    const el = document.getElementById(id);
+    if (el) mainHeadings.push({ id, el, link });
+  }
+});
+
+function updateActiveLink() {
+  const scrollY = window.scrollY + 120;
+  let active = mainHeadings[0];
+
+  for (const heading of mainHeadings) {
+    if (heading.el.offsetTop <= scrollY) {
+      active = heading;
+    }
+  }
+
+  sidebarLinks.forEach(l => l.classList.remove('active'));
+  if (active) active.link.classList.add('active');
+}
+
+// Back to top button
+const backToTop = document.getElementById('backToTop');
+
+function updateBackToTop() {
+  if (window.scrollY > 400) {
+    backToTop.classList.add('visible');
+  } else {
+    backToTop.classList.remove('visible');
+  }
+}
+
+// Close sidebar on mobile when clicking a link
+sidebarLinks.forEach(link => {
+  link.addEventListener('click', () => {
+    if (window.innerWidth <= 900) {
+      sidebar.classList.remove('open');
+      sidebarOverlay.classList.remove('open');
+    }
+  });
+});
+
+// Throttled scroll handler
+let ticking = false;
+window.addEventListener('scroll', () => {
+  if (!ticking) {
+    requestAnimationFrame(() => {
+      updateActiveLink();
+      updateBackToTop();
+      ticking = false;
+    });
+    ticking = true;
+  }
+});
+
+// Initial call
+updateActiveLink();
+updateBackToTop();
+</script>
+
+</body>
+</html>
