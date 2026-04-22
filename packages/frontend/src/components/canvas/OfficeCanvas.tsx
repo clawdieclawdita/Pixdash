@@ -189,16 +189,27 @@ export const OfficeCanvas = ({ agents, onAgentSelect, selectedAgentId, showLabel
     for (const agent of currentAgents) {
       const target = smoothPositionTargets.get(agent.id);
       const isMoving = !!target?.moving;
+      const storeX = agent.interpolatedX ?? agent.x;
+      const storeY = agent.interpolatedY ?? agent.y;
 
       if (!isMoving) {
+        let x = storeX;
+        let y = storeY;
+        // Guard: if a non-moving agent's render position would be at/near origin
+        // but we have a smooth target with a valid position, prefer the smooth target.
+        if (x < 100 && y < 100 && target && (target.x > 100 || target.y > 100)) {
+          console.warn(`[PixDash] blocked teleport for ${agent.id}: store=(${x.toFixed(0)},${y.toFixed(0)}) target=(${target.x.toFixed(0)},${target.y.toFixed(0)})`);
+          x = target.x;
+          y = target.y;
+        }
         const override = {
-          x: agent.interpolatedX ?? agent.x,
-          y: agent.interpolatedY ?? agent.y,
+          x,
+          y,
           direction: agent.waypointDirection ?? agent.direction ?? undefined,
           isMoving: false,
         };
         renderOverrides.set(agent.id, override);
-        debugAgent(agent.id, '[pixdash][override] ' + agent.id, { source: 'store', override, movementState: agent.movementState, pathLen: agent.path?.length ?? 0 });
+        debugAgent(agent.id, '[pixdash][override] ' + agent.id, { source: 'store', override, storeXY: { x: storeX, y: storeY }, targetXY: target ? { x: target.x, y: target.y } : null, movementState: agent.movementState });
         continue;
       }
 

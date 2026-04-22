@@ -167,6 +167,35 @@ export function useAgents() {
         return agent;
       });
 
+      // Seed smooth position targets from API response for moving agents.
+      // Without this, the canvas has no smooth target between API load
+      // and the first WS event — causing a teleport to (0,0) if the
+      // agent stops before any WS movement event arrives.
+      for (const agent of enrichedAgents) {
+        if (agent.movement?.status === 'moving' && agent.movement.fractionalX != null && agent.movement.fractionalY != null) {
+          const fx = agent.movement.fractionalX;
+          const fy = agent.movement.fractionalY;
+          if (fx >= 0 && fy >= 0 && fx <= 2400 && fy <= 1792) {
+            smoothPositionTargets.set(agent.id, {
+              x: fx,
+              y: fy,
+              direction: agent.position?.direction ?? 'south',
+              moving: true,
+            });
+          }
+        } else if (agent.position && Number.isFinite(agent.position.x) && Number.isFinite(agent.position.y) && (agent.position.x > 0 || agent.position.y > 0)) {
+          // For non-moving agents, seed a settled pixel target so canvas never
+          // falls through to stale (0,0) defaults.
+          const px = tileToPixelCenter(agent.position);
+          smoothPositionTargets.set(agent.id, {
+            x: px.x,
+            y: px.y,
+            direction: agent.position.direction ?? 'south',
+            moving: false,
+          });
+        }
+      }
+
       setAgents(enrichedAgents);
       const syncedAgents = useAgentsStore.getState().agents;
       syncAgents(syncedAgents);
@@ -385,14 +414,6 @@ export function useAgents() {
         const destination = payload.movement.destination ? tileToPixelCenter(payload.movement.destination) : null;
         const releasedBackendAuthority = hadBackendAuthority && !hasBackendAuthority;
 
-        // Temporary conference/debug comparison for main/docclaw movement payloads
-        if (payload.agentId === 'main' || payload.agentId === 'docclaw') {
-          console.log('[PixDash][movement-payload]', payload.agentId, {
-            position: payload.position,
-            movement: payload.movement,
-          });
-        }
-
         // Write position target to smooth map (bypasses Zustand entirely).
         // In server-authoritative mode, trust backend movement status and live position
         // updates even if the path array is already consumed or omitted.
@@ -424,10 +445,27 @@ export function useAgents() {
           }
         } else {
           recentMovingAgents.delete(payload.agentId);
-          smoothPositionTargets.delete(payload.agentId);
+          // Write final settled position as smooth target instead of deleting.
+          // This prevents a 1-2 frame gap where canvas has no target and
+          // falls back to stale agent.x/agent.y (which may be 0,0).
+          if (normalizedPosition) {
+            smoothPositionTargets.set(payload.agentId, {
+              x: normalizedPosition.x,
+              y: normalizedPosition.y,
+              direction: normalizedPosition.direction,
+              moving: false,
+            });
+          } else {
+            // Keep last known smooth target until Zustand catches up
+            const lastTarget = smoothPositionTargets.get(payload.agentId);
+            if (lastTarget) {
+              lastTarget.moving = false;
+            }
+          }
           debugAgent(payload.agentId, '[pixdash][movement-stop] ' + payload.agentId, {
               status: payload.movement.status,
               pos: payload.position,
+              normalizedPos: normalizedPosition,
               pathLen: payload.movement.path.length,
               destination: payload.movement.destination,
               claimedWaypointId: payload.movement.claimedWaypointId,
