@@ -116,6 +116,7 @@ export interface ActiveMeeting {
   startedAt: number;
   lastActivityAt: number;
   source: 'session_send' | 'sessions_spawn' | 'group_exchange';
+  previousWaypointByAgent: Map<string, string | null>;
 }
 
 export interface ActiveMeetingSnapshot {

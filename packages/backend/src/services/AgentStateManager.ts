@@ -261,6 +261,7 @@ export class AgentStateManager {
     const agent = this.ensureAgent(event.agentId);
     const presence = this.ensurePresence(event.agentId);
     const previousStatus = agent.status;
+    const inActiveMeeting = [...this.activeMeetings.values()].some((meeting) => meeting.agentIds.has(event.agentId));
     const isSyntheticSnapshot = event.source === 'presence_snapshot' || event.source === 'health_snapshot';
     const hasFreshActivity = typeof presence.lastActivityAt === 'number'
       && Math.max(0, Date.now() - presence.lastActivityAt) < WORKING_GRACE_MS;
@@ -272,7 +273,7 @@ export class AgentStateManager {
     }
 
     agent.lastSeen = event.timestamp;
-    const derivedStatus = this.deriveStatus(event.agentId);
+    const derivedStatus = inActiveMeeting ? 'conference' : this.deriveStatus(event.agentId);
     agent.status = derivedStatus;
 
     if (agent.stats) {
@@ -317,6 +318,7 @@ export class AgentStateManager {
 
   applyConferenceEvent(event: GatewayConferenceEvent): void {
     const validAgentIds = event.agentIds.filter((id) => this.agents.has(id));
+    logger.info({ sessionKey: event.sessionKey, source: event.source, agentIds: event.agentIds, validAgentIds }, '[applyConferenceEvent] received');
     if (validAgentIds.length < 2) {
       return;
     }
@@ -325,22 +327,20 @@ export class AgentStateManager {
     const source = event.source === 'sessions_spawn' || event.source === 'group_exchange'
       ? event.source
       : 'session_send';
+    const timestamp = event.timestamp ?? new Date().toISOString();
 
-    // Create or update meeting
     const meeting = this.createOrUpdateMeeting(validAgentIds, sessionKey, source);
 
-    // Route agents to conference seats
+    this.setConferenceStatus(validAgentIds, timestamp);
     this.movementEngine.handleConference(validAgentIds);
 
-    // Broadcast legacy conference event for backward compat
     this.broadcast('agent:conference', {
       agentIds: validAgentIds,
       sessionKey,
       source,
-      timestamp: event.timestamp ?? new Date().toISOString(),
+      timestamp,
     });
 
-    // Broadcast meeting start if this is a new meeting
     if (meeting) {
       logger.info({ meetingId: meeting.id, agentIds: validAgentIds, sessionKey, source }, 'Conference meeting started');
       this.broadcast('agent:conference_start', {
@@ -356,11 +356,27 @@ export class AgentStateManager {
     const agent = this.ensureAgent(id);
     const presence = this.ensurePresence(id);
     const previousStatus = agent.status;
+    const inActiveMeeting = [...this.activeMeetings.values()].some((meeting) => meeting.agentIds.has(id));
+
     presence.explicitOffline = false;
     presence.baselineStatus = 'online';
     presence.lastActivityAt = timestamp;
-    agent.status = 'working';
     agent.lastSeen = new Date(timestamp).toISOString();
+
+    if (inActiveMeeting) {
+      if (agent.status !== 'conference') {
+        agent.status = 'conference';
+        this.broadcast('agent:status', {
+          agentId: id,
+          status: 'conference',
+          timestamp: agent.lastSeen,
+        });
+      }
+      this.scheduleActivityDecay(id);
+      return;
+    }
+
+    agent.status = 'working';
     this.broadcast('agent:status', {
       agentId: id,
       status: 'working',
@@ -511,6 +527,16 @@ export class AgentStateManager {
       movement.fractionalY = basePixelY;
     }
 
+    if (agent.id === 'main' || agent.id === 'docclaw') {
+      console.log('[emitMovement]', agent.id, {
+        movementStatus: movement.status,
+        claimedWaypointId: movement.claimedWaypointId,
+        destination: movement.destination,
+        pathLength: movement.path.length,
+        position: agent.position,
+      });
+    }
+
     this.lastMovementBroadcast.set(agent.id, Date.now());
     this.broadcast('agent:movement', {
       agentId: agent.id,
@@ -550,12 +576,13 @@ export class AgentStateManager {
         for (const id of agentIds) {
           if (!existing.agentIds.has(id)) {
             existing.agentIds.add(id);
+            existing.previousWaypointByAgent.set(id, this.agents.get(id)?.movement?.claimedWaypointId ?? null);
             changed = true;
           }
         }
         existing.lastActivityAt = now;
-        // If new agents joined, re-route them to conference
         if (changed) {
+          this.setConferenceStatus([...existing.agentIds]);
           this.movementEngine.handleConference([...existing.agentIds]);
         }
         return undefined; // Not a new meeting
@@ -564,6 +591,12 @@ export class AgentStateManager {
 
     // Create a new meeting
     const meetingId = `meeting_${now}_${Math.random().toString(36).slice(2, 8)}`;
+    const previousWaypointByAgent = new Map<string, string | null>();
+    for (const agentId of agentIds) {
+      const agent = this.agents.get(agentId);
+      previousWaypointByAgent.set(agentId, agent?.movement?.claimedWaypointId ?? null);
+    }
+
     const meeting: ActiveMeeting = {
       id: meetingId,
       agentIds: new Set(agentIds),
@@ -571,6 +604,7 @@ export class AgentStateManager {
       startedAt: now,
       lastActivityAt: now,
       source,
+      previousWaypointByAgent,
     };
     this.activeMeetings.set(meetingId, meeting);
     return meeting;
@@ -598,7 +632,11 @@ export class AgentStateManager {
         }
       }
 
-      // Determine what status to route back to
+      const previousWaypointId = meeting.previousWaypointByAgent.get(agentId) ?? null;
+      const restoredToPreviousSeat = previousWaypointId
+        ? this.movementEngine.requestReturnToWaypoint(agentId, previousWaypointId)
+        : false;
+
       const presence = this.presence.get(agentId);
       const restoreStatus = (presence && typeof presence.lastActivityAt === 'number'
         && (Date.now() - presence.lastActivityAt) < WORKING_GRACE_MS)
@@ -606,7 +644,9 @@ export class AgentStateManager {
         : 'idle';
 
       agent.status = restoreStatus;
-      this.movementEngine.handleStatusChange(agentId, restoreStatus, 'conference');
+      if (!restoredToPreviousSeat) {
+        this.movementEngine.handleStatusChange(agentId, restoreStatus, 'conference');
+      }
       this.broadcast('agent:status', {
         agentId,
         status: restoreStatus,
@@ -737,6 +777,11 @@ export class AgentStateManager {
         continue;
       }
 
+      const inActiveMeeting = [...this.activeMeetings.values()].some((meeting) => meeting.agentIds.has(id));
+      if (agent.status === 'conference' && inActiveMeeting) {
+        continue;
+      }
+
       const previousStatus = agent.status;
       const nextStatus = this.deriveStatus(id, now);
       if (agent.status === nextStatus) {
@@ -750,6 +795,22 @@ export class AgentStateManager {
         timestamp: agent.lastSeen,
       });
       this.movementEngine.handleStatusChange(id, nextStatus, previousStatus);
+    }
+  }
+
+  private setConferenceStatus(agentIds: string[], timestamp = new Date().toISOString()): void {
+    for (const agentId of agentIds) {
+      const agent = this.agents.get(agentId);
+      if (!agent || agent.status === 'conference') {
+        continue;
+      }
+
+      agent.status = 'conference';
+      this.broadcast('agent:status', {
+        agentId,
+        status: 'conference',
+        timestamp,
+      });
     }
   }
 

@@ -155,22 +155,111 @@ export class MovementEngine {
   }
 
   handleConference(agentIds: string[]): void {
-    const conferenceSeats = this.waypoints.filter((waypoint) => waypoint.type === 'conference');
-    const targetedIds = this.collectTargetedWaypointIds();
+    logger.info({ agentIds }, '[MovementEngine] handleConference fired');
 
-    for (const agentId of agentIds) {
-      this.cancelMovement(agentId, true);
-      const seat = this.pickWaypoint(conferenceSeats, agentId, targetedIds);
-      if (!seat) {
-        continue;
+    // Assign agents to ordered chair slots: alternating left/right by row,
+    // then head chairs. Use actual chair slot IDs, never generic offsets.
+    // Row slots are shuffled so meetings don't always use the same row.
+    const rowSlots = [1, 2, 3, 4, 5];
+    for (let i = rowSlots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [rowSlots[i], rowSlots[j]] = [rowSlots[j], rowSlots[i]];
+    }
+    const seatOrder: string[] = [];
+    for (const row of rowSlots) {
+      seatOrder.push(`conf-left-${row}`);
+      seatOrder.push(`conf-right-${row}`);
+    }
+    // Head chairs as overflow after all side seats
+    seatOrder.push('conf-head-n');
+    seatOrder.push('conf-head-s');
+
+    const slotAssign: Map<string, string> = new Map();
+    for (let i = 0; i < agentIds.length && i < seatOrder.length; i++) {
+      slotAssign.set(agentIds[i], seatOrder[i]);
+    }
+
+    for (let i = 0; i < agentIds.length; i++) {
+      const agentId = agentIds[i];
+      const agent = this.agentStateManager.getMutableAgent(agentId);
+      const previousClaim = agent?.movement?.claimedWaypointId ?? null;
+      this.cancelMovement(agentId, false);
+      if (previousClaim) {
+        this.agentStateManager.releaseWaypointClaim(previousClaim, agentId);
       }
-      if (this.routeAgentToWaypoint(agentId, seat)) {
-        targetedIds.add(seat.id);
-        const agent = this.agentStateManager.getMutableAgent(agentId);
-        if (agent) {
-          agent.status = 'conference';
+      let candidates = this.waypoints.filter((waypoint) => waypoint.type === 'conference');
+
+      // Use assigned specific slot
+      const assignedSlot = slotAssign.get(agentId);
+      if (assignedSlot) {
+        candidates = candidates.filter(wp => wp.id === assignedSlot);
+      }
+
+      const targetedIds = this.collectTargetedWaypointIds();
+      const waypoint = this.pickWaypoint(candidates, agentId, targetedIds);
+      let routed = false;
+      if (agent && waypoint) {
+        const sameTile = agent.position.x === waypoint.x && agent.position.y === waypoint.y;
+        logger.info({
+          agentId,
+          currentPosition: { x: agent.position.x, y: agent.position.y },
+          targetWaypoint: waypoint.id,
+          targetPosition: { x: waypoint.x, y: waypoint.y },
+          sameTile,
+        }, '[MovementEngine] conference same-tile check');
+        const path = findPath(
+          { x: agent.position.x, y: agent.position.y },
+          { x: waypoint.x, y: waypoint.y },
+          this.walkable,
+          this.noGoTiles,
+        );
+        logger.info({
+          agentId,
+          startPosition: { x: agent.position.x, y: agent.position.y },
+          targetWaypoint: waypoint.id,
+          targetPosition: { x: waypoint.x, y: waypoint.y },
+          pathLength: Array.isArray(path) ? path.length : null,
+          pathPreview: Array.isArray(path) ? path.slice(0, 6) : null,
+        }, '[MovementEngine] conference pathfinding result');
+        if (sameTile) {
+          this.agentStateManager.claimWaypoint(waypoint, agentId);
+          agent.movement = {
+            status: 'seated',
+            claimedWaypointId: waypoint.id,
+            destination: { x: waypoint.x, y: waypoint.y },
+            path: [],
+            lastUpdatedAt: new Date().toISOString(),
+            progress: 0,
+            fractionalX: undefined,
+            fractionalY: undefined,
+            visualOffsetX: waypoint.visualOffsetX,
+            visualOffsetY: waypoint.visualOffsetY,
+            waypointType: waypoint.type,
+            waypointDirection: waypoint.direction,
+          };
+          this.agentStateManager.emitMovement(agent);
+          logger.info({ agentId, branch: 'sameTile->seated' }, '[MovementEngine] conference branch');
+          routed = true;
+        } else if (path.length > 0) {
+          this.cancelMovement(agentId, true);
+          this.agentStateManager.claimWaypoint(waypoint, agentId);
+          this.agentStateManager.applyMovement(agent, path.slice(1), waypoint, { x: waypoint.x, y: waypoint.y });
+          this.wanderDueAt.delete(agentId);
+          logger.info({ agentId, branch: 'pathFound->moving', emittedPathLength: path.slice(1).length }, '[MovementEngine] conference branch');
+          routed = true;
+        } else {
+          logger.info({ agentId, branch: 'noPath->unrouted' }, '[MovementEngine] conference branch');
         }
       }
+      const updated = this.agentStateManager.getMutableAgent(agentId);
+      logger.info({
+        agentId,
+        previousClaim,
+        routed,
+        claimedWaypointId: updated?.movement?.claimedWaypointId ?? null,
+        destination: updated?.movement?.destination ?? null,
+        movementStatus: updated?.movement?.status ?? null,
+      }, '[MovementEngine] conference routing result');
     }
   }
 
@@ -265,6 +354,9 @@ export class MovementEngine {
             lastUpdatedAt: new Date().toISOString(),
           };
           this.agentStateManager.emitMovement(agent);
+          if (agent.status === 'conference') {
+            this.handleConference([agent.id]);
+          }
           continue;
         }
       }
@@ -306,6 +398,9 @@ export class MovementEngine {
           this.lastRerouteAt.delete(agent.id);
           agent.position = currentPosition;
           this.cancelMovement(agent.id, true);
+          if (agent.status === 'conference') {
+            this.handleConference([agent.id]);
+          }
           continue;
         }
 
@@ -399,6 +494,14 @@ export class MovementEngine {
     const waypointId = pixdashConfig.getReservedWaypoint(agentId);
     if (!waypointId) return null;
     return this.waypoints.find((wp) => wp.id === waypointId) ?? null;
+  }
+
+  requestReturnToWaypoint(agentId: string, waypointId: string): boolean {
+    const waypoint = this.agentStateManager.findWaypointById(waypointId);
+    if (!waypoint) {
+      return false;
+    }
+    return this.routeAgentToWaypoint(agentId, waypoint);
   }
 
   requestMove(agentId: string, waypointId?: string, destination?: { x: number; y: number }) {

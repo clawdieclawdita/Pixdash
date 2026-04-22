@@ -46,6 +46,17 @@ export class PixDashWebSocketServer {
   }
 
   broadcast<TPayload>(event: WsEventMessage<TPayload>): void {
+    if (event.event === 'agent:movement') {
+      const payloadAny = event.payload as { agentId?: string; movement?: { status?: string; claimedWaypointId?: string | null; destination?: unknown; path?: unknown[] } };
+      if (payloadAny.agentId === 'main' || payloadAny.agentId === 'docclaw') {
+        console.log('[wsServer.broadcast]', payloadAny.agentId, {
+          movementStatus: payloadAny.movement?.status,
+          claimedWaypointId: payloadAny.movement?.claimedWaypointId,
+          destination: payloadAny.movement?.destination,
+          pathLength: payloadAny.movement?.path?.length ?? null,
+        });
+      }
+    }
     const payload = JSON.stringify(event);
     for (const [id, client] of this.clients) {
       try {

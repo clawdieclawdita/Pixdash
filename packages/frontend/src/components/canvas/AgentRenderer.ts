@@ -217,7 +217,7 @@ const drawConferenceLabel = (ctx: CanvasRenderingContext2D, agent: AgentPosition
   const labelWidth = textWidth + paddingX * 2;
   const labelHeight = 20;
   const labelX = Math.round(px - labelWidth / 2);
-  const labelY = Math.round(py - 10 - labelHeight);
+  const labelY = Math.round(py + 54);
 
   ctx.fillStyle = `rgba(26, 21, 16, ${0.8 * opacity})`;
   drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 4);
@@ -304,7 +304,12 @@ export class AgentRenderer {
 
       // When seated, shift sprite visually to appear ON the chair
       // Only apply offset if movementState confirms seated (not just claimedWaypointId)
-      const isSeated = !isMoving && !!agent.claimedWaypointId && agent.movementState?.startsWith('seated');
+      const isConferenceSeat = agent.claimedWaypointId?.startsWith('conference-') ?? false;
+      const isSeated = !isMoving && !!agent.claimedWaypointId && (
+        agent.movementState?.startsWith('seated')
+        || isConferenceSeat
+        || agent.status === 'conference'
+      );
       const offsetPx = isSeated ? (agent.visualOffsetX ?? 0) : 0;
       const offsetPy = isSeated ? (agent.visualOffsetY ?? 0) : 0;
       const renderX = px + offsetPx;

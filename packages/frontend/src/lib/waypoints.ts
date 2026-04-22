@@ -162,20 +162,20 @@ export const createWaypointSet = (): WaypointSet => ({
     // Table spans roughly cols 59-68 / rows 10-26, so side chairs stay on corridor tiles
     // with horizontal visual offsets to place agents onto the actual seats.
     // Head chairs (north/south ends)
-    seated('conf-head-n', 63, 9, 'conference', 'south', 0, 30),
-    seated('conf-head-s', 63, 28, 'conference', 'north', 0, -30),
+    seated('conf-head-n', 64, 9, 'conference', 'south', 0, 0),
+    seated('conf-head-s', 63, 28, 'conference', 'north', 0, 0),
     // West side chairs facing east toward table
-    seated('conf-left-1', 56, 9, 'conference', 'east', 33, 0),
-    seated('conf-left-2', 56, 13, 'conference', 'east', 33, 0),
-    seated('conf-left-3', 56, 17, 'conference', 'east', 33, 0),
-    seated('conf-left-4', 56, 21, 'conference', 'east', 33, 0),
-    seated('conf-left-5', 56, 25, 'conference', 'east', 33, 0),
+    seated('conf-left-1', 61, 11, 'conference', 'east', 0, 0),
+    seated('conf-left-2', 61, 14, 'conference', 'east', 0, 0),
+    seated('conf-left-3', 61, 18, 'conference', 'east', 0, 0),
+    seated('conf-left-4', 61, 21, 'conference', 'east', 0, 0),
+    seated('conf-left-5', 61, 24, 'conference', 'east', 0, 0),
     // East side chairs facing west toward table
-    seated('conf-right-1', 72, 9, 'conference', 'west', -33, 0),
-    seated('conf-right-2', 72, 13, 'conference', 'west', -33, 0),
-    seated('conf-right-3', 72, 17, 'conference', 'west', -33, 0),
-    seated('conf-right-4', 72, 21, 'conference', 'west', -33, 0),
-    seated('conf-right-5', 72, 25, 'conference', 'west', -33, 0),
+    seated('conf-right-1', 68, 11, 'conference', 'west', 0, 0),
+    seated('conf-right-2', 68, 14, 'conference', 'west', 0, 0),
+    seated('conf-right-3', 68, 18, 'conference', 'west', 0, 0),
+    seated('conf-right-4', 68, 21, 'conference', 'west', 0, 0),
+    seated('conf-right-5', 68, 24, 'conference', 'west', 0, 0),
   ],
 
   // Watercooler at (63,33) is on a blocked tile (no walkable path).

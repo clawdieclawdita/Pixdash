@@ -94,6 +94,7 @@ export class GatewayClient {
   private manuallyStopped = false;
   private readonly deviceKeys = this.loadOrCreateDeviceKeys();
   private readonly subscribedSessionKeys = new Set<string>();
+  private readonly seenSpawnConferenceSessionKeys = new Set<string>();
   private deviceToken?: string;
   private pendingConnectRequestId?: string;
   private pendingPresenceRequestId?: string;
@@ -172,6 +173,10 @@ export class GatewayClient {
     }
 
     if (message.type === 'event' && message.event) {
+      // Temporary: log tool and message events for conference debug
+      if (message.event === 'session.tool' || message.event === 'session.message') {
+        logger.info({ event: message.event, payload: JSON.stringify(message.payload).slice(0, 300) }, 'Gateway event received');
+      }
       this.forwardEvent(message.event, message.payload);
       return;
     }
@@ -318,11 +323,12 @@ export class GatewayClient {
   }
 
   private applyPresenceSnapshot(payload: unknown): void {
-    if (!Array.isArray(payload)) {
+    const agents = this.extractAgentsFromSnapshot(payload);
+    if (!agents) {
       return;
     }
 
-    for (const entry of payload) {
+    for (const entry of agents) {
       if (!entry || typeof entry !== 'object') {
         continue;
       }
@@ -346,11 +352,26 @@ export class GatewayClient {
         source: 'presence_snapshot',
       });
 
-      // Subscribe to this agent's recent sessions for real-time activity tracking.
-      // This ensures we receive session.message/session.tool events for ALL agents,
-      // not just the agent PixDash authenticates as.
       this.subscribeToAgentSessions(entryRecord);
     }
+  }
+
+  private extractAgentsFromSnapshot(payload: unknown): Array<Record<string, unknown>> | undefined {
+    if (Array.isArray(payload)) {
+      return payload.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object');
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return undefined;
+    }
+
+    const record = payload as Record<string, unknown>;
+    const nestedAgents = record.agents;
+    if (Array.isArray(nestedAgents)) {
+      return nestedAgents.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object');
+    }
+
+    return undefined;
   }
 
   private subscribeToAgentSessions(entry: Record<string, unknown>): void {
@@ -586,11 +607,6 @@ export class GatewayClient {
       },
     });
 
-    // sessions_spawn conference detection
-    if (toolName === 'sessions_spawn') {
-      this.detectSpawnConference(agentId, args);
-    }
-
     // session_send conference detection
     if (toolName === 'session_send') {
       this.detectSendConference(agentId, args, sessionKey);
@@ -601,49 +617,6 @@ export class GatewayClient {
    * Detect conferences triggered by sessions_spawn between two known real agents.
    * Only triggers if both source and target are known agents (not ephemeral subagents).
    */
-  private detectSpawnConference(sourceAgentId: string, args: unknown): void {
-    if (!this.agentStateManager.isKnownAgent(sourceAgentId)) return;
-
-    // Parse target agentId from spawn args
-    let targetAgentId: string | undefined;
-    if (typeof args === 'string') {
-      try {
-        const parsed = JSON.parse(args) as Record<string, unknown>;
-        targetAgentId = this.pickString(parsed.agentId, parsed.targetAgentId);
-      } catch {
-        // Unparseable args
-      }
-    } else if (args && typeof args === 'object') {
-      const argsRecord = args as Record<string, unknown>;
-      targetAgentId = this.pickString(argsRecord.agentId, argsRecord.targetAgentId);
-    }
-
-    if (!targetAgentId || targetAgentId === sourceAgentId) return;
-
-    // Accept known real agents directly
-    if (this.agentStateManager.isKnownAgent(targetAgentId)) {
-      // Target is a known real agent — trigger conference regardless of runtime
-    } else if (targetAgentId.includes(':subagent:')) {
-      // Ephemeral subagent session — skip
-      return;
-    } else {
-      // Unknown agent ID that's not a subagent key — skip
-      return;
-    }
-
-    logger.info(
-      { sourceAgentId, targetAgentId, tool: 'sessions_spawn' },
-      'Detected sessions_spawn between known agents — triggering conference',
-    );
-
-    this.agentStateManager.applyConferenceEvent({
-      agentIds: [sourceAgentId, targetAgentId],
-      sessionKey: `spawn:${sourceAgentId}:${targetAgentId}`,
-      source: 'sessions_spawn',
-      timestamp: new Date().toISOString(),
-    });
-  }
-
   /**
    * Detect conferences triggered by session_send between two known real agents.
    */
@@ -688,6 +661,72 @@ export class GatewayClient {
       source: 'session_send',
       timestamp: new Date().toISOString(),
     });
+  }
+
+  private applySessionsChanged(payload: unknown): void {
+    if (!payload || typeof payload !== 'object') {
+      return;
+    }
+
+    const record = payload as Record<string, unknown>;
+    const phase = this.pickString(record.phase);
+    const session = record.session && typeof record.session === 'object'
+      ? (record.session as Record<string, unknown>)
+      : undefined;
+
+    const childSessionKey = this.pickString(
+      session?.key,
+      record.sessionKey,
+    );
+
+    if (!childSessionKey || !childSessionKey.includes(':subagent:')) {
+      return;
+    }
+
+    if (phase === 'end' || this.pickString(session?.status) === 'done') {
+      this.seenSpawnConferenceSessionKeys.delete(childSessionKey);
+      return;
+    }
+
+    if (this.seenSpawnConferenceSessionKeys.has(childSessionKey)) {
+      return;
+    }
+
+    const sourceSessionKey = this.pickString(
+      session?.parentSessionKey,
+      session?.spawnedBy,
+    );
+    const sourceAgentId = sourceSessionKey ? this.extractAgentIdFromSessionKey(sourceSessionKey) : undefined;
+    const targetAgentId = this.extractAgentIdFromSessionKey(childSessionKey);
+
+    if (!sourceAgentId || !targetAgentId || targetAgentId === sourceAgentId) {
+      return;
+    }
+    if (!this.agentStateManager.isKnownAgent(sourceAgentId)) {
+      return;
+    }
+    if (!this.agentStateManager.isKnownAgent(targetAgentId)) {
+      return;
+    }
+
+    this.seenSpawnConferenceSessionKeys.add(childSessionKey);
+
+    logger.info(
+      { sourceAgentId, targetAgentId, childSessionKey },
+      'Detected spawned subagent session from sessions.changed — triggering conference',
+    );
+
+    this.agentStateManager.applyConferenceEvent({
+      agentIds: [sourceAgentId, targetAgentId],
+      sessionKey: childSessionKey,
+      source: 'sessions_spawn',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  private extractAgentIdFromSessionKey(sessionKey: string): string | undefined {
+    const match = sessionKey.match(/^agent:([^:]+)/);
+    return match?.[1];
   }
 
   /**
@@ -791,6 +830,9 @@ export class GatewayClient {
         break;
       case 'session.tool':
         this.applySessionToolEvent(payload);
+        break;
+      case 'sessions.changed':
+        this.applySessionsChanged(payload);
         break;
       default:
         logger.debug({ event, payload }, 'Ignoring unsupported Gateway event');

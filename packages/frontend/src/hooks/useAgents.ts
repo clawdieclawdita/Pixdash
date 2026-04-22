@@ -385,10 +385,18 @@ export function useAgents() {
         const destination = payload.movement.destination ? tileToPixelCenter(payload.movement.destination) : null;
         const releasedBackendAuthority = hadBackendAuthority && !hasBackendAuthority;
 
-        // Write position target to smooth map (bypasses Zustand entirely)
-        // Only keep target while agent is actually moving — clear on seated/idle
-        const isActuallyMoving = payload.movement.status === 'moving'
-          && (payload.movement.path.length > 0 || payload.movement.destination != null);
+        // Temporary conference/debug comparison for main/docclaw movement payloads
+        if (payload.agentId === 'main' || payload.agentId === 'docclaw') {
+          console.log('[PixDash][movement-payload]', payload.agentId, {
+            position: payload.position,
+            movement: payload.movement,
+          });
+        }
+
+        // Write position target to smooth map (bypasses Zustand entirely).
+        // In server-authoritative mode, trust backend movement status and live position
+        // updates even if the path array is already consumed or omitted.
+        const isActuallyMoving = payload.movement.status === 'moving';
         if (isActuallyMoving && payload.movement.fractionalX != null && payload.movement.fractionalY != null) {
           recentMovingAgents.set(payload.agentId, Date.now());
           const fx = payload.movement.fractionalX;
@@ -484,8 +492,8 @@ export function useAgents() {
         break;
       }
       case 'agent:conference': {
-        const payload = lastEvent.payload as EventPayloadMap['agent:conference'];
-        void handleConference(payload.agentIds);
+        // Server-authoritative mode: conference movement comes through agent:movement.
+        // Do not invoke legacy conference placement logic on the frontend.
         break;
       }
       case 'agent:conference_start': {
