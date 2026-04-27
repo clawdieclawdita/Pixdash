@@ -61,7 +61,7 @@ pixdash/
 
 | Agent | Description |
 |-------|-------------|
-| **Clawdie** | The boss — reserved seat at the corner desk |
+| **Clawdie** | The boss — reserved waypoint: `reception-front` |
 | **Devo** | Full-stack orchestrator — always near the monitors |
 | **DocClaw** | Documentation specialist — clean desk, organized |
 | **Forbidden** | Security specialist — seat near the server room |
@@ -174,6 +174,8 @@ The office map is defined in `assets/office-layout.json` with a corresponding co
 | `conference` | Meeting room chairs |
 | `restroom` | Self-explanatory |
 | `dining` | Break room / kitchen area |
+
+Waypoints can specify a `reservedFor` field (an agent ID) to make them exclusive. Other agents skip reserved waypoints during idle wandering, while the reserved agent gets priority routing to their assigned waypoint via `findReservedWaypoint()`. Both the waypoint definition (`waypoints.ts`) and the config (`pixdash.json` → `reservedWaypoints`) must agree for the system to work correctly.
 
 ## 📚 Documentation
 

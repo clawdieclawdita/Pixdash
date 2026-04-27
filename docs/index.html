@@ -632,7 +632,7 @@ docker compose up -d --build</code></pre>
         <tr><td><code>displayNames</code></td><td><code>Record&lt;string, string&gt;</code></td><td>Maps agent keys (from Gateway) to human-readable names shown in the UI</td></tr>
         <tr><td><code>roles</code></td><td><code>Record&lt;string, string&gt;</code></td><td>Maps agent keys to job titles displayed in tooltips/overlays</td></tr>
         <tr><td><code>hierarchy</code></td><td><code>Array&lt;{parent, child}&gt;</code></td><td>Defines org-chart parent-child relationships between agents</td></tr>
-        <tr><td><code>reservedWaypoints</code></td><td><code>Record&lt;string, string&gt;</code></td><td>Assigns named waypoints to specific agents (e.g., a reserved desk)</td></tr>
+        <tr><td><code>reservedWaypoints</code></td><td><code>Record&lt;string, string&gt;</code></td><td>Maps agentId → waypointId for priority routing (e.g., <code>{ "main": "reception-front" }</code>). Used by <code>findReservedWaypoint()</code> to route an agent to their reserved spot. Must agree with the <code>reservedFor</code> field on the waypoint definition in <code>waypoints.ts</code> — both sides must reference the same agent ID and waypoint ID.</td></tr>
         <tr><td><code>spawnPositions</code></td><td><code>Array&lt;{x, y}&gt;</code></td><td>Tile-grid coordinates where agents initially appear</td></tr>
       </tbody>
     </table>
@@ -2610,14 +2610,14 @@ AgentRenderer.render() → ctx.drawImage(sprite, drawX, drawY, 235, 177)</code><
     <li><strong>Types:</strong> <code>desk</code> (28), <code>reception</code> (8), <code>restroom</code> (8), <code>conference</code> (12), <code>dining</code> (1)</li>
     <li>Each waypoint has: <code>id</code>, <code>x</code>, <code>y</code>, <code>type</code>, <code>direction</code>, <code>visualOffsetX/Y</code>, <code>reservedFor</code></li>
     <li>Waypoints use the <code>seated()</code> helper which auto-computes visual offsets based on facing direction</li>
-    <li><code>reservedFor</code> assigns specific agents to specific desks (via <code>pixdash.json</code>)</li>
+    <li><code>reservedFor</code> (agent ID) marks a waypoint as exclusive to one agent. <code>pickWaypoint()</code> in <code>MovementEngine.ts</code> filters out waypoints where <code>reservedFor</code> doesn't match the current agent. The config-side counterpart is <code>reservedWaypoints</code> in <code>pixdash.json</code>, which <code>findReservedWaypoint()</code> uses for priority routing. Both must agree: e.g., <code>reception-front</code> has <code>reservedFor: 'main'</code> in <code>waypoints.ts</code> and <code>"main": "reception-front"</code> in <code>pixdash.json</code>'s <code>reservedWaypoints</code>.</li>
   </ul>
 
   <p>Status-based routing:</p>
   <ul>
     <li><code>working</code> → route to nearest available <code>desk</code> (or reserved desk)</li>
     <li><code>online</code> → route to nearest available <code>desk</code></li>
-    <li><code>idle</code> → schedule wander (weighted random: desk 35%, reception 30%, restroom 20%, dining 15%)</li>
+    <li><code>idle</code> → schedule wander (weighted random: desk 35%, reception 30%, restroom 20%, dining 15%) — respects <code>reservedFor</code>: agents will NOT wander to waypoints reserved for other agents</li>
     <li><code>conference</code> → route to conference room seats</li>
     <li><code>offline</code> → cancel movement, release waypoint claim</li>
   </ul>
