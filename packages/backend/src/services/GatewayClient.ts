@@ -98,6 +98,7 @@ export class GatewayClient {
   private deviceToken?: string;
   private pendingConnectRequestId?: string;
   private pendingPresenceRequestId?: string;
+  private readonly pendingRpcRequests = new Map<string, { resolve: (ok: boolean, payload?: unknown, error?: string) => void; timeout: NodeJS.Timeout }>();
   /** Group exchange tracking: sessionKey → Map<agentId, timestamp> */
   private readonly groupExchangeWindows = new Map<string, Map<string, number>>();
   private readonly GROUP_EXCHANGE_WINDOW_MS = 30_000;
@@ -110,6 +111,44 @@ export class GatewayClient {
   start(): void {
     this.manuallyStopped = false;
     this.connect();
+  }
+
+  /**
+   * Send a chat message to an agent via the Gateway's `chat.send` RPC.
+   * Returns { ok, error } — fire-and-forget from the caller's perspective.
+   */
+  sendChatMessage(agentId: string, message: string): Promise<{ ok: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      if (this.socket?.readyState !== WebSocket.OPEN) {
+        resolve({ ok: false, error: 'Gateway WebSocket not connected' });
+        return;
+      }
+
+      const requestId = this.nextRequestId();
+      const timeout = setTimeout(() => {
+        this.pendingRpcRequests.delete(requestId);
+        resolve({ ok: false, error: 'Gateway RPC timed out (30s)' });
+      }, 30_000);
+
+      this.pendingRpcRequests.set(requestId, {
+        resolve: (ok, _payload, error) => {
+          resolve({ ok, error });
+        },
+        timeout,
+      });
+
+      // sessionKey format: agent sessions are typically "<agentId>:<channel>" or just "<agentId>"
+      this.send({
+        type: 'req',
+        id: requestId,
+        method: 'chat.send',
+        params: {
+          sessionKey: agentId,
+          message,
+          idempotencyKey: `pixdash-task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        },
+      });
+    });
   }
 
   stop(): void {
@@ -287,6 +326,17 @@ export class GatewayClient {
       }
       this.applyPresenceSnapshot(message.payload?.agents);
       return;
+    }
+
+    // Resolve pending RPC requests (e.g. chat.send)
+    if (message.id) {
+      const pending = this.pendingRpcRequests.get(message.id);
+      if (pending) {
+        this.pendingRpcRequests.delete(message.id);
+        clearTimeout(pending.timeout);
+        pending.resolve(message.ok ?? false, message.payload, message.error);
+        return;
+      }
     }
 
     logger.debug({ message }, 'Gateway response received');

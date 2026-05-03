@@ -134,6 +134,13 @@ export function getOfficeLayout(): Promise<OfficeLayout> {
   return request<OfficeLayout>('/office/layout');
 }
 
+export function executeTask(agentId: string, prompt: string, taskName: string): Promise<{ success: boolean; response?: string; error?: string }> {
+  return request<{ success: boolean; response?: string; error?: string }>('/tasks/execute', {
+    method: 'POST',
+    body: JSON.stringify({ agentId, prompt, taskName }),
+  });
+}
+
 export async function getMeetings(): Promise<MeetingInfo[]> {
   try {
     const controller = new AbortController();

@@ -66,6 +66,20 @@ export interface AgentTask {
   metadata?: Record<string, unknown>;
 }
 
+export type UserTaskStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed';
+
+export interface UserTask {
+  id: string;
+  name: string;
+  description: string;
+  status: UserTaskStatus;
+  assignedTo: string;
+  scheduledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface Agent {
   id: string;
   name: string;

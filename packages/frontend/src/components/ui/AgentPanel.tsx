@@ -9,6 +9,8 @@ import { AgentStatus } from '@/components/ui/AgentStatus';
 import { ConfigViewer } from '@/components/ui/ConfigViewer';
 import { LogViewer, type LogEntry } from '@/components/ui/LogViewer';
 import { TaskViewer, type TaskEntry } from '@/components/ui/TaskViewer';
+import { useTasksStore } from '@/store/tasksStore';
+import type { UserTask } from '@pixdash/shared';
 
 interface AgentPanelProps {
   agent?: Agent | null;
@@ -18,6 +20,14 @@ interface AgentPanelProps {
 }
 
 const tabs: PanelTab[] = ['status', 'config', 'logs', 'tasks'];
+
+const userTaskStatusStyles: Record<UserTask['status'], string> = {
+  pending: 'border-amber-400/40 bg-amber-500/15 text-amber-200',
+  scheduled: 'border-violet-400/40 bg-violet-500/15 text-violet-200',
+  running: 'border-sky-400/40 bg-sky-500/15 text-sky-200',
+  completed: 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200',
+  failed: 'border-rose-400/40 bg-rose-500/15 text-rose-200',
+};
 
 export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize }: AgentPanelProps = {}) {
   const agents = useAgentsStore((state) => state.agents);
@@ -30,6 +40,7 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
   const setPanelTab = useUIStore((state) => state.setPanelTab);
   const openCustomizer = useUIStore((state) => state.openCustomizer);
   const { formatTimestamp } = useTimezone();
+  const getTasksByAgent = useTasksStore((state) => state.getTasksByAgent);
 
   const selectedAgent = useMemo(() => {
     if (externalAgent) {
@@ -127,6 +138,8 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
     const normalized = displayNameDraft.trim();
     await setDisplayName(displayAgent.id, normalized.length > 0 ? normalized : null);
   };
+
+  const assignedUserTasks = displayAgent ? getTasksByAgent(displayAgent.id) : [];
 
   return (
     <aside
@@ -245,6 +258,30 @@ export function AgentPanel({ agent: externalAgent, isOpen, onClose, onCustomize 
         ) : (
           <TaskViewer tasks={tasks} />
         )}
+
+        {displayAgent ? (
+          <div className="mt-5 border-t border-[#d1a45a]/15 pt-4">
+            <div className="mb-3 text-[10px] uppercase tracking-[0.24em] text-[#9c907f]">Assigned User Tasks</div>
+            {assignedUserTasks.length === 0 ? (
+              <div className="rounded-[12px] border border-dashed border-[#d1a45a]/20 bg-[#100d11]/80 p-3 text-xs text-[#9c907f]">
+                No assigned tasks.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {assignedUserTasks.slice(0, 6).map((task) => (
+                  <div key={task.id} className="pixel-inset rounded-[10px] bg-[#100d11]/80 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="truncate text-sm text-slate-200">{task.name}</div>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.1em] ${userTaskStatusStyles[task.status]}`}>
+                        {task.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
     </aside>
   );

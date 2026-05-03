@@ -1,0 +1,42 @@
+import { useMemo } from 'react';
+import type { UserTask } from '@pixdash/shared';
+import { useAgentsStore } from '@/store/agentsStore';
+
+interface TaskCardProps {
+  task: UserTask;
+}
+
+const statusStyles: Record<UserTask['status'], string> = {
+  pending: 'border-amber-400/50 bg-amber-500/15 text-amber-200',
+  scheduled: 'border-violet-400/50 bg-violet-500/15 text-violet-200',
+  running: 'border-sky-400/50 bg-sky-500/15 text-sky-200',
+  completed: 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200',
+  failed: 'border-rose-400/50 bg-rose-500/15 text-rose-200',
+};
+
+export function TaskCard({ task }: TaskCardProps) {
+  const agents = useAgentsStore((state) => state.agents);
+
+  const assignedAgentName = useMemo(() => {
+    const agent = agents.find((entry) => entry.id === task.assignedTo);
+    return agent?.displayName ?? agent?.name ?? task.assignedTo;
+  }, [agents, task.assignedTo]);
+
+  return (
+    <article className="pixel-frame rounded-[14px] border border-slate-800 bg-slate-950/70 p-4 transition-all duration-200 hover:brightness-110">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="font-display text-sm uppercase tracking-[0.18em] text-[#f2dfba]">{task.name}</h3>
+        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em] ${statusStyles[task.status]}`}>
+          {task.status}
+        </span>
+      </div>
+
+      <p className="mt-3 line-clamp-3 text-sm text-slate-200">{task.description}</p>
+
+      <div className="mt-4 border-t border-slate-800/80 pt-3 text-xs text-[#b7aa96]">
+        <div>Assigned: <span className="text-slate-100">{assignedAgentName}</span></div>
+        {task.scheduledAt ? <div className="mt-1">Scheduled: <span className="text-slate-100">{new Date(task.scheduledAt).toLocaleString()}</span></div> : null}
+      </div>
+    </article>
+  );
+}

@@ -13,6 +13,7 @@ import { agentsStore, useAgentsStore } from '@/store/agentsStore';
 import { uiStore, useUIStore } from '@/store/uiStore';
 import { NavigationSwitch, type ViewMode } from '@/components/staff/NavigationSwitch';
 import { StaffView } from '@/components/staff/StaffView';
+import { TasksView } from '@/components/tasks/TasksView';
 import type { AgentPosition } from '@/types';
 import type { Appearance } from '@pixdash/shared';
 
@@ -143,6 +144,8 @@ export const AppLayout = ({
 
         {viewMode === 'staff' ? (
           <StaffView />
+        ) : viewMode === 'tasks' ? (
+          <TasksView />
         ) : (
         <section className="grid gap-6 xl:grid-cols-[1fr_320px]">
           <div className="relative h-[70vh]">

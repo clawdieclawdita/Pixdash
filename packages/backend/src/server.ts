@@ -16,6 +16,7 @@ import healthRoutes from './routes/health.js';
 import officeRoutes from './routes/office.js';
 import configRoutes from './routes/config.js';
 import meetingsRoutes from './routes/meetings.js';
+import tasksRoutes from './routes/tasks.js';
 import { PixDashWebSocketServer } from './websocket/server.js';
 import { createLogger } from './utils/logger.js';
 import type { PixDashFastifyInstance } from './types/index.js';
@@ -38,7 +39,6 @@ async function buildServer(): Promise<PixDashFastifyInstance> {
     agentStateManager,
     officeLayout,
   });
-
   await app.register(cors, { origin: true });
 
   const wsServer = new PixDashWebSocketServer(app);
@@ -54,11 +54,15 @@ async function buildServer(): Promise<PixDashFastifyInstance> {
   const gatewayClient = new GatewayClient(config, agentStateManager);
   gatewayClient.start();
 
+  // Expose gateway client for RPC calls (e.g. task execution)
+  app.pixdash.gatewayClient = gatewayClient;
+
   await app.register(healthRoutes);
   await app.register(agentRoutes);
   await app.register(officeRoutes);
   await app.register(configRoutes);
   await app.register(meetingsRoutes);
+  await app.register(tasksRoutes);
 
   // Serve frontend static files in production
   const frontendDist = path.join(__dirname, '../../frontend/dist');

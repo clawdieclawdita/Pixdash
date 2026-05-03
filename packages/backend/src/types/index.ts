@@ -158,6 +158,7 @@ export interface PixDashServices {
   config: BackendConfig;
   agentStateManager: AgentStateManagerLike;
   officeLayout: Tilemap;
+  gatewayClient?: import('../services/GatewayClient.js').GatewayClient;
 }
 
 export interface PixDashFastifyInstance extends FastifyInstance {
