@@ -13,7 +13,8 @@ type SupportedEvent =
   | 'agent:conference_start'
   | 'agent:conference_end'
   | 'agent:position'
-  | 'agent:movement';
+  | 'agent:movement'
+  | 'task.status_update';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected';
 
@@ -59,7 +60,8 @@ const SUPPORTED_EVENTS = new Set<string>([
   'agent:conference_start',
   'agent:conference_end',
   'agent:position',
-  'agent:movement'
+  'agent:movement',
+  'task.status_update'
 ]);
 
 export function useWebSocket() {

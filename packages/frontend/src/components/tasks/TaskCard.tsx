@@ -4,7 +4,12 @@ import { useAgentsStore } from '@/store/agentsStore';
 
 interface TaskCardProps {
   task: UserTask;
+  onClear?: () => void;
+  onEdit?: () => void;
+  onCancel?: () => void;
 }
+
+const noop = () => {};
 
 const statusStyles: Record<UserTask['status'], string> = {
   pending: 'border-amber-400/50 bg-amber-500/15 text-amber-200',
@@ -14,13 +19,21 @@ const statusStyles: Record<UserTask['status'], string> = {
   failed: 'border-rose-400/50 bg-rose-500/15 text-rose-200',
 };
 
-export function TaskCard({ task }: TaskCardProps) {
+const actionButtonBase = 'pixel-button rounded-[10px] border px-3 py-2 text-[10px] uppercase tracking-[0.18em] transition hover:brightness-110';
+const clearButtonStyle = 'bg-rose-500/15 text-rose-200 border-rose-400/30';
+const editButtonStyle = 'bg-sky-500/15 text-sky-200 border-sky-400/30';
+const cancelButtonStyle = 'bg-amber-500/15 text-amber-200 border-amber-400/30';
+
+export function TaskCard({ task, onClear = noop, onEdit = noop, onCancel = noop }: TaskCardProps) {
   const agents = useAgentsStore((state) => state.agents);
 
   const assignedAgentName = useMemo(() => {
     const agent = agents.find((entry) => entry.id === task.assignedTo);
     return agent?.displayName ?? agent?.name ?? task.assignedTo;
   }, [agents, task.assignedTo]);
+
+  const isFinished = task.status === 'completed' || task.status === 'failed';
+  const canCancel = task.status === 'pending' || task.status === 'scheduled' || task.status === 'running';
 
   return (
     <article className="pixel-frame rounded-[14px] border border-slate-800 bg-slate-950/70 p-4 transition-all duration-200 hover:brightness-110">
@@ -36,6 +49,22 @@ export function TaskCard({ task }: TaskCardProps) {
       <div className="mt-4 border-t border-slate-800/80 pt-3 text-xs text-[#b7aa96]">
         <div>Assigned: <span className="text-slate-100">{assignedAgentName}</span></div>
         {task.scheduledAt ? <div className="mt-1">Scheduled: <span className="text-slate-100">{new Date(task.scheduledAt).toLocaleString()}</span></div> : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-800/80 pt-3">
+        {isFinished ? (
+          <button type="button" onClick={onClear} className={`${actionButtonBase} ${clearButtonStyle}`}>
+            Clear
+          </button>
+        ) : null}
+        <button type="button" onClick={onEdit} className={`${actionButtonBase} ${editButtonStyle}`}>
+          Edit
+        </button>
+        {canCancel ? (
+          <button type="button" onClick={onCancel} className={`${actionButtonBase} ${cancelButtonStyle}`}>
+            Cancel
+          </button>
+        ) : null}
       </div>
     </article>
   );

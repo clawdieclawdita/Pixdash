@@ -2,10 +2,11 @@ import type {
   Agent as SharedAgent,
   AgentLog as SharedAgentLog,
   AgentTask as SharedAgentTask,
-  Appearance
+  Appearance,
+  UserTaskStatus
 } from '@pixdash/shared';
 
-export type { AgentStatus, Appearance, Position } from '@pixdash/shared';
+export type { AgentStatus, Appearance, Position, UserTaskStatus } from '@pixdash/shared';
 
 export interface Agent extends Omit<SharedAgent, 'config' | 'logs' | 'tasks'> {
   config?: Record<string, unknown>;
@@ -134,10 +135,22 @@ export function getOfficeLayout(): Promise<OfficeLayout> {
   return request<OfficeLayout>('/office/layout');
 }
 
-export function executeTask(agentId: string, prompt: string, taskName: string): Promise<{ success: boolean; response?: string; error?: string }> {
+export async function fetchAgentSessions(agentId: string): Promise<string[]> {
+  const data = await request<{ success: boolean; sessions: string[] }>(`/agents/${encodeURIComponent(agentId)}/sessions`);
+  return data.success ? data.sessions : [];
+}
+
+export function executeTask(agentId: string, prompt: string, taskName: string, taskId?: string, replySession?: string): Promise<{ success: boolean; response?: string; error?: string }> {
   return request<{ success: boolean; response?: string; error?: string }>('/tasks/execute', {
     method: 'POST',
-    body: JSON.stringify({ agentId, prompt, taskName }),
+    body: JSON.stringify({ agentId, prompt, taskName, taskId, replySession }),
+  });
+}
+
+export function updateTaskStatus(taskId: string, status: UserTaskStatus, agentId?: string): Promise<{ success: boolean; taskId: string; status: UserTaskStatus; updatedAt: string }> {
+  return request<{ success: boolean; taskId: string; status: UserTaskStatus; updatedAt: string }>(`/tasks/${encodeURIComponent(taskId)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, agentId }),
   });
 }
 

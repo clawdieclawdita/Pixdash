@@ -5,6 +5,7 @@ import type {
   AgentConfig,
   AgentLog,
   AgentTask,
+  UserTaskStatus,
   Appearance,
   AppearancePatch,
   MoveAgentRequest,
@@ -98,6 +99,14 @@ export interface GatewayTaskEvent {
   task: AgentTask;
 }
 
+export interface TaskStatusUpdateEvent {
+  taskId: string;
+  status: UserTaskStatus;
+  agentId: string;
+  completedAt?: string;
+  updatedAt?: string;
+}
+
 export interface GatewayConferenceEvent {
   agentIds: string[];
   sessionKey?: string;
@@ -152,6 +161,7 @@ export interface AgentStateManagerLike {
   setDisplayName(id: string, name: string | null): Promise<string | null>;
   requestMove(request: MoveAgentRequest): { ok: true; agent: Agent };
   getActiveMeetings(): ActiveMeetingSnapshot[];
+  applyTaskStatusUpdate(event: TaskStatusUpdateEvent): void;
 }
 
 export interface PixDashServices {

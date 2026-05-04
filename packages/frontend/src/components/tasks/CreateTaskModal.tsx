@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { UserTask } from '@pixdash/shared';
+import { fetchAgentSessions } from '@/lib/api';
 import { useAgentsStore } from '@/store/agentsStore';
 
 interface CreateTaskModalProps {
@@ -17,6 +18,37 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask }: CreateTaskMod
   const [assignedTo, setAssignedTo] = useState('');
   const [scheduleMode, setScheduleMode] = useState(false);
   const [scheduledAt, setScheduledAt] = useState('');
+  const [replySession, setReplySession] = useState('');
+  const [sessionOptions, setSessionOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!assignedTo) {
+      setReplySession('');
+      setSessionOptions([]);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setReplySession('');
+    void fetchAgentSessions(assignedTo)
+      .then((sessions) => {
+        if (!cancelled) {
+          setSessionOptions(sessions);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSessionOptions([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assignedTo]);
 
   if (!isOpen) return null;
 
@@ -26,6 +58,8 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask }: CreateTaskMod
     setAssignedTo('');
     setScheduleMode(false);
     setScheduledAt('');
+    setReplySession('');
+    setSessionOptions([]);
     onClose();
   };
 
@@ -41,11 +75,15 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask }: CreateTaskMod
       assignedTo,
       status: mode,
       scheduledAt: mode === 'scheduled' ? new Date(scheduledAt).toISOString() : undefined,
+      replySession: replySession || undefined,
       metadata: {},
     });
 
     resetAndClose();
   };
+
+  const selectedAgent = availableAgents.find((agent) => agent.id === assignedTo);
+  const selectedAgentName = selectedAgent?.displayName ?? selectedAgent?.name ?? 'Agent';
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
@@ -75,6 +113,21 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask }: CreateTaskMod
               <option value="">Select an agent</option>
               {availableAgents.map((agent) => (
                 <option key={agent.id} value={agent.id}>{agent.displayName ?? agent.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[10px] uppercase tracking-[0.24em] text-[#9c907f]">Reply back to</label>
+            <select
+              value={replySession}
+              onChange={(e) => setReplySession(e.target.value)}
+              disabled={!assignedTo}
+              className="pixel-inset w-full rounded-[10px] bg-[#09070b] px-3 py-2 text-sm text-white outline-none focus:border-[#d1a45a]/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">{`${selectedAgentName}'s main chat (OpenClaw UI)`}</option>
+              {sessionOptions.map((sessionKey) => (
+                <option key={sessionKey} value={sessionKey}>{sessionKey}</option>
               ))}
             </select>
           </div>

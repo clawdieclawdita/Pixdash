@@ -22,3 +22,4 @@ QA_*.md
 *_REPORT*.md
 *_RETEST*.md
 docs/*.md
+qa/

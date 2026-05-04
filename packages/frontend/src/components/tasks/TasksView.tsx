@@ -1,14 +1,32 @@
 import { useState } from 'react';
+import type { UserTask } from '@pixdash/shared';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { CreateTaskModal } from '@/components/tasks/CreateTaskModal';
+import { EditTaskModal } from '@/components/tasks/EditTaskModal';
 import { useTasksStore } from '@/store/tasksStore';
-import { executeTask } from '@/lib/api';
+import { executeTask, updateTaskStatus as updateTaskStatusApi } from '@/lib/api';
 
 export function TasksView() {
   const tasks = useTasksStore((state) => state.tasks);
   const addTask = useTasksStore((state) => state.addTask);
+  const updateTask = useTasksStore((state) => state.updateTask);
   const updateTaskStatus = useTasksStore((state) => state.updateTaskStatus);
+  const clearTask = useTasksStore((state) => state.clearTask);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<UserTask | null>(null);
+
+  const setTaskStatus = async (id: string, status: UserTask['status']) => {
+    updateTaskStatus(id, status);
+
+    try {
+      const result = await updateTaskStatusApi(id, status);
+      if (!result.success) {
+        updateTaskStatus(id, 'failed');
+      }
+    } catch {
+      updateTaskStatus(id, 'failed');
+    }
+  };
 
   const addAndExecuteTask = async (task: Parameters<typeof addTask>[0]) => {
     const created = addTask(task);
@@ -21,7 +39,7 @@ export function TasksView() {
     // The agent receives it as a normal inbound message and acts on it.
     // We don't block the UI waiting for the agent to finish.
     try {
-      const result = await executeTask(task.assignedTo, task.description, task.name);
+      const result = await executeTask(task.assignedTo, task.description, task.name, created.id, task.replySession)
       if (!result.success) {
         // Delivery failed — mark the task as failed
         updateTaskStatus(created.id, 'failed');
@@ -30,6 +48,19 @@ export function TasksView() {
       // The user can observe the agent's activity in the Office view.
     } catch {
       updateTaskStatus(created.id, 'failed');
+    }
+  };
+
+  const restartTask = async (task: UserTask) => {
+    updateTaskStatus(task.id, 'running');
+
+    try {
+      const result = await executeTask(task.assignedTo, task.description, task.name, task.id, task.replySession);
+      if (!result.success) {
+        updateTaskStatus(task.id, 'failed');
+      }
+    } catch {
+      updateTaskStatus(task.id, 'failed');
     }
   };
 
@@ -56,12 +87,28 @@ export function TasksView() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              onClear={() => clearTask(task.id)}
+              onEdit={() => setEditingTask(task)}
+              onCancel={() => void setTaskStatus(task.id, 'failed')}
+            />
           ))}
         </div>
       )}
 
       <CreateTaskModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onCreateTask={addAndExecuteTask} />
+      {editingTask ? (
+        <EditTaskModal
+          isOpen={editingTask !== null}
+          onClose={() => setEditingTask(null)}
+          task={editingTask}
+          onUpdate={updateTask}
+          onRestart={(task) => void restartTask(task)}
+          onCancelTask={(id) => void setTaskStatus(id, 'failed')}
+        />
+      ) : null}
     </section>
   );
 }

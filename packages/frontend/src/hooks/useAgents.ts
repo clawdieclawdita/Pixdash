@@ -12,6 +12,7 @@ import { normalizeIncomingPosition, useAgentsStore } from '@/store/agentsStore';
 import { useUIStore } from '@/store/uiStore';
 import { configStore } from '@/store/configStore';
 import { useMovementStore, movementStore } from '@/store/movementStore';
+import { useTasksStore } from '@/store/tasksStore';
 import { tileToPixelCenter, getArrivalStateForMovementType } from '@/lib/movement';
 import { createWaypointSet, getAllWaypoints } from '@/lib/waypoints';
 import { debugAgent } from '@/lib/debug';
@@ -60,12 +61,13 @@ function inferMovementStateFromWaypoint(agentStatus: string, tileX: number, tile
   if (agentStatus === 'conference' && wp.type !== 'conference') return null;
   return { movementState: getArrivalStateForMovementType(wp.type) };
 }
-import type { AgentMovementEventPayload, Direction } from '@pixdash/shared';
+import type { AgentMovementEventPayload, Direction, UserTaskStatus } from '@pixdash/shared';
 
 type EventPayloadMap = {
   'agent.status': { agentId: string; status: Agent['status']; timestamp?: string };
   'agent.log': { agentId: string; level: AgentLog['level']; message: string; timestamp: string };
   'agent.task': { agentId: string; taskId: string; description: string; status: string; timestamp: string };
+  'task.status_update': { taskId: string; status: UserTaskStatus; agentId: string; completedAt?: string; updatedAt?: string };
   'agent:conference': { agentIds: string[]; sessionKey?: string; source?: string; timestamp: string };
   'agent:conference_start': { meetingId: string; agentIds: string[]; sessionKey: string; source: string; startedAt: number };
   'agent:conference_end': { meetingId: string; agentIds: string[] };
@@ -358,6 +360,11 @@ export function useAgents() {
               ? tasks.map((task: AgentTask, index: number) => (index === existingTaskIndex ? { ...task, ...nextTask } : task))
               : [...tasks, nextTask]
         });
+        break;
+      }
+      case 'task.status_update': {
+        const payload = lastEvent.payload as EventPayloadMap['task.status_update'];
+        useTasksStore.getState().updateTaskStatus(payload.taskId, payload.status);
         break;
       }
       case 'agent:position': {

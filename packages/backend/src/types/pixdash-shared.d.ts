@@ -67,6 +67,8 @@ declare module '@pixdash/shared' {
     metadata?: Record<string, unknown>;
   }
 
+  export type UserTaskStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed';
+
   export type CanonicalWaypointType = 'spawn' | 'parking' | 'desk' | 'reception' | 'restroom' | 'conference' | 'dining';
   export type MovementAuthorityStatus = 'idle' | 'moving' | 'seated';
 
@@ -155,12 +157,20 @@ declare module '@pixdash/shared' {
   }
 
   export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task' | 'health' | 'session.message' | 'session.tool';
-  export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference' | 'agent:conference_start' | 'agent:conference_end' | 'agent:movement';
+  export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference' | 'agent:conference_start' | 'agent:conference_end' | 'agent:movement' | 'task.status_update';
 
   export interface AgentStatusEventPayload {
     agentId: string;
     status: AgentStatus;
     timestamp: string;
+  }
+
+  export interface TaskStatusUpdateEventPayload {
+    taskId: string;
+    status: UserTaskStatus;
+    agentId: string;
+    completedAt?: string;
+    updatedAt?: string;
   }
 
   export interface AgentConferenceEventPayload {
@@ -212,6 +222,7 @@ declare module '@pixdash/shared' {
     | AgentStatusEventPayload
     | AgentLogEventPayload
     | AgentTaskEventPayload
+    | TaskStatusUpdateEventPayload
     | AgentAppearanceEventPayload
     | AgentPositionEventPayload
     | AgentConfigEventPayload

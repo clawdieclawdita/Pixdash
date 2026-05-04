@@ -1,9 +1,9 @@
-import type { Agent, AgentLog, AgentTask, AgentStatus, Appearance, Position } from './agent.js';
+import type { Agent, AgentLog, AgentTask, AgentStatus, Appearance, Position, UserTaskStatus } from './agent.js';
 import type { AgentMovementEventPayload, MoveAgentRequest } from './movement.js';
 import type { Tilemap } from './tilemap.js';
 
 export type GatewayEventName = 'agent:status' | 'agent:log' | 'agent:task';
-export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference' | 'agent:conference_start' | 'agent:conference_end' | 'agent:movement';
+export type FrontendEventName = GatewayEventName | 'agent:appearance' | 'agent:position' | 'agent:config' | 'agent:conference' | 'agent:conference_start' | 'agent:conference_end' | 'agent:movement' | 'task.status_update';
 
 export interface AgentStatusEventPayload {
   agentId: string;
@@ -37,6 +37,14 @@ export interface AgentConfigEventPayload {
   agent: Agent;
 }
 
+export interface TaskStatusUpdateEventPayload {
+  taskId: string;
+  status: UserTaskStatus;
+  agentId: string;
+  completedAt?: string;
+  updatedAt?: string;
+}
+
 export interface AgentConferenceEventPayload {
   agentIds: string[];
   sessionKey?: string;
@@ -60,6 +68,7 @@ export type FrontendEventPayload =
   | AgentStatusEventPayload
   | AgentLogEventPayload
   | AgentTaskEventPayload
+  | TaskStatusUpdateEventPayload
   | AgentAppearanceEventPayload
   | AgentPositionEventPayload
   | AgentConfigEventPayload

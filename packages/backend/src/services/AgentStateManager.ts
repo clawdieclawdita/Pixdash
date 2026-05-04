@@ -4,7 +4,7 @@ import { DEFAULT_APPEARANCE } from '@pixdash/shared';
 import type { BackendWaypoint } from '../data/waypoints.js';
 import { cloneBackendWaypoints } from '../data/waypoints.js';
 import { createNoGoTiles } from '../data/noGoTiles.js';
-import type { ActiveMeeting, ActiveMeetingSnapshot, ConfigAgentSnapshot, GatewayConferenceEvent, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent } from '../types/index.js';
+import type { ActiveMeeting, ActiveMeetingSnapshot, ConfigAgentSnapshot, GatewayConferenceEvent, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent, TaskStatusUpdateEvent } from '../types/index.js';
 import { AppearanceStore } from './AppearanceStore.js';
 import { MovementEngine } from './MovementEngine.js';
 
@@ -46,7 +46,7 @@ function derivePosition(_id: string) {
 }
 
 const IDLE_THRESHOLD_MS = 300_000;
-const WORKING_GRACE_MS = 10_000;
+const WORKING_GRACE_MS = 120_000;
 const STATUS_REEVALUATION_INTERVAL_MS = 30_000;
 const MOVEMENT_TICK_INTERVAL_MS = 50;
 const MEETING_INACTIVITY_THRESHOLD_MS = 60_000;
@@ -97,6 +97,7 @@ function createInitialAgent(id: string, name = id): StatefulAgent {
 export class AgentStateManager {
   private readonly agents = new Map<string, StatefulAgent>();
   private readonly events = new EventEmitter();
+  private onStatusTransition?: (event: { agentId: string; previousStatus: Agent['status']; nextStatus: Agent['status']; timestamp: string }) => void;
   private readonly presence = new Map<string, AgentPresenceState>();
   private readonly activityDecayTimers = new Map<string, NodeJS.Timeout>();
   private readonly movementInterval: NodeJS.Timeout;
@@ -187,6 +188,10 @@ export class AgentStateManager {
   subscribe(listener: (event: { event: FrontendEventName; payload: FrontendEventPayload }) => void): () => void {
     this.events.on('broadcast', listener);
     return () => this.events.off('broadcast', listener);
+  }
+
+  setStatusTransitionListener(listener: ((event: { agentId: string; previousStatus: Agent['status']; nextStatus: Agent['status']; timestamp: string }) => void) | undefined): void {
+    this.onStatusTransition = listener;
   }
 
   getAgents(): Agent[] {
@@ -286,6 +291,7 @@ export class AgentStateManager {
       timestamp: agent.lastSeen,
     });
 
+    this.notifyStatusTransition(event.agentId, previousStatus, derivedStatus, agent.lastSeen);
     this.movementEngine.handleStatusChange(event.agentId, derivedStatus, previousStatus);
   }
 
@@ -314,6 +320,16 @@ export class AgentStateManager {
       agent.stats.tasksCompleted += 1;
     }
     this.broadcast('agent:task', event);
+  }
+
+  applyTaskStatusUpdate(event: TaskStatusUpdateEvent): void {
+    const agent = this.ensureAgent(event.agentId);
+    if (agent.stats && event.status === 'completed') {
+      agent.stats.tasksCompleted += 1;
+    }
+
+    logger.info(event, '[applyTaskStatusUpdate] broadcasting task status update');
+    this.broadcast('task.status_update', event);
   }
 
   applyConferenceEvent(event: GatewayConferenceEvent): void {
@@ -371,6 +387,7 @@ export class AgentStateManager {
           status: 'conference',
           timestamp: agent.lastSeen,
         });
+        this.notifyStatusTransition(id, previousStatus, 'conference', agent.lastSeen);
       }
       this.scheduleActivityDecay(id);
       return;
@@ -382,6 +399,7 @@ export class AgentStateManager {
       status: 'working',
       timestamp: agent.lastSeen,
     });
+    this.notifyStatusTransition(id, previousStatus, 'working', agent.lastSeen);
     this.scheduleActivityDecay(id);
     this.movementEngine.handleStatusChange(id, 'working', previousStatus);
   }
@@ -647,11 +665,13 @@ export class AgentStateManager {
       if (!restoredToPreviousSeat) {
         this.movementEngine.handleStatusChange(agentId, restoreStatus, 'conference');
       }
+      const transitionTimestamp = new Date().toISOString();
       this.broadcast('agent:status', {
         agentId,
         status: restoreStatus,
-        timestamp: new Date().toISOString(),
+        timestamp: transitionTimestamp,
       });
+      this.notifyStatusTransition(agentId, 'conference', restoreStatus, transitionTimestamp);
     }
 
     this.broadcast('agent:conference_end', {
@@ -794,6 +814,7 @@ export class AgentStateManager {
         status: nextStatus,
         timestamp: agent.lastSeen,
       });
+      this.notifyStatusTransition(id, previousStatus, nextStatus, agent.lastSeen);
       this.movementEngine.handleStatusChange(id, nextStatus, previousStatus);
     }
   }
@@ -805,13 +826,23 @@ export class AgentStateManager {
         continue;
       }
 
+      const previousStatus = agent.status;
       agent.status = 'conference';
       this.broadcast('agent:status', {
         agentId,
         status: 'conference',
         timestamp,
       });
+      this.notifyStatusTransition(agentId, previousStatus, 'conference', timestamp);
     }
+  }
+
+  private notifyStatusTransition(agentId: string, previousStatus: Agent['status'], nextStatus: Agent['status'], timestamp: string): void {
+    if (!this.onStatusTransition || previousStatus === nextStatus) {
+      return;
+    }
+
+    this.onStatusTransition({ agentId, previousStatus, nextStatus, timestamp });
   }
 
   private broadcastSettledStates(): void {

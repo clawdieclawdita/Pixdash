@@ -94,6 +94,8 @@ export class GatewayClient {
   private manuallyStopped = false;
   private readonly deviceKeys = this.loadOrCreateDeviceKeys();
   private readonly subscribedSessionKeys = new Set<string>();
+  private readonly agentSessionKeys = new Map<string, string>();
+  private readonly agentAllSessionKeys = new Map<string, string[]>();
   private readonly seenSpawnConferenceSessionKeys = new Set<string>();
   private deviceToken?: string;
   private pendingConnectRequestId?: string;
@@ -102,11 +104,22 @@ export class GatewayClient {
   /** Group exchange tracking: sessionKey → Map<agentId, timestamp> */
   private readonly groupExchangeWindows = new Map<string, Map<string, number>>();
   private readonly GROUP_EXCHANGE_WINDOW_MS = 30_000;
+  private readonly dispatchedTasks = new Map<string, { taskId: string; agentId: string; dispatchedAt: number }>();
 
   constructor(
     private readonly config: BackendConfig,
     private readonly agentStateManager: AgentStateManager,
-  ) {}
+  ) {
+    this.agentStateManager.setStatusTransitionListener(({ agentId, previousStatus, nextStatus }) => {
+      if (previousStatus !== 'working') {
+        return;
+      }
+
+      if (nextStatus === 'idle' || nextStatus === 'online') {
+        this.completeDispatchedTask(agentId);
+      }
+    });
+  }
 
   start(): void {
     this.manuallyStopped = false;
@@ -117,7 +130,7 @@ export class GatewayClient {
    * Send a chat message to an agent via the Gateway's `chat.send` RPC.
    * Returns { ok, error } — fire-and-forget from the caller's perspective.
    */
-  sendChatMessage(agentId: string, message: string): Promise<{ ok: boolean; error?: string }> {
+  sendChatMessage(agentId: string, message: string, taskId?: string, preferredSessionKey?: string): Promise<{ ok: boolean; error?: string }> {
     return new Promise((resolve) => {
       if (this.socket?.readyState !== WebSocket.OPEN) {
         resolve({ ok: false, error: 'Gateway WebSocket not connected' });
@@ -132,23 +145,51 @@ export class GatewayClient {
 
       this.pendingRpcRequests.set(requestId, {
         resolve: (ok, _payload, error) => {
+          if (ok && taskId) {
+            this.registerDispatchedTask(agentId, taskId);
+          }
           resolve({ ok, error });
         },
         timeout,
       });
 
-      // sessionKey format: agent sessions are typically "<agentId>:<channel>" or just "<agentId>"
+      const sessionKey = preferredSessionKey ?? this.agentSessionKeys.get(agentId);
+      if (!sessionKey) {
+        logger.warn({ agentId, preferredSessionKey }, 'Could not resolve agent session key for chat.send; falling back to raw agentId');
+      }
+
+      // When the task reply-to is a Telegram session, append a soft delivery hint
+      // so the agent knows to route its response to the user via the message tool.
+      let finalMessage = message;
+      if (preferredSessionKey?.includes(':telegram:')) {
+        const tgMatch = preferredSessionKey.match(/:telegram:direct:(\d+)/);
+        const grpMatch = preferredSessionKey.match(/:telegram:group:(-?\d+)/);
+        const topicMatch = preferredSessionKey.match(/:topic:(\d+)/);
+        if (tgMatch) {
+          finalMessage += `\n\nP.S. Please reply back to me using the message tool on Telegram (target: "${tgMatch[1]}", channel: "telegram"). Thanks!`;
+        } else if (grpMatch) {
+          const chatId = grpMatch[1];
+          const topicId = topicMatch ? topicMatch[1] : undefined;
+          const topicHint = topicId ? `, threadId: "${topicId}"` : '';
+          finalMessage += `\n\nP.S. Please reply back to me using the message tool on Telegram (target: "${chatId}", channel: "telegram"${topicHint}). Thanks!`;
+        }
+      }
+
       this.send({
         type: 'req',
         id: requestId,
         method: 'chat.send',
         params: {
-          sessionKey: agentId,
-          message,
+          sessionKey: sessionKey ?? agentId,
+          message: finalMessage,
           idempotencyKey: `pixdash-task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         },
       });
     });
+  }
+
+  getAgentSessions(agentId: string): string[] {
+    return this.agentAllSessionKeys.get(agentId) ?? [];
   }
 
   stop(): void {
@@ -425,11 +466,14 @@ export class GatewayClient {
   }
 
   private subscribeToAgentSessions(entry: Record<string, unknown>): void {
+    const agentId = this.pickString(entry.agentId, entry.id);
     const sessions = entry.sessions;
     if (!sessions || typeof sessions !== 'object') return;
 
     const recentSessions = (sessions as Record<string, unknown>).recent;
     if (!Array.isArray(recentSessions) || recentSessions.length === 0) return;
+
+    this.updateAgentSessionKey(agentId, recentSessions as Array<Record<string, unknown>>);
 
     for (const session of recentSessions as Array<Record<string, unknown>>) {
       const sessionKey = this.pickString(session.sessionKey, session.key);
@@ -510,6 +554,7 @@ export class GatewayClient {
 
       // Subscribe to this agent's sessions for real-time activity
       if (Array.isArray(recentSessions)) {
+        this.updateAgentSessionKey(agentId, recentSessions as Array<Record<string, unknown>>);
         this.subscribeToAgentSessionsFromHealth(recentSessions as Array<Record<string, unknown>>);
       }
     }
@@ -528,6 +573,30 @@ export class GatewayClient {
         params: { key: sessionKey },
       });
     }
+  }
+
+  private updateAgentSessionKey(agentId: string | undefined, recentSessions: Array<Record<string, unknown>>): void {
+    if (!agentId || recentSessions.length === 0) {
+      return;
+    }
+
+    const allSessionKeys = recentSessions
+      .map((session) => this.pickString(session.sessionKey, session.key))
+      .filter((sessionKey): sessionKey is string => Boolean(sessionKey));
+
+    this.agentAllSessionKeys.set(agentId, Array.from(new Set(allSessionKeys)));
+
+    const preferredSession = recentSessions.find((session) => {
+      const sessionKey = this.pickString(session.sessionKey, session.key);
+      return typeof sessionKey === 'string' && sessionKey.includes('direct');
+    }) ?? recentSessions[0];
+
+    const sessionKey = this.pickString(preferredSession.sessionKey, preferredSession.key);
+    if (!sessionKey) {
+      return;
+    }
+
+    this.agentSessionKeys.set(agentId, sessionKey);
   }
 
   private applySessionMessage(payload: unknown): void {
@@ -606,6 +675,30 @@ export class GatewayClient {
         },
       });
     }
+
+  }
+
+  private registerDispatchedTask(agentId: string, taskId: string): void {
+    const dispatchedTask = { taskId, agentId, dispatchedAt: Date.now() };
+    this.dispatchedTasks.set(agentId, dispatchedTask);
+    logger.info(dispatchedTask, 'Registered dispatched PixDash task for completion tracking');
+  }
+
+  private completeDispatchedTask(agentId: string): void {
+    const dispatchedTask = this.dispatchedTasks.get(agentId);
+    if (!dispatchedTask) {
+      return;
+    }
+
+    this.dispatchedTasks.delete(agentId);
+    const completedAt = new Date().toISOString();
+    logger.info({ ...dispatchedTask, completedAt }, 'Detected PixDash task completion from agent status transition');
+    this.agentStateManager.applyTaskStatusUpdate({
+      taskId: dispatchedTask.taskId,
+      status: 'completed',
+      completedAt,
+      agentId,
+    });
   }
 
   private applySessionToolEvent(payload: unknown): void {

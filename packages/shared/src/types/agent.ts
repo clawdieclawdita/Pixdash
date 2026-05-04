@@ -74,6 +74,7 @@ export interface UserTask {
   description: string;
   status: UserTaskStatus;
   assignedTo: string;
+  replySession?: string;
   scheduledAt?: string;
   createdAt: string;
   updatedAt: string;
