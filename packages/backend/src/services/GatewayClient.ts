@@ -505,6 +505,9 @@ export class GatewayClient {
       return;
     }
 
+    // Clear stale session maps before repopulating from fresh snapshot
+    const activeAgentIds = new Set<string>();
+
     for (const entry of agents) {
       if (!entry || typeof entry !== 'object') {
         continue;
@@ -555,8 +558,16 @@ export class GatewayClient {
 
       // Subscribe to this agent's sessions for real-time activity
       if (Array.isArray(recentSessions)) {
+        activeAgentIds.add(agentId);
         this.updateAgentSessionKey(agentId, recentSessions as Array<Record<string, unknown>>);
         this.subscribeToAgentSessionsFromHealth(recentSessions as Array<Record<string, unknown>>);
+      }
+    }
+
+    // Remove agents not in the latest snapshot (stale)
+    for (const id of [...this.agentAllSessionKeys.keys()]) {
+      if (!activeAgentIds.has(id)) {
+        this.agentAllSessionKeys.delete(id);
       }
     }
   }
@@ -583,7 +594,8 @@ export class GatewayClient {
 
     const allSessionKeys = recentSessions
       .map((session) => this.pickString(session.sessionKey, session.key))
-      .filter((sessionKey): sessionKey is string => Boolean(sessionKey));
+      .filter((sessionKey): sessionKey is string => Boolean(sessionKey))
+      .filter((sessionKey) => !sessionKey.includes(':subagent:')); // exclude ephemeral subagent sessions
 
     this.agentAllSessionKeys.set(agentId, Array.from(new Set(allSessionKeys)));
 

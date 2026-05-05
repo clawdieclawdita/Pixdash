@@ -88,7 +88,11 @@ export const useTasksStore = create<TasksState>()(
         });
       },
       removeTask: async (id) => {
-        await deleteTaskApi(id);
+        try {
+          await deleteTaskApi(id);
+        } catch {
+          // Task may not exist in backend (stale localStorage); remove locally anyway
+        }
         set((state) => ({ tasks: state.tasks.filter((task) => task.id !== id) }));
       },
       clearTask: async (id) => {
