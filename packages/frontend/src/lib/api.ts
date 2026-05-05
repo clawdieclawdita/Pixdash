@@ -50,11 +50,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
+      const hasBody = init?.body != null;
       const response = await fetch(`${API_BASE_URL}${path}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(init?.headers ?? {})
-        },
+        headers: hasBody
+          ? { 'Content-Type': 'application/json', ...(init?.headers ?? {}) }
+          : { ...(init?.headers ?? {}) },
         ...init,
         signal: controller.signal
       });
