@@ -33,7 +33,8 @@ export function TaskCard({ task, onClear = noop, onEdit = noop, onCancel = noop 
   }, [agents, task.assignedTo]);
 
   const isFinished = task.status === 'completed' || task.status === 'failed';
-  const canCancel = task.status === 'pending' || task.status === 'scheduled' || task.status === 'running';
+  const canClear = isFinished || task.status === 'pending' || task.status === 'scheduled';
+  const canCancel = task.status === 'running';
 
   return (
     <article className="pixel-frame rounded-[14px] border border-slate-800 bg-slate-950/70 p-4 transition-all duration-200 hover:brightness-110">
@@ -52,7 +53,7 @@ export function TaskCard({ task, onClear = noop, onEdit = noop, onCancel = noop 
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-800/80 pt-3">
-        {isFinished ? (
+        {canClear ? (
           <button type="button" onClick={onClear} className={`${actionButtonBase} ${clearButtonStyle}`}>
             Clear
           </button>

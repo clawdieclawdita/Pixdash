@@ -364,7 +364,7 @@ export function useAgents() {
       }
       case 'task.status_update': {
         const payload = lastEvent.payload as EventPayloadMap['task.status_update'];
-        useTasksStore.getState().updateTaskStatus(payload.taskId, payload.status);
+        useTasksStore.getState().handleTaskStatusEvent(payload);
         break;
       }
       case 'agent:position': {

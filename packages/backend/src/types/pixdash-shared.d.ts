@@ -69,6 +69,19 @@ declare module '@pixdash/shared' {
 
   export type UserTaskStatus = 'pending' | 'scheduled' | 'running' | 'completed' | 'failed';
 
+  export interface UserTask {
+    id: string;
+    name: string;
+    description: string;
+    status: UserTaskStatus;
+    assignedTo: string;
+    replySession?: string;
+    scheduledAt?: string;
+    createdAt: string;
+    updatedAt: string;
+    metadata?: Record<string, unknown>;
+  }
+
   export type CanonicalWaypointType = 'spawn' | 'parking' | 'desk' | 'reception' | 'restroom' | 'conference' | 'dining';
   export type MovementAuthorityStatus = 'idle' | 'moving' | 'seated';
 

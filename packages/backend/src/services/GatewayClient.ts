@@ -13,6 +13,7 @@ import process from 'node:process';
 import WebSocket from 'ws';
 import type { BackendConfig, GatewayEnvelope, GatewayLogEvent, GatewayStatusEvent, GatewayTaskEvent, OpenClawConfig } from '../types/index.js';
 import { AgentStateManager } from './AgentStateManager.js';
+import { taskStore } from './TaskStore.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger(process.env.PIXDASH_LOG_LEVEL as never);
@@ -693,6 +694,10 @@ export class GatewayClient {
     this.dispatchedTasks.delete(agentId);
     const completedAt = new Date().toISOString();
     logger.info({ ...dispatchedTask, completedAt }, 'Detected PixDash task completion from agent status transition');
+
+    // Update the TaskStore so backend is consistent
+    taskStore.update(dispatchedTask.taskId, { status: 'completed' });
+
     this.agentStateManager.applyTaskStatusUpdate({
       taskId: dispatchedTask.taskId,
       status: 'completed',

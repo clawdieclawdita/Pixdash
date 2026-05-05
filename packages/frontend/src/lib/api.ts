@@ -3,6 +3,7 @@ import type {
   AgentLog as SharedAgentLog,
   AgentTask as SharedAgentTask,
   Appearance,
+  UserTask,
   UserTaskStatus
 } from '@pixdash/shared';
 
@@ -140,8 +141,33 @@ export async function fetchAgentSessions(agentId: string): Promise<string[]> {
   return data.success ? data.sessions : [];
 }
 
-export function executeTask(agentId: string, prompt: string, taskName: string, taskId?: string, replySession?: string): Promise<{ success: boolean; response?: string; error?: string }> {
-  return request<{ success: boolean; response?: string; error?: string }>('/tasks/execute', {
+export async function fetchTasks(): Promise<UserTask[]> {
+  const data = await request<{ success: boolean; tasks: UserTask[] }>('/tasks');
+  return data.success ? data.tasks : [];
+}
+
+export function createTask(task: Omit<UserTask, 'id' | 'createdAt' | 'updatedAt'>): Promise<{ success: boolean; task: UserTask }> {
+  return request<{ success: boolean; task: UserTask }>('/tasks', {
+    method: 'POST',
+    body: JSON.stringify(task),
+  });
+}
+
+export function updateTask(id: string, updates: Partial<Omit<UserTask, 'id' | 'createdAt' | 'updatedAt'>>): Promise<{ success: boolean; task: UserTask }> {
+  return request<{ success: boolean; task: UserTask }>(`/tasks/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export function deleteTask(id: string): Promise<{ success: boolean; taskId: string }> {
+  return request<{ success: boolean; taskId: string }>(`/tasks/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function executeTask(agentId: string, prompt: string, taskName: string, taskId?: string, replySession?: string): Promise<{ success: boolean; response?: string; error?: string; task?: UserTask }> {
+  return request<{ success: boolean; response?: string; error?: string; task?: UserTask }>('/tasks/execute', {
     method: 'POST',
     body: JSON.stringify({ agentId, prompt, taskName, taskId, replySession }),
   });

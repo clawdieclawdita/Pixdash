@@ -6,7 +6,7 @@ interface EditTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   task: UserTask;
-  onUpdate: (id: string, updates: Partial<Pick<UserTask, 'description' | 'name'>>) => void;
+  onUpdate: (id: string, updates: Partial<Pick<UserTask, 'description' | 'name'>>) => void | Promise<void>;
   onRestart: (task: UserTask) => void;
   onCancelTask: (id: string) => void;
 }

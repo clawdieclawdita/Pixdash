@@ -7,7 +7,7 @@ services:
       - ./.env:/app/.env:ro
       # OpenClaw config (Gateway token) + device key (Ed25519 identity)
       - ~/.openclaw/openclaw.json:/root/.openclaw/openclaw.json:ro
-      - ~/.openclaw/pixdash:/root/.openclaw/pixdash:ro
+      - ~/.openclaw/pixdash:/root/.openclaw/pixdash
     environment:
       - NODE_ENV=production
       - PIXDASH_HOST=0.0.0.0

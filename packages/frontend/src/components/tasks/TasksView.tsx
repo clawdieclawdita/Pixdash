@@ -4,7 +4,7 @@ import { TaskCard } from '@/components/tasks/TaskCard';
 import { CreateTaskModal } from '@/components/tasks/CreateTaskModal';
 import { EditTaskModal } from '@/components/tasks/EditTaskModal';
 import { useTasksStore } from '@/store/tasksStore';
-import { executeTask, updateTaskStatus as updateTaskStatusApi } from '@/lib/api';
+import { executeTask } from '@/lib/api';
 
 export function TasksView() {
   const tasks = useTasksStore((state) => state.tasks);
@@ -16,51 +16,43 @@ export function TasksView() {
   const [editingTask, setEditingTask] = useState<UserTask | null>(null);
 
   const setTaskStatus = async (id: string, status: UserTask['status']) => {
-    updateTaskStatus(id, status);
-
     try {
-      const result = await updateTaskStatusApi(id, status);
-      if (!result.success) {
-        updateTaskStatus(id, 'failed');
+      const updated = await updateTaskStatus(id, status);
+      if (!updated) {
+        return;
       }
     } catch {
-      updateTaskStatus(id, 'failed');
+      await updateTaskStatus(id, 'failed').catch(() => undefined);
     }
   };
 
   const addAndExecuteTask = async (task: Parameters<typeof addTask>[0]) => {
-    const created = addTask(task);
+    const created = await addTask(task);
 
     if (task.status !== 'running') {
       return;
     }
 
-    // Fire-and-forget: send the task prompt to the agent via the Gateway.
-    // The agent receives it as a normal inbound message and acts on it.
-    // We don't block the UI waiting for the agent to finish.
     try {
-      const result = await executeTask(task.assignedTo, task.description, task.name, created.id, task.replySession)
+      const result = await executeTask(task.assignedTo, task.description, task.name, created.id, task.replySession);
       if (!result.success) {
-        // Delivery failed — mark the task as failed
-        updateTaskStatus(created.id, 'failed');
+        await updateTaskStatus(created.id, 'failed').catch(() => undefined);
       }
-      // If success, leave as 'running' — the agent is working on it.
-      // The user can observe the agent's activity in the Office view.
     } catch {
-      updateTaskStatus(created.id, 'failed');
+      await updateTaskStatus(created.id, 'failed').catch(() => undefined);
     }
   };
 
   const restartTask = async (task: UserTask) => {
-    updateTaskStatus(task.id, 'running');
+    await updateTask(task.id, { status: 'running' });
 
     try {
       const result = await executeTask(task.assignedTo, task.description, task.name, task.id, task.replySession);
       if (!result.success) {
-        updateTaskStatus(task.id, 'failed');
+        await updateTaskStatus(task.id, 'failed').catch(() => undefined);
       }
     } catch {
-      updateTaskStatus(task.id, 'failed');
+      await updateTaskStatus(task.id, 'failed').catch(() => undefined);
     }
   };
 
@@ -90,7 +82,7 @@ export function TasksView() {
             <TaskCard
               key={task.id}
               task={task}
-              onClear={() => clearTask(task.id)}
+              onClear={() => void clearTask(task.id)}
               onEdit={() => setEditingTask(task)}
               onCancel={() => void setTaskStatus(task.id, 'failed')}
             />
@@ -104,7 +96,7 @@ export function TasksView() {
           isOpen={editingTask !== null}
           onClose={() => setEditingTask(null)}
           task={editingTask}
-          onUpdate={updateTask}
+          onUpdate={(id, updates) => void updateTask(id, updates)}
           onRestart={(task) => void restartTask(task)}
           onCancelTask={(id) => void setTaskStatus(id, 'failed')}
         />
